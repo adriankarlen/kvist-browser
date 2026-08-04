@@ -1,28 +1,24 @@
 <script lang="ts">
-  const status: string = 'phase 0 — plumbing check'
+  import { contentRect } from "./lib/browser.svelte";
+  import Omnibox from "./lib/Omnibox.svelte";
+  import TabStrip from "./lib/TabStrip.svelte";
 </script>
 
-<header class="chrome">
-  <span class="brand">kvist</span>
-  <span class="hint">{status}</span>
-</header>
+<div class="shell">
+  <TabStrip />
+  <Omnibox />
+  <div class="content" use:contentRect></div>
+</div>
 
 <style>
-  .chrome {
+  .shell {
     display: flex;
-    align-items: center;
-    gap: 0.75ch;
-    height: var(--kv-chrome-height);
-    padding: 0 1ch;
-    border-bottom: 1px solid var(--kv-border);
-    -webkit-app-region: drag;
+    flex-direction: column;
+    height: 100vh;
   }
 
-  .brand {
-    color: var(--kv-accent);
-  }
-
-  .hint {
-    color: var(--kv-muted);
+  .content {
+    flex: 1;
+    min-height: 0;
   }
 </style>

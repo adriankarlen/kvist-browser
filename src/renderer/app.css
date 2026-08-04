@@ -1,6 +1,8 @@
 :root {
-  --kv-chrome-height: 40px;
+  --kv-tabstrip-height: 28px;
+  --kv-omnibox-height: 28px;
   --kv-bg: #1d1d1d;
+  --kv-bg-alt: #282828;
   --kv-fg: #d4be98;
   --kv-muted: #7c6f64;
   --kv-accent: #a9b665;

@@ -25,7 +25,14 @@ export default defineConfig({
       },
       preload: {
         input: "src/preload/index.ts",
-        vite: { build: { outDir: "dist/preload" } },
+        vite: {
+          build: {
+            outDir: "dist/preload",
+            // The plugin emits CommonJS but names it .mjs when the package is
+            // type: module, which Electron then refuses to load as ESM.
+            rolldownOptions: { output: { entryFileNames: "[name].cjs" } },
+          },
+        },
       },
     }),
   ],

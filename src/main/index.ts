@@ -1,10 +1,9 @@
 import { join } from "node:path";
-import { app, BrowserWindow, WebContentsView } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+import { CHANNELS, type Rect, type TabId } from "../shared/ipc";
+import { TabManager } from "./tab-manager";
 
-const CHROME_HEIGHT = 40;
-const HOMEPAGE = "https://example.com";
-
-const preload = join(import.meta.dirname, "../preload/index.mjs");
+const preload = join(import.meta.dirname, "../preload/index.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 
 function createWindow(): void {
@@ -16,30 +15,33 @@ function createWindow(): void {
     webPreferences: { preload },
   });
 
+  const tabs = new TabManager(win, (state) => {
+    if (!win.isDestroyed()) win.webContents.send(CHANNELS.state, state);
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
     void win.loadFile(rendererHtml);
   }
 
-  const tab = new WebContentsView();
-  win.contentView.addChildView(tab);
-  void tab.webContents.loadURL(HOMEPAGE);
+  win.webContents.once("did-finish-load", () => tabs.create());
 
-  // The window's own 'resize' event reports stale content bounds on Wayland;
-  // the parent view's post-layout event is the only reliable source.
-  const layout = (): void => {
-    const { width, height } = win.contentView.getBounds();
-    tab.setBounds({
-      x: 0,
-      y: CHROME_HEIGHT,
-      width,
-      height: Math.max(0, height - CHROME_HEIGHT),
+  const on = (channel: string, handler: (...args: never[]) => void): void => {
+    ipcMain.on(channel, (event, ...args) => {
+      if (event.sender === win.webContents) handler(...(args as never[]));
     });
   };
 
-  layout();
-  win.contentView.on("bounds-changed", layout);
+  on(CHANNELS.contentRect, (rect: Rect) => tabs.setContentRect(rect));
+  on(CHANNELS.createTab, (url?: string) => tabs.create(url));
+  on(CHANNELS.closeTab, (id: TabId) => tabs.close(id));
+  on(CHANNELS.activateTab, (id: TabId) => tabs.activate(id));
+  on(CHANNELS.navigate, (url: string) => tabs.navigate(url));
+  on(CHANNELS.goBack, () => tabs.goBack());
+  on(CHANNELS.goForward, () => tabs.goForward());
+  on(CHANNELS.reload, () => tabs.reload());
+  on(CHANNELS.toggleDevTools, () => tabs.toggleDevTools());
 }
 
 void app.whenReady().then(() => {
