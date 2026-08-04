@@ -1,0 +1,22 @@
+:root {
+  --kv-chrome-height: 40px;
+  --kv-bg: #1d1d1d;
+  --kv-fg: #d4be98;
+  --kv-muted: #7c6f64;
+  --kv-accent: #a9b665;
+  --kv-border: #3c3836;
+  --kv-font: "JetBrainsMono Nerd Font", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--kv-bg);
+  color: var(--kv-fg);
+  font-family: var(--kv-font);
+  font-size: 13px;
+  user-select: none;
+}

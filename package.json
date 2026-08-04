@@ -1,0 +1,28 @@
+{
+  "name": "kvist",
+  "version": "0.0.0",
+  "description": "A highly configurable TUI-styled browser built upon Chromium",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "check": "vp check",
+    "postinstall": "install-electron"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "svelte": "^5.56.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vite-plugin-electron": "^1.1.1",
+    "vite-plus": "^0.2.7"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "packageManager": "pnpm@11.20.0"
+}
