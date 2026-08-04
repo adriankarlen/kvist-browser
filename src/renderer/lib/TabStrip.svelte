@@ -1,8 +1,15 @@
 <script lang="ts">
   import { browser } from "./browser.svelte";
+  import type { TabOrientation } from "./settings.svelte";
+
+  let { orientation }: { orientation: TabOrientation } = $props();
 </script>
 
-<nav class="strip">
+<nav
+  class="strip"
+  class:vertical={orientation === "vertical"}
+  class:horizontal={orientation === "horizontal"}
+>
   {#each browser.tabs as tab (tab.id)}
     <div class="tab" class:active={tab.id === browser.activeId}>
       <button class="label" onclick={() => window.kvist.activateTab(tab.id)}>
@@ -26,12 +33,21 @@
 <style>
   .strip {
     display: flex;
+    overflow: auto;
+    scrollbar-width: none;
+  }
+
+  .horizontal {
+    flex-direction: row;
     align-items: stretch;
-    gap: 1px;
     height: var(--kv-tabstrip-height);
     border-bottom: 1px solid var(--kv-border);
-    overflow-x: auto;
-    scrollbar-width: none;
+  }
+
+  .vertical {
+    flex-direction: column;
+    width: var(--kv-sidebar-width);
+    border-right: 1px solid var(--kv-border);
   }
 
   button {
@@ -47,11 +63,20 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    flex: 0 1 22ch;
     padding: 0 1ch;
     gap: 1ch;
     color: var(--kv-muted);
+  }
+
+  .horizontal .tab {
+    flex: 0 1 22ch;
     border-right: 1px solid var(--kv-border);
+  }
+
+  .vertical .tab {
+    flex: none;
+    height: var(--kv-tabstrip-height);
+    border-bottom: 1px solid var(--kv-border);
   }
 
   .tab.active {
@@ -77,11 +102,6 @@
     flex: none;
   }
 
-  .drag {
-    flex: 1;
-    -webkit-app-region: drag;
-  }
-
   .title {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -94,7 +114,22 @@
   }
 
   .new {
-    padding: 0 1.5ch;
+    flex: none;
     color: var(--kv-muted);
+  }
+
+  .horizontal .new {
+    padding: 0 1.5ch;
+  }
+
+  .vertical .new {
+    height: var(--kv-tabstrip-height);
+    padding: 0 2ch;
+    text-align: left;
+  }
+
+  .drag {
+    flex: 1;
+    -webkit-app-region: drag;
   }
 </style>

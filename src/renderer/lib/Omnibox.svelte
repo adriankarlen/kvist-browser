@@ -1,5 +1,6 @@
 <script lang="ts">
   import { browser } from "./browser.svelte";
+  import { ui } from "./settings.svelte";
 
   let input = $state<HTMLInputElement>();
   let draft = $state("");
@@ -54,6 +55,11 @@
     onblur={() => (focused = false)}
   />
 
+  <button
+    type="button"
+    title="Toggle tab orientation"
+    onclick={() => ui.toggleTabOrientation()}>{ui.tabOrientation === "vertical" ? "—" : "|"}</button
+  >
   <button type="button" title="DevTools" onclick={() => window.kvist.toggleDevTools()}>d</button>
 </form>
 

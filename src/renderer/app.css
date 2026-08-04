@@ -1,5 +1,6 @@
 :root {
   --kv-tabstrip-height: 28px;
+  --kv-sidebar-width: 26ch;
   --kv-omnibox-height: 28px;
   --kv-bg: #1d1d1d;
   --kv-bg-alt: #282828;
