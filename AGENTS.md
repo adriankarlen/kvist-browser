@@ -95,14 +95,14 @@ matches its own shell command line.
 
 - **Preload must be emitted as `.cjs`.** `vite-plugin-electron` names it `.mjs`
   under `"type": "module"` but still emits CommonJS; Electron then parses it as
-  ESM and the preload fails *silently* — `window.kvist` is simply undefined with
+  ESM and the preload fails _silently_ — `window.kvist` is simply undefined with
   nothing in any log. Overridden in `vite.config.ts`.
 - **`BrowserWindow`'s `resize` event reports stale bounds** on Wayland, and
   carries no bounds payload. Use `win.contentView.on("bounds-changed")`.
 - **`~/.config/kvist` is the user's**, for hand-edited config only. Electron
   defaults `userData` there on Linux; `src/main/paths.ts` redirects profile
   state to `XDG_DATA_HOME`. Never write to the config dir.
-- Config watching watches the *directory*, not the files — editors rename over
+- Config watching watches the _directory_, not the files — editors rename over
   files, which swaps the inode and kills a file watch.
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.

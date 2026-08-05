@@ -2,7 +2,10 @@
   .kv-shell {
     display: flex;
     flex-direction: column;
+    gap: var(--kv-chrome-inset);
     height: 100vh;
+    padding: var(--kv-chrome-inset);
+    background: var(--kv-chrome-bg);
   }
 
   .kv-shell.is-sidebar {
@@ -12,14 +15,21 @@
   .kv-main {
     display: flex;
     flex-direction: column;
+    gap: var(--kv-chrome-inset);
     flex: 1;
     min-width: 0;
     min-height: 0;
   }
 
-  /* Reserves the rectangle the active tab's WebContentsView is placed into. */
+  /*
+   * Reserves the rectangle the active tab's WebContentsView is placed into.
+   * The view is a native layer painted over this element, so inset it with
+   * margin rather than border or padding — those sit inside the reported
+   * rectangle and the page would simply cover them.
+   */
   .kv-content {
     flex: 1;
     min-height: 0;
+    margin: var(--kv-content-inset);
   }
 }

@@ -5,8 +5,8 @@
 
   body {
     margin: 0;
-    background: var(--kv-color-bg);
-    color: var(--kv-color-fg);
+    background: var(--kv-color-base);
+    color: var(--kv-color-text);
     font-family: var(--kv-font-family);
     font-size: var(--kv-font-size);
     user-select: none;

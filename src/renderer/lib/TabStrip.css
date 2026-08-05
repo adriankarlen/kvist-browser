@@ -3,19 +3,20 @@
     display: flex;
     overflow: auto;
     scrollbar-width: none;
+    background: var(--kv-tabstrip-bg);
+    border: var(--kv-border-width) solid var(--kv-tabstrip-border);
+    border-radius: var(--kv-tabstrip-radius);
   }
 
   .kv-tabstrip.is-horizontal {
     flex-direction: row;
     align-items: stretch;
     height: var(--kv-tabstrip-height);
-    border-bottom: 1px solid var(--kv-tabstrip-border);
   }
 
   .kv-tabstrip.is-vertical {
     flex-direction: column;
     width: var(--kv-sidebar-width);
-    border-right: 1px solid var(--kv-tabstrip-border);
   }
 
   .kv-tab {
@@ -30,13 +31,13 @@
 
   .kv-tabstrip.is-horizontal .kv-tab {
     flex: 0 1 var(--kv-tab-width);
-    border-right: 1px solid var(--kv-tab-border);
+    border-right: var(--kv-border-width) solid var(--kv-tab-border);
   }
 
   .kv-tabstrip.is-vertical .kv-tab {
     flex: none;
     height: var(--kv-tabstrip-height);
-    border-bottom: 1px solid var(--kv-tab-border);
+    border-bottom: var(--kv-border-width) solid var(--kv-tab-border);
   }
 
   .kv-tab.is-active {

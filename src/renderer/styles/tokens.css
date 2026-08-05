@@ -1,40 +1,71 @@
 /*
- * The theme API. Palette tokens retheme the whole browser; component tokens
- * below let you change one thing without touching the palette.
+ * The theme API, in three tiers.
+ *
+ *   palette  — what colour things are. Swap these to reskin the whole browser.
+ *   metrics  — how big and how spaced. Swap these to restructure the chrome.
+ *   parts    — per-component, built from the two tiers above. Override one of
+ *              these to change a single element without disturbing anything else.
+ *
+ * Ships with Rosé Pine (main). Moon and Dawn are a palette-block swap in
+ * ~/.config/kvist/config.css; nothing below the palette tier needs to change.
  */
 @layer kvist.tokens {
   :root {
-    /* palette */
-    --kv-color-bg: #1d1d1d;
-    --kv-color-bg-alt: #282828;
-    --kv-color-fg: #d4be98;
-    --kv-color-muted: #7c6f64;
-    --kv-color-accent: #a9b665;
-    --kv-color-border: #3c3836;
+    /* ---- palette ------------------------------------------------------- */
+    --kv-color-base: #191724;
+    --kv-color-surface: #1f1d2e;
+    --kv-color-overlay: #26233a;
+    --kv-color-muted: #6e6a86;
+    --kv-color-subtle: #908caa;
+    --kv-color-text: #e0def4;
 
-    /* typography */
+    --kv-color-accent: #c4a7e7;
+    --kv-color-accent-alt: #9ccfd8;
+    --kv-color-warning: #f6c177;
+    --kv-color-danger: #eb6f92;
+
+    --kv-color-highlight-low: #21202e;
+    --kv-color-highlight-med: #403d52;
+    --kv-color-highlight-high: #524f67;
+
+    /* ---- metrics ------------------------------------------------------- */
     --kv-font-family: "JetBrainsMono Nerd Font", monospace;
     --kv-font-size: 13px;
 
-    /* metrics */
+    --kv-space: 6px;
+    --kv-radius: 6px;
+    --kv-border-width: 1px;
+    --kv-border-color: var(--kv-color-highlight-med);
+
+    /* Gap between the chrome and the window edge; 0 sits the chrome flush. */
+    --kv-chrome-inset: var(--kv-space);
+    /* Gap between the chrome and the page; 0 sits the page flush. */
+    --kv-content-inset: var(--kv-space);
+
     --kv-tabstrip-height: 28px;
     --kv-sidebar-width: 26ch;
     --kv-omnibox-height: 28px;
-
-    /* tab strip */
-    --kv-tabstrip-border: var(--kv-color-border);
     --kv-tab-width: 22ch;
+
+    /* ---- parts --------------------------------------------------------- */
+    --kv-chrome-bg: var(--kv-color-base);
+
+    --kv-tabstrip-bg: var(--kv-color-surface);
+    --kv-tabstrip-border: var(--kv-border-color);
+    --kv-tabstrip-radius: var(--kv-radius);
+
     --kv-tab-fg: var(--kv-color-muted);
     --kv-tab-bg: transparent;
-    --kv-tab-active-fg: var(--kv-color-fg);
-    --kv-tab-active-bg: var(--kv-color-bg-alt);
-    --kv-tab-border: var(--kv-color-border);
+    --kv-tab-active-fg: var(--kv-color-text);
+    --kv-tab-active-bg: var(--kv-color-overlay);
+    --kv-tab-border: var(--kv-border-color);
     --kv-tab-marker-fg: var(--kv-color-accent);
     --kv-tab-hover-fg: var(--kv-color-accent);
 
-    /* omnibox */
-    --kv-omnibox-border: var(--kv-color-border);
-    --kv-omnibox-fg: var(--kv-color-fg);
+    --kv-omnibox-bg: var(--kv-color-surface);
+    --kv-omnibox-fg: var(--kv-color-text);
+    --kv-omnibox-border: var(--kv-border-color);
+    --kv-omnibox-radius: var(--kv-radius);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
     --kv-omnibox-placeholder-fg: var(--kv-color-muted);
     --kv-omnibox-button-fg: var(--kv-color-muted);
