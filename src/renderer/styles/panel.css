@@ -19,12 +19,10 @@
     position: absolute;
     top: 0;
     left: var(--kv-panel-label-offset);
-    transform: translateY(-50%);
+    transform: translateY(-60%);
     padding: 0 0.5ch;
     background: var(--kv-panel-label-bg);
     color: var(--kv-panel-label-fg);
     font-size: var(--kv-panel-label-size);
-    line-height: 1;
-    pointer-events: none;
   }
 }

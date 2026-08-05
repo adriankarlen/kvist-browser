@@ -1,8 +1,6 @@
 @layer kvist.components {
   .kv-tabstrip {
     display: flex;
-    overflow: auto;
-    scrollbar-width: none;
   }
 
   .kv-tabstrip.is-horizontal {
@@ -26,6 +24,10 @@
     background: var(--kv-tab-bg);
   }
 
+  .kv-tab:hover {
+    background: var(--kv-tab-hover-bg);
+  }
+
   .kv-tabstrip.is-horizontal .kv-tab {
     flex: 0 1 var(--kv-tab-width);
     border-right: var(--kv-border-width) solid var(--kv-tab-border);
@@ -39,6 +41,7 @@
   .kv-tab.is-active {
     color: var(--kv-tab-active-fg);
     background: var(--kv-tab-active-bg);
+    font-weight: 600;
   }
 
   .kv-tab__label {
@@ -77,16 +80,13 @@
 
   .kv-tabstrip.is-horizontal .kv-tabstrip__new {
     padding: 0 1.5ch;
+    height: var(--kv-tabstrip-height);
   }
 
   .kv-tabstrip.is-vertical .kv-tabstrip__new {
     height: var(--kv-tabstrip-height);
     padding: 0 2ch;
     text-align: left;
-  }
-
-  .kv-tabstrip.is-horizontal .kv-tabstrip__new {
-    height: var(--kv-tabstrip-height);
   }
 
   /* Fills the leftover strip space so a frameless window stays draggable. */
