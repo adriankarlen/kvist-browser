@@ -37,10 +37,8 @@
     --kv-border-width: 2px;
     --kv-border-color: var(--kv-color-highlight-med);
 
-    /* Gap between the chrome and the window edge; 0 sits the chrome flush. */
+    /* Gap around and between the chrome panels; 0 sits everything flush. */
     --kv-chrome-inset: var(--kv-space);
-    /* Gap between the chrome and the page; 0 sits the page flush. */
-    --kv-content-inset: var(--kv-space);
 
     --kv-tabstrip-height: 28px;
     --kv-sidebar-width: 26ch;
@@ -50,9 +48,14 @@
     /* ---- parts --------------------------------------------------------- */
     --kv-chrome-bg: var(--kv-color-base);
 
-    --kv-tabstrip-bg: var(--kv-color-surface);
-    --kv-tabstrip-border: var(--kv-border-color);
-    --kv-tabstrip-radius: var(--kv-radius);
+    /* the framed box every chrome region is built from */
+    --kv-panel-bg: var(--kv-color-surface);
+    --kv-panel-border: var(--kv-border-color);
+    --kv-panel-padding: var(--kv-space);
+    --kv-panel-label-bg: var(--kv-chrome-bg);
+    --kv-panel-label-fg: var(--kv-color-subtle);
+    --kv-panel-label-size: 11px;
+    --kv-panel-label-offset: 2ch;
 
     --kv-tab-fg: var(--kv-color-muted);
     --kv-tab-bg: transparent;
@@ -62,10 +65,7 @@
     --kv-tab-marker-fg: var(--kv-color-accent);
     --kv-tab-hover-fg: var(--kv-color-accent);
 
-    --kv-omnibox-bg: var(--kv-color-surface);
     --kv-omnibox-fg: var(--kv-color-text);
-    --kv-omnibox-border: var(--kv-border-color);
-    --kv-omnibox-radius: var(--kv-radius);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
     --kv-omnibox-placeholder-fg: var(--kv-color-muted);
     --kv-omnibox-button-fg: var(--kv-color-muted);

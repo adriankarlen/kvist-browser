@@ -19,15 +19,23 @@ export const browser = {
   },
 };
 
-/** Keeps the main process in sync with wherever the chrome leaves room for page content. */
+/**
+ * Keeps the main process in sync with wherever the chrome leaves room for page
+ * content. Reports the content box, not the border box: the tab's
+ * WebContentsView is a native layer painted over this element, so it would
+ * cover any border or padding included in the rectangle.
+ */
 export function contentRect(node: HTMLElement): { destroy: () => void } {
   const report = (): void => {
-    const { x, y, width, height } = node.getBoundingClientRect();
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    const padLeft = parseFloat(style.paddingLeft);
+    const padTop = parseFloat(style.paddingTop);
     const rect: Rect = {
-      x: Math.round(x),
-      y: Math.round(y),
-      width: Math.round(width),
-      height: Math.round(height),
+      x: Math.round(box.x + node.clientLeft + padLeft),
+      y: Math.round(box.y + node.clientTop + padTop),
+      width: Math.round(node.clientWidth - padLeft - parseFloat(style.paddingRight)),
+      height: Math.round(node.clientHeight - padTop - parseFloat(style.paddingBottom)),
     };
     window.kvist.setContentRect(rect);
   };

@@ -3,11 +3,7 @@
     display: flex;
     align-items: center;
     gap: 1ch;
-    height: var(--kv-omnibox-height);
-    padding: 0 1ch;
-    background: var(--kv-omnibox-bg);
-    border: var(--kv-border-width) solid var(--kv-omnibox-border);
-    border-radius: var(--kv-omnibox-radius);
+    min-height: var(--kv-omnibox-height);
   }
 
   .kv-omnibox__button {

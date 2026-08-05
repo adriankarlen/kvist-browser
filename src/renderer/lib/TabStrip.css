@@ -3,15 +3,11 @@
     display: flex;
     overflow: auto;
     scrollbar-width: none;
-    background: var(--kv-tabstrip-bg);
-    border: var(--kv-border-width) solid var(--kv-tabstrip-border);
-    border-radius: var(--kv-tabstrip-radius);
   }
 
   .kv-tabstrip.is-horizontal {
     flex-direction: row;
     align-items: stretch;
-    height: var(--kv-tabstrip-height);
   }
 
   .kv-tabstrip.is-vertical {
@@ -24,6 +20,7 @@
     align-items: center;
     gap: 1ch;
     min-width: 0;
+    height: var(--kv-tabstrip-height);
     padding: 0 1ch;
     color: var(--kv-tab-fg);
     background: var(--kv-tab-bg);
@@ -36,7 +33,6 @@
 
   .kv-tabstrip.is-vertical .kv-tab {
     flex: none;
-    height: var(--kv-tabstrip-height);
     border-bottom: var(--kv-border-width) solid var(--kv-tab-border);
   }
 
@@ -87,6 +83,10 @@
     height: var(--kv-tabstrip-height);
     padding: 0 2ch;
     text-align: left;
+  }
+
+  .kv-tabstrip.is-horizontal .kv-tabstrip__new {
+    height: var(--kv-tabstrip-height);
   }
 
   /* Fills the leftover strip space so a frameless window stays draggable. */

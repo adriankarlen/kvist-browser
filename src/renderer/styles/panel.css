@@ -1,0 +1,30 @@
+/*
+ * The framed box every chrome region is built from: a border with a small
+ * label cutting into its top edge, like a fieldset legend.
+ *
+ * The label is a pseudo-element fed by data-label, so panels stay one element
+ * and users can restyle or blank the labels entirely from config.css.
+ */
+@layer kvist.components {
+  .kv-panel {
+    position: relative;
+    background: var(--kv-panel-bg);
+    border: var(--kv-border-width) solid var(--kv-panel-border);
+    border-radius: var(--kv-radius);
+    padding: var(--kv-panel-padding);
+  }
+
+  .kv-panel[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    top: 0;
+    left: var(--kv-panel-label-offset);
+    transform: translateY(-50%);
+    padding: 0 0.5ch;
+    background: var(--kv-panel-label-bg);
+    color: var(--kv-panel-label-fg);
+    font-size: var(--kv-panel-label-size);
+    line-height: 1;
+    pointer-events: none;
+  }
+}

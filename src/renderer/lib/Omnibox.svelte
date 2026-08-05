@@ -27,7 +27,7 @@
   }
 </script>
 
-<form class="kv-omnibox" onsubmit={submit}>
+<form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit}>
   <button
     class="kv-omnibox__button"
     type="button"

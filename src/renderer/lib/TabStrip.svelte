@@ -7,7 +7,8 @@
 </script>
 
 <nav
-  class="kv-tabstrip"
+  class="kv-panel kv-tabstrip"
+  data-label="tabs"
   class:is-vertical={orientation === "vertical"}
   class:is-horizontal={orientation === "horizontal"}
 >

@@ -21,15 +21,9 @@
     min-height: 0;
   }
 
-  /*
-   * Reserves the rectangle the active tab's WebContentsView is placed into.
-   * The view is a native layer painted over this element, so inset it with
-   * margin rather than border or padding — those sit inside the reported
-   * rectangle and the page would simply cover them.
-   */
+  /* Reserves the rectangle the active tab's WebContentsView is placed into. */
   .kv-content {
     flex: 1;
     min-height: 0;
-    margin: var(--kv-content-inset);
   }
 }
