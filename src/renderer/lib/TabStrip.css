@@ -68,7 +68,10 @@
     white-space: nowrap;
   }
 
-  .kv-tab__close:hover,
+  .kv-tab__close:hover {
+    color: var(--kv-tab-hover-close);
+  }
+
   .kv-tabstrip__new:hover {
     color: var(--kv-tab-hover-fg);
   }

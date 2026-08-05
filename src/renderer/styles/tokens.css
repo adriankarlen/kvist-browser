@@ -65,6 +65,7 @@
     --kv-tab-marker-fg: var(--kv-color-accent);
     --kv-tab-hover-bg: var(--kv-color-surface);
     --kv-tab-hover-fg: var(--kv-color-accent);
+    --kv-tab-hover-close: var(--kv-color-danger);
 
     --kv-omnibox-fg: var(--kv-color-text);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
