@@ -33,8 +33,8 @@
     --kv-font-size: 13px;
 
     --kv-space: 6px;
-    --kv-radius: 6px;
-    --kv-border-width: 1px;
+    --kv-radius: 0;
+    --kv-border-width: 2px;
     --kv-border-color: var(--kv-color-highlight-med);
 
     /* Gap between the chrome and the window edge; 0 sits the chrome flush. */
