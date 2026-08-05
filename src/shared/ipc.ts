@@ -1,3 +1,5 @@
+import type { UserConfig } from "./config";
+
 export type TabId = number;
 
 export interface TabState {
@@ -24,6 +26,7 @@ export interface Rect {
 
 export const CHANNELS = {
   state: "kvist:state",
+  config: "kvist:config",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
   closeTab: "kvist:close-tab",
@@ -37,6 +40,7 @@ export const CHANNELS = {
 
 export interface KvistApi {
   onState: (listener: (state: BrowserState) => void) => () => void;
+  onConfig: (listener: (config: UserConfig) => void) => () => void;
   /** Reports the chrome's content rectangle so the active tab can be positioned under it. */
   setContentRect: (rect: Rect) => void;
   createTab: (url?: string) => void;

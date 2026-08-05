@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { UserConfig } from "../shared/config";
 import { type BrowserState, CHANNELS, type KvistApi } from "../shared/ipc";
 
 const api: KvistApi = {
@@ -6,6 +7,11 @@ const api: KvistApi = {
     const handler = (_event: unknown, state: BrowserState): void => listener(state);
     ipcRenderer.on(CHANNELS.state, handler);
     return () => void ipcRenderer.off(CHANNELS.state, handler);
+  },
+  onConfig(listener) {
+    const handler = (_event: unknown, config: UserConfig): void => listener(config);
+    ipcRenderer.on(CHANNELS.config, handler);
+    return () => void ipcRenderer.off(CHANNELS.config, handler);
   },
   setContentRect: (rect) => ipcRenderer.send(CHANNELS.contentRect, rect),
   createTab: (url) => ipcRenderer.send(CHANNELS.createTab, url),

@@ -1,7 +1,6 @@
 import { type BaseWindow, WebContentsView } from "electron";
+import { DEFAULT_SETTINGS } from "../shared/config";
 import type { BrowserState, Rect, TabId, TabState } from "../shared/ipc";
-
-export const HOMEPAGE = "https://example.com";
 
 interface Tab {
   id: TabId;
@@ -20,13 +19,14 @@ export class TabManager {
   #activeId: TabId | null = null;
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #nextId = 1;
+  homepage = DEFAULT_SETTINGS.homepage;
 
   constructor(window: BaseWindow, emit: (state: BrowserState) => void) {
     this.#window = window;
     this.#emit = emit;
   }
 
-  create(url: string = HOMEPAGE): void {
+  create(url: string = this.homepage): void {
     const id = this.#nextId++;
     const view = new WebContentsView();
     const tab: Tab = { id, view, title: url, url, favicon: null, loading: true };

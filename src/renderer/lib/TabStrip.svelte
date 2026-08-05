@@ -1,7 +1,7 @@
 <script lang="ts">
   import "./TabStrip.css";
   import { browser } from "./browser.svelte";
-  import type { TabOrientation } from "./settings.svelte";
+  import type { TabOrientation } from "../../shared/config";
 
   let { orientation }: { orientation: TabOrientation } = $props();
 </script>

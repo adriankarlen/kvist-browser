@@ -9,6 +9,9 @@ function xdg(variable: string, fallback: string): string {
   return join(base && base !== "" ? base : join(homedir(), fallback), APP_DIR);
 }
 
+/** Hand-edited config lives here; Kvist only ever reads from it. */
+export const configDir = xdg("XDG_CONFIG_HOME", ".config");
+
 /**
  * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
  * state would bury the hand-edited config that belongs there. Keeps

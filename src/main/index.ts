@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
+import type { UserConfig } from "../shared/config";
 import { CHANNELS, type Rect, type TabId } from "../shared/ipc";
+import { loadConfig, watchConfig } from "./config";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
 
@@ -9,7 +11,7 @@ applyXdgPaths();
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 
-function createWindow(): void {
+function createWindow(config: UserConfig): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -28,7 +30,19 @@ function createWindow(): void {
     void win.loadFile(rendererHtml);
   }
 
-  win.webContents.once("did-finish-load", () => tabs.create());
+  tabs.homepage = config.settings.homepage;
+
+  const applyConfig = (next: UserConfig): void => {
+    tabs.homepage = next.settings.homepage;
+    if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
+  };
+
+  win.webContents.once("did-finish-load", () => {
+    applyConfig(config);
+    tabs.create();
+  });
+
+  void watchConfig(applyConfig);
 
   const on = (channel: string, handler: (...args: never[]) => void): void => {
     ipcMain.on(channel, (event, ...args) => {
@@ -47,11 +61,12 @@ function createWindow(): void {
   on(CHANNELS.toggleDevTools, () => tabs.toggleDevTools());
 }
 
-void app.whenReady().then(() => {
-  createWindow();
+void app.whenReady().then(async () => {
+  const config = await loadConfig();
+  createWindow(config);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(config);
   });
 });
 
