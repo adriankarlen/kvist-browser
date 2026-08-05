@@ -1,0 +1,25 @@
+@layer kvist.components {
+  .kv-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  .kv-shell.is-sidebar {
+    flex-direction: row;
+  }
+
+  .kv-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Reserves the rectangle the active tab's WebContentsView is placed into. */
+  .kv-content {
+    flex: 1;
+    min-height: 0;
+  }
+}

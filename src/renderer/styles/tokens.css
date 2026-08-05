@@ -1,0 +1,43 @@
+/*
+ * The theme API. Palette tokens retheme the whole browser; component tokens
+ * below let you change one thing without touching the palette.
+ */
+@layer kvist.tokens {
+  :root {
+    /* palette */
+    --kv-color-bg: #1d1d1d;
+    --kv-color-bg-alt: #282828;
+    --kv-color-fg: #d4be98;
+    --kv-color-muted: #7c6f64;
+    --kv-color-accent: #a9b665;
+    --kv-color-border: #3c3836;
+
+    /* typography */
+    --kv-font-family: "JetBrainsMono Nerd Font", monospace;
+    --kv-font-size: 13px;
+
+    /* metrics */
+    --kv-tabstrip-height: 28px;
+    --kv-sidebar-width: 26ch;
+    --kv-omnibox-height: 28px;
+
+    /* tab strip */
+    --kv-tabstrip-border: var(--kv-color-border);
+    --kv-tab-width: 22ch;
+    --kv-tab-fg: var(--kv-color-muted);
+    --kv-tab-bg: transparent;
+    --kv-tab-active-fg: var(--kv-color-fg);
+    --kv-tab-active-bg: var(--kv-color-bg-alt);
+    --kv-tab-border: var(--kv-color-border);
+    --kv-tab-marker-fg: var(--kv-color-accent);
+    --kv-tab-hover-fg: var(--kv-color-accent);
+
+    /* omnibox */
+    --kv-omnibox-border: var(--kv-color-border);
+    --kv-omnibox-fg: var(--kv-color-fg);
+    --kv-omnibox-prompt-fg: var(--kv-color-accent);
+    --kv-omnibox-placeholder-fg: var(--kv-color-muted);
+    --kv-omnibox-button-fg: var(--kv-color-muted);
+    --kv-omnibox-button-hover-fg: var(--kv-color-accent);
+  }
+}

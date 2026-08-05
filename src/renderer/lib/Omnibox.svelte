@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "./Omnibox.css";
   import { browser } from "./browser.svelte";
   import { ui } from "./settings.svelte";
 
@@ -26,23 +27,31 @@
   }
 </script>
 
-<form class="omnibox" onsubmit={submit}>
+<form class="kv-omnibox" onsubmit={submit}>
   <button
+    class="kv-omnibox__button"
     type="button"
     title="Back"
     disabled={!browser.active?.canGoBack}
     onclick={() => window.kvist.goBack()}>&lt;</button
   >
   <button
+    class="kv-omnibox__button"
     type="button"
     title="Forward"
     disabled={!browser.active?.canGoForward}
     onclick={() => window.kvist.goForward()}>&gt;</button
   >
-  <button type="button" title="Reload" onclick={() => window.kvist.reload()}>r</button>
+  <button
+    class="kv-omnibox__button"
+    type="button"
+    title="Reload"
+    onclick={() => window.kvist.reload()}>r</button
+  >
 
-  <span class="prompt">:</span>
+  <span class="kv-omnibox__prompt">:</span>
   <input
+    class="kv-omnibox__input"
     bind:this={input}
     bind:value={draft}
     spellcheck="false"
@@ -56,56 +65,15 @@
   />
 
   <button
+    class="kv-omnibox__button"
     type="button"
     title="Toggle tab orientation"
     onclick={() => ui.toggleTabOrientation()}>{ui.tabOrientation === "vertical" ? "—" : "|"}</button
   >
-  <button type="button" title="DevTools" onclick={() => window.kvist.toggleDevTools()}>d</button>
+  <button
+    class="kv-omnibox__button"
+    type="button"
+    title="DevTools"
+    onclick={() => window.kvist.toggleDevTools()}>d</button
+  >
 </form>
-
-<style>
-  .omnibox {
-    display: flex;
-    align-items: center;
-    gap: 1ch;
-    height: var(--kv-omnibox-height);
-    padding: 0 1ch;
-    border-bottom: 1px solid var(--kv-border);
-  }
-
-  button {
-    background: none;
-    border: none;
-    color: var(--kv-muted);
-    font: inherit;
-    cursor: pointer;
-    padding: 0 0.5ch;
-  }
-
-  button:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
-
-  button:not(:disabled):hover {
-    color: var(--kv-accent);
-  }
-
-  .prompt {
-    color: var(--kv-accent);
-  }
-
-  input {
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--kv-fg);
-    font: inherit;
-  }
-
-  input::placeholder {
-    color: var(--kv-muted);
-  }
-</style>

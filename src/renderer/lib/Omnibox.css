@@ -1,0 +1,42 @@
+@layer kvist.components {
+  .kv-omnibox {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    height: var(--kv-omnibox-height);
+    padding: 0 1ch;
+    border-bottom: 1px solid var(--kv-omnibox-border);
+  }
+
+  .kv-omnibox__button {
+    color: var(--kv-omnibox-button-fg);
+    padding: 0 0.5ch;
+  }
+
+  .kv-omnibox__button:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .kv-omnibox__button:not(:disabled):hover {
+    color: var(--kv-omnibox-button-hover-fg);
+  }
+
+  .kv-omnibox__prompt {
+    color: var(--kv-omnibox-prompt-fg);
+  }
+
+  .kv-omnibox__input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--kv-omnibox-fg);
+    font: inherit;
+  }
+
+  .kv-omnibox__input::placeholder {
+    color: var(--kv-omnibox-placeholder-fg);
+  }
+}

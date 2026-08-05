@@ -1,0 +1,9 @@
+/*
+ * Layer order for everything Kvist ships. User CSS is injected unlayered, and
+ * unlayered styles beat every layer, so ~/.config/kvist/config.css always wins
+ * without needing !important or matching our specificity.
+ */
+@layer kvist.reset, kvist.tokens, kvist.components;
+
+@import "./reset.css";
+@import "./tokens.css";

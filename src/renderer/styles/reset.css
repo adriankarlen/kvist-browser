@@ -1,0 +1,23 @@
+@layer kvist.reset {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--kv-color-bg);
+    color: var(--kv-color-fg);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+    user-select: none;
+  }
+
+  button {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+  }
+}
