@@ -1,7 +1,10 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import { CHANNELS, type Rect, type TabId } from "../shared/ipc";
+import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
+
+applyXdgPaths();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");

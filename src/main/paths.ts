@@ -1,0 +1,26 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { app } from "electron";
+
+const APP_DIR = "kvist";
+
+function xdg(variable: string, fallback: string): string {
+  const base = process.env[variable];
+  return join(base && base !== "" ? base : join(homedir(), fallback), APP_DIR);
+}
+
+/**
+ * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
+ * state would bury the hand-edited config that belongs there. Keeps
+ * ~/.config/kvist free for the user. Must run before app ready.
+ *
+ * Chromium's caches stay inside the profile directory: Electron derives them
+ * from sessionData and ignores both --disk-cache-dir and the `cache` path.
+ */
+export function applyXdgPaths(): void {
+  const data = xdg("XDG_DATA_HOME", join(".local", "share"));
+
+  app.setPath("userData", data);
+  app.setPath("sessionData", data);
+  app.setPath("crashDumps", join(xdg("XDG_CACHE_HOME", ".cache"), "crashpad"));
+}
