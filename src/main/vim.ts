@@ -1,4 +1,4 @@
-import type { Mode } from "../shared/ipc";
+import type { Mode, ScrollCommand } from "../shared/ipc";
 
 export interface KeyInput {
   key: string;
@@ -27,6 +27,11 @@ export interface VimActions {
   focusOmnibox: () => void;
   /** Drops the page's focused element, so leaving insert actually returns the keyboard. */
   blurPage: () => void;
+  scrollPage: (command: ScrollCommand) => void;
+  showHints: () => void;
+  hideHints: () => void;
+  /** Feeds one key to the page, which owns hint matching. */
+  hintKey: (key: string) => void;
 }
 
 export class Vim {
@@ -64,6 +69,15 @@ export class Vim {
     else if (this.#mode === "insert") this.#set("normal");
   }
 
+  /**
+   * The page reporting that hinting finished. Selecting a text field focuses
+   * it, which puts us in insert before this arrives — so only hint mode is
+   * unwound here, or that focus would be thrown away again.
+   */
+  endHints(): void {
+    if (this.#mode === "hint") this.#set("normal");
+  }
+
   /** True when the key was consumed and must not reach its webContents. */
   handleKey(input: KeyInput, source: KeySource): boolean {
     if (input.control || input.alt || input.meta) return false;
@@ -71,12 +85,15 @@ export class Vim {
     // Chrome inputs own every key they can type, and own their own Escape —
     // the omnibox and command line report the mode change back over IPC.
     if (source === "chrome") {
+      if (this.#mode === "hint") return this.#hint(input.key);
       return this.#mode === "normal" ? this.#normal(input.key) : false;
     }
 
     // The command line lives in the chrome, so a page that still has focus
     // must not steal from it.
     if (this.#mode === "command") return false;
+
+    if (this.#mode === "hint") return this.#hint(input.key);
 
     if (this.#mode === "insert") {
       if (input.key !== "Escape") return false;
@@ -91,11 +108,26 @@ export class Vim {
     return this.#normal(input.key);
   }
 
+  /**
+   * Every key belongs to hinting while it is up, so nothing leaks to the page
+   * mid-selection. The page decides when a label matched and reports back.
+   */
+  #hint(key: string): boolean {
+    if (key === "Escape") {
+      this.#actions.hideHints();
+      this.#set("normal");
+      return true;
+    }
+    this.#actions.hintKey(key);
+    return true;
+  }
+
   #normal(key: string): boolean {
     if (this.#pending === "g") {
       this.#pending = "";
       if (key === "t") this.#actions.nextTab();
       else if (key === "T") this.#actions.prevTab();
+      else if (key === "g") this.#actions.scrollPage("top");
       // Swallow the rest of an unknown g-sequence rather than leaking it.
       return true;
     }
@@ -115,6 +147,25 @@ export class Vim {
         return true;
       case "r":
         this.#actions.reload();
+        return true;
+      case "j":
+        this.#actions.scrollPage("down");
+        return true;
+      case "k":
+        this.#actions.scrollPage("up");
+        return true;
+      case "d":
+        this.#actions.scrollPage("half-down");
+        return true;
+      case "u":
+        this.#actions.scrollPage("half-up");
+        return true;
+      case "G":
+        this.#actions.scrollPage("bottom");
+        return true;
+      case "f":
+        this.#actions.showHints();
+        this.#set("hint");
         return true;
       case "H":
         this.#actions.back();

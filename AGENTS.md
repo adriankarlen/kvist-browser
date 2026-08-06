@@ -97,6 +97,30 @@ goes straight back into it.
 than the one you left, and ignores reports from a webContents that owns no tab
 — which doubles as the sender check on that channel.
 
+## In-page vim
+
+Scrolling and hints need the DOM, so they live in `src/preload/page.ts` and
+`src/preload/hints.ts` while the mode machine stays in main. Main names the
+movement (`ScrollCommand`) rather than sending pixels, and hint matching runs
+in the page so a keystroke never costs a round trip.
+
+Hint mode swallows **every** key and forwards it, so nothing leaks to the page
+mid-selection. The page decides when a label matched and reports back on
+`kvist:hints-done`; `Vim.endHints` only unwinds hint mode, because hinting a
+text field focuses it and puts us in insert _before_ that report arrives.
+Returning to normal unconditionally would throw that focus away.
+
+**Hint activation must be a real click from main.** Chromium marks history
+entries created without user activation as skippable, and a scripted
+`element.click()` has none — following a hint left `canGoBack()` false and the
+back button dead. The page sends a point on `kvist:hints-click` and
+`TabManager.clickActive` injects the click with `sendInputEvent`, which does
+carry activation. The scripted click survives only as the fallback for when
+the point does not hit the element.
+
+Hint labels are inline-styled rather than classed: the page's own stylesheet is
+hostile territory, and a class is one `!important` away from being hidden.
+
 ## Extensions
 
 There is no extension support, deliberately. It was built and then removed in
@@ -178,11 +202,31 @@ Then `http://127.0.0.1:9222/json/list` to find the chrome target (title
 `Kvist`), connect to its `webSocketDebuggerUrl`, and use `Runtime.evaluate` to
 click and read computed styles. `grim /tmp/shot.png` screenshots Wayland.
 
-**CDP cannot test key bindings.** `Input.dispatchKeyEvent` injects below the
-level `before-input-event` hooks into, so main never sees those keys. Cover the
-modal logic with unit tests against `Vim` instead, drive the chrome-side paths
-by calling `window.kvist.*` directly, and leave real keystrokes to manual
-checks.
+**CDP cannot test key bindings, but the main-process inspector can.**
+`Input.dispatchKeyEvent` injects below the level `before-input-event` hooks
+into, so main never sees those keys. Launch with `--inspect=9229` as well, and
+drive `webContents.sendInputEvent` from the main process instead — that does
+fire `before-input-event`, so the whole chain from keystroke to DOM is
+testable:
+
+```js
+page.sendInputEvent({ type: "keyDown", keyCode: "j" });
+page.sendInputEvent({ type: "char", keyCode: "j" });
+page.sendInputEvent({ type: "keyUp", keyCode: "j" });
+```
+
+Two traps. `require` comes from the inspector's command-line API and is gone
+after an `await`, so grab the webContents synchronously and only then start an
+async loop. And each inspector session must send all its keys in **one**
+`Runtime.evaluate`; keys split across separate evaluates silently fail to
+arrive. Capitals need `modifiers: ["shift"]`, or `G` arrives as `g` and leaves
+a pending `g` prefix that eats the next key.
+
+**Nothing driven by the rendering lifecycle fires while the display is
+blanked or the window is occluded.** `requestAnimationFrame` stops, and with it
+`scroll` events — in the page's own world, not just the preload's. Check
+`framesIn1s` with rAF before concluding that a scroll-driven handler is broken.
+This is the same trap as the focus one below, one layer down.
 
 **Focus tests need the window frontmost.** Chromium fires no `focusin` or
 `focusout` while the window is in the background, so anything focus-driven

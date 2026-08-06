@@ -14,6 +14,10 @@ const actions = {
   focusChrome: vi.fn(),
   focusOmnibox: vi.fn(),
   blurPage: vi.fn(),
+  scrollPage: vi.fn(),
+  showHints: vi.fn(),
+  hideHints: vi.fn(),
+  hintKey: vi.fn(),
 };
 
 let vim: Vim;
@@ -192,4 +196,73 @@ test("a field losing focus while already normal changes nothing", () => {
   vim.setEditable(false);
   expect(vim.mode).toBe("normal");
   expect(modes).toEqual([]);
+});
+
+test("scroll keys drive the page", () => {
+  expect(key("j")).toBe(true);
+  expect(key("k")).toBe(true);
+  expect(key("d")).toBe(true);
+  expect(key("u")).toBe(true);
+  expect(key("G")).toBe(true);
+  expect(actions.scrollPage.mock.calls.flat()).toEqual([
+    "down",
+    "up",
+    "half-down",
+    "half-up",
+    "bottom",
+  ]);
+});
+
+test("gg scrolls to the top", () => {
+  key("g");
+  expect(key("g")).toBe(true);
+  expect(actions.scrollPage).toHaveBeenCalledWith("top");
+});
+
+test("scroll keys stay out of a text field", () => {
+  vim.setEditable(true);
+  expect(key("j")).toBe(false);
+  expect(actions.scrollPage).not.toHaveBeenCalled();
+});
+
+test("f shows hints and enters hint mode", () => {
+  expect(key("f")).toBe(true);
+  expect(actions.showHints).toHaveBeenCalledOnce();
+  expect(vim.mode).toBe("hint");
+});
+
+test("hint mode forwards every key to the page", () => {
+  key("f");
+  expect(key("a")).toBe(true);
+  expect(key("t")).toBe(true);
+  expect(actions.hintKey.mock.calls.flat()).toEqual(["a", "t"]);
+  // t must not have opened a tab on the way past.
+  expect(actions.newTab).not.toHaveBeenCalled();
+});
+
+test("hint mode swallows chrome keys too", () => {
+  key("f");
+  expect(chromeKey("a")).toBe(true);
+  expect(actions.hintKey).toHaveBeenCalledWith("a");
+});
+
+test("Escape leaves hint mode and clears the labels", () => {
+  key("f");
+  expect(key("Escape")).toBe(true);
+  expect(actions.hideHints).toHaveBeenCalledOnce();
+  expect(vim.mode).toBe("normal");
+});
+
+test("the page reporting hints finished returns to normal", () => {
+  key("f");
+  vim.endHints();
+  expect(vim.mode).toBe("normal");
+});
+
+test("selecting a field keeps insert rather than snapping back to normal", () => {
+  key("f");
+  // Focus lands on the hinted input before the page reports hinting is over.
+  vim.setEditable(true);
+  vim.endHints();
+  expect(vim.mode).toBe("insert");
 });

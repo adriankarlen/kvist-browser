@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
 import { setAdblockEnabled } from "./adblock";
-import { CHANNELS, type Mode, type Rect, type TabId } from "../shared/ipc";
+import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
 import { applyXdgPaths } from "./paths";
@@ -64,6 +64,10 @@ function createWindow(config: UserConfig): void {
         send(CHANNELS.focusOmnibox, null);
       },
       blurPage: () => tabs.blurActive(),
+      scrollPage: (command) => tabs.scrollActive(command),
+      showHints: () => tabs.showHints(),
+      hideHints: () => tabs.hideHints(),
+      hintKey: (key) => tabs.hintKey(key),
     },
     (mode) => send(CHANNELS.mode, mode),
   );
@@ -76,6 +80,14 @@ function createWindow(config: UserConfig): void {
   // rejects any webContents that does not own a tab.
   ipcMain.on(CHANNELS.pageEditable, (event, editable: boolean) => {
     tabs.setEditable(event.sender, editable);
+  });
+
+  ipcMain.on(CHANNELS.hintsDone, (event) => {
+    if (tabs.ownsTab(event.sender)) vim.endHints();
+  });
+
+  ipcMain.on(CHANNELS.hintsClick, (event, point: Point) => {
+    if (tabs.ownsTab(event.sender)) tabs.clickActive(point);
   });
 
   const runCommand = (line: string): void => {

@@ -1,6 +1,14 @@
 import { type BaseWindow, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS } from "../shared/config";
-import { type BrowserState, CHANNELS, type Rect, type TabId, type TabState } from "../shared/ipc";
+import {
+  type BrowserState,
+  CHANNELS,
+  type Point,
+  type Rect,
+  type ScrollCommand,
+  type TabId,
+  type TabState,
+} from "../shared/ipc";
 import type { KeyInput, KeySource } from "./vim";
 
 interface Tab {
@@ -71,7 +79,42 @@ export class TabManager {
   }
 
   blurActive(): void {
-    this.#active()?.view.webContents.send(CHANNELS.pageBlur);
+    this.#send(CHANNELS.pageBlur);
+  }
+
+  scrollActive(command: ScrollCommand): void {
+    this.#send(CHANNELS.pageScroll, command);
+  }
+
+  showHints(): void {
+    this.#send(CHANNELS.hintsShow);
+  }
+
+  hintKey(key: string): void {
+    this.#send(CHANNELS.hintsKey, key);
+  }
+
+  hideHints(): void {
+    this.#send(CHANNELS.hintsHide);
+  }
+
+  /**
+   * A real click, rather than the page scripting one on itself. Injected input
+   * carries user activation, which is what keeps the resulting history entry
+   * navigable.
+   */
+  clickActive({ x, y }: Point): void {
+    const contents = this.#active()?.view.webContents;
+    if (!contents) return;
+
+    const event = { x, y, button: "left", clickCount: 1 } as const;
+    contents.sendInputEvent({ ...event, type: "mouseDown" });
+    contents.sendInputEvent({ ...event, type: "mouseUp" });
+  }
+
+  /** Doubles as the sender check on the hint channel, like `setEditable`. */
+  ownsTab(sender: WebContents): boolean {
+    return [...this.#tabs.values()].some((tab) => tab.view.webContents === sender);
   }
 
   closeActive(): void {
@@ -178,6 +221,10 @@ export class TabManager {
 
   #active(): Tab | undefined {
     return this.#activeId === null ? undefined : this.#tabs.get(this.#activeId);
+  }
+
+  #send(channel: string, payload?: unknown): void {
+    this.#active()?.view.webContents.send(channel, payload);
   }
 
   #applyContentRect(): void {

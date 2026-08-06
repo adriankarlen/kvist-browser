@@ -2,7 +2,10 @@ import type { UserConfig } from "./config";
 
 export type TabId = number;
 
-export type Mode = "normal" | "insert" | "command";
+export type Mode = "normal" | "insert" | "command" | "hint";
+
+/** Scrolling lives in the page, so main names the movement rather than the pixels. */
+export type ScrollCommand = "down" | "up" | "half-down" | "half-up" | "top" | "bottom";
 
 export interface TabState {
   id: TabId;
@@ -26,6 +29,11 @@ export interface Rect {
   height: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export const CHANNELS = {
   state: "kvist:state",
   config: "kvist:config",
@@ -35,6 +43,19 @@ export const CHANNELS = {
   pageEditable: "kvist:page-editable",
   /** Asks a tab to blur whatever it has focused, so normal mode regains the keyboard. */
   pageBlur: "kvist:page-blur",
+  pageScroll: "kvist:page-scroll",
+  /** Hint mode: main drives, the page renders the labels and does the matching. */
+  hintsShow: "kvist:hints-show",
+  hintsKey: "kvist:hints-key",
+  hintsHide: "kvist:hints-hide",
+  /**
+   * Where the page wants a real click. Chromium marks history entries created
+   * without user activation as skippable, and a scripted `.click()` has none —
+   * so back would silently stop working after following a hint.
+   */
+  hintsClick: "kvist:hints-click",
+  /** The page reporting that hinting ended, so main can leave hint mode. */
+  hintsDone: "kvist:hints-done",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",

@@ -1,11 +1,13 @@
 import { ipcRenderer } from "electron";
-import { CHANNELS } from "../shared/ipc";
+import { CHANNELS, type ScrollCommand } from "../shared/ipc";
+import * as hints from "./hints";
 
 /**
  * Runs in every tab, and deliberately exposes nothing over contextBridge — a
- * page must never reach the kvist API. Its only job is telling main when focus
- * lands on something that accepts typing, so normal mode can step out of the
- * way instead of swallowing the keys.
+ * page must never reach the kvist API. It reports when focus lands on
+ * something that accepts typing, so normal mode can step out of the way
+ * instead of swallowing the keys, and it owns the half of vim that needs the
+ * DOM: scrolling and link hints.
  */
 
 // Blocklisted rather than allowlisted: anything that is not one of these takes
@@ -67,3 +69,50 @@ if (document.readyState === "loading") {
 } else {
   report();
 }
+
+const LINE = 60;
+
+ipcRenderer.on(CHANNELS.pageScroll, (_event, command: ScrollCommand) => {
+  switch (command) {
+    case "down":
+      scrollBy(0, LINE);
+      break;
+    case "up":
+      scrollBy(0, -LINE);
+      break;
+    case "half-down":
+      scrollBy(0, innerHeight / 2);
+      break;
+    case "half-up":
+      scrollBy(0, -innerHeight / 2);
+      break;
+    case "top":
+      scrollTo(0, 0);
+      break;
+    case "bottom":
+      scrollTo(0, document.body.scrollHeight);
+      break;
+  }
+});
+
+ipcRenderer.on(CHANNELS.hintsShow, () => {
+  if (!hints.show()) ipcRenderer.send(CHANNELS.hintsDone);
+});
+
+ipcRenderer.on(CHANNELS.hintsKey, (_event, input: string) => {
+  const { done, click } = hints.key(input);
+  if (click) ipcRenderer.send(CHANNELS.hintsClick, click);
+  if (done) ipcRenderer.send(CHANNELS.hintsDone);
+});
+
+ipcRenderer.on(CHANNELS.hintsHide, () => hints.hide());
+
+// Hints are positioned against the document, so anything that moves the page
+// under them leaves them pointing at the wrong things.
+document.addEventListener(
+  "scroll",
+  () => {
+    if (hints.hide()) ipcRenderer.send(CHANNELS.hintsDone);
+  },
+  true,
+);

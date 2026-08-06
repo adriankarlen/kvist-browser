@@ -89,9 +89,10 @@ entry point behind every script above.
 
 ## Keybindings
 
-Kvist has three modes: **normal** (default, keys are commands), **insert**
-(typing goes to a focused field or the omnibox), and **command** (a `:` line
-at the bottom that runs a command on submit).
+Kvist has four modes: **normal** (default, keys are commands), **insert**
+(typing goes to a focused field or the omnibox), **command** (a `:` line at
+the bottom that runs a command on submit), and **hint** (labels are shown on
+the page and typing one follows it).
 
 Escape always returns to normal mode and blurs whatever had focus.
 
@@ -106,6 +107,13 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `H`  | Back                                |
 | `L`  | Forward                             |
 | `r`  | Reload                              |
+| `j`  | Scroll down                         |
+| `k`  | Scroll up                           |
+| `d`  | Scroll half a screen down           |
+| `u`  | Scroll half a screen up             |
+| `gg` | Scroll to the top                   |
+| `G`  | Scroll to the bottom                |
+| `f`  | Hint mode: label every link         |
 | `i`  | Insert mode (focus the page)        |
 | `o`  | Insert mode, focused on the omnibox |
 | `:`  | Command mode                        |
@@ -119,6 +127,15 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
 | `:qa`                     | Quit Kvist                                  |
+
+### Hint mode
+
+`f` labels every link, button and field currently on screen. Type a label to
+follow it; Escape gives up. Hinting a text field focuses it and drops you
+straight into insert mode. Labels are drawn from the home row and are all the
+same length, so a hint fires as soon as its last key lands.
+
+Only what is visible gets a label — scroll first, hint second.
 
 Both keybindings and commands are early and intentionally minimal. See
 `src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add
