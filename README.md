@@ -92,28 +92,28 @@ Escape always returns to normal mode and blurs whatever had focus.
 
 ### Normal mode
 
-| Key | Action |
-| --- | --- |
-| `t` | New tab |
-| `x` | Close active tab |
-| `gt` | Next tab |
-| `gT` | Previous tab |
-| `H` | Back |
-| `L` | Forward |
-| `r` | Reload |
-| `i` | Insert mode (focus the page) |
-| `o` | Insert mode, focused on the omnibox |
-| `:` | Command mode |
+| Key  | Action                              |
+| ---- | ----------------------------------- |
+| `t`  | New tab                             |
+| `x`  | Close active tab                    |
+| `gt` | Next tab                            |
+| `gT` | Previous tab                        |
+| `H`  | Back                                |
+| `L`  | Forward                             |
+| `r`  | Reload                              |
+| `i`  | Insert mode (focus the page)        |
+| `o`  | Insert mode, focused on the omnibox |
+| `:`  | Command mode                        |
 
 ### Commands
 
-| Command | Action |
-| --- | --- |
-| `:o <url>`, `:open <url>` | Navigate the active tab |
-| `:tabnew <url>` | Open a new tab; homepage if no URL is given |
-| `:r`, `:reload` | Reload the active tab |
-| `:q`, `:quit` | Close the active tab |
-| `:qa` | Quit Kvist |
+| Command                   | Action                                      |
+| ------------------------- | ------------------------------------------- |
+| `:o <url>`, `:open <url>` | Navigate the active tab                     |
+| `:tabnew <url>`           | Open a new tab; homepage if no URL is given |
+| `:r`, `:reload`           | Reload the active tab                       |
+| `:q`, `:quit`             | Close the active tab                        |
+| `:qa`                     | Quit Kvist                                  |
 
 Both keybindings and commands are early and intentionally minimal. See
 `src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add
