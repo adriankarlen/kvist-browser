@@ -62,7 +62,8 @@ function createWindow(config: UserConfig): void {
     (mode) => send(CHANNELS.mode, mode),
   );
 
-  tabs.interceptKeys((input) => vim.handleKey(input));
+  tabs.interceptKeys((input, source) => vim.handleKey(input, source));
+  tabs.interceptChromeKeys(win.webContents);
 
   const runCommand = (line: string): void => {
     const [name = "", ...args] = line.trim().split(/\s+/);

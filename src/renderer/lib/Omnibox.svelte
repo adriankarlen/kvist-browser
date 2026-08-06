@@ -19,14 +19,28 @@
     if (draft.trim() === "") return;
     window.kvist.navigate(resolveUrl(draft));
     input?.blur();
-    vim.toNormal();
   }
 
   function onkeydown(event: KeyboardEvent): void {
     if (event.key !== "Escape") return;
     event.preventDefault();
     input?.blur();
-    vim.toNormal();
+  }
+
+  // Main swallows keys from the chrome while in normal mode, so a mouse click
+  // into the omnibox has to announce insert the same way "o" does.
+  function onfocus(): void {
+    focused = true;
+    input?.select();
+    window.kvist.setMode("insert");
+  }
+
+  function onblur(): void {
+    focused = false;
+    // The window going to the background also blurs the input. Dropping to
+    // normal there would pull focus onto the page behind the user's back, so
+    // only treat a blur as leaving the omnibox while the chrome still has it.
+    if (document.hasFocus()) vim.toNormal();
   }
 
   window.kvist.onFocusOmnibox(() => input?.focus());
@@ -63,11 +77,8 @@
     spellcheck="false"
     autocomplete="off"
     placeholder="enter url or search"
-    onfocus={() => {
-      focused = true;
-      input?.select();
-    }}
-    onblur={() => (focused = false)}
+    {onfocus}
+    {onblur}
     {onkeydown}
   />
 

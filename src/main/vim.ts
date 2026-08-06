@@ -7,6 +7,13 @@ export interface KeyInput {
   meta: boolean;
 }
 
+/**
+ * Which webContents a key arrived from. Keys reach main through
+ * before-input-event, which is per webContents, so the page and the chrome are
+ * two separate sources that need different rules.
+ */
+export type KeySource = "page" | "chrome";
+
 export interface VimActions {
   newTab: () => void;
   closeTab: () => void;
@@ -41,12 +48,18 @@ export class Vim {
     this.#set(mode);
   }
 
-  /** True when the key was consumed and must not reach the page. */
-  handleKey(input: KeyInput): boolean {
+  /** True when the key was consumed and must not reach its webContents. */
+  handleKey(input: KeyInput, source: KeySource): boolean {
     if (input.control || input.alt || input.meta) return false;
 
-    // The command line and any focused chrome input own their own keys; those
-    // arrive in the renderer rather than here.
+    // Chrome inputs own every key they can type, and own their own Escape —
+    // the omnibox and command line report the mode change back over IPC.
+    if (source === "chrome") {
+      return this.#mode === "normal" ? this.#normal(input.key) : false;
+    }
+
+    // The command line lives in the chrome, so a page that still has focus
+    // must not steal from it.
     if (this.#mode === "command") return false;
 
     if (this.#mode === "insert") {

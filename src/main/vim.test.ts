@@ -1,6 +1,6 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 import type { Mode } from "../shared/ipc";
-import { type KeyInput, Vim } from "./vim";
+import { type KeyInput, type KeySource, Vim } from "./vim";
 
 const actions = {
   newTab: vi.fn(),
@@ -18,8 +18,13 @@ const actions = {
 let vim: Vim;
 let modes: Mode[];
 
-const key = (k: string, modifiers: Partial<KeyInput> = {}): boolean =>
-  vim.handleKey({ key: k, control: false, alt: false, meta: false, ...modifiers });
+const from =
+  (source: KeySource) =>
+  (k: string, modifiers: Partial<KeyInput> = {}): boolean =>
+    vim.handleKey({ key: k, control: false, alt: false, meta: false, ...modifiers }, source);
+
+const key = from("page");
+const chromeKey = from("chrome");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -122,4 +127,35 @@ test("navigation keys are bound", () => {
   expect(actions.forward).toHaveBeenCalledOnce();
   expect(actions.reload).toHaveBeenCalledOnce();
   expect(actions.closeTab).toHaveBeenCalledOnce();
+});
+
+test("chrome keys drive normal mode, so focus on the chrome is not a dead end", () => {
+  expect(chromeKey("t")).toBe(true);
+  expect(actions.newTab).toHaveBeenCalledOnce();
+});
+
+test("chrome prefixes work across sources", () => {
+  chromeKey("g");
+  expect(chromeKey("t")).toBe(true);
+  expect(actions.nextTab).toHaveBeenCalledOnce();
+});
+
+test("insert mode lets the chrome type, including its own Escape", () => {
+  key("i");
+  expect(chromeKey("t")).toBe(false);
+  expect(chromeKey("Escape")).toBe(false);
+  expect(vim.mode).toBe("insert");
+  expect(actions.newTab).not.toHaveBeenCalled();
+});
+
+test("command mode lets the command line type", () => {
+  key(":");
+  expect(chromeKey("q")).toBe(false);
+  expect(chromeKey("Escape")).toBe(false);
+  expect(actions.closeTab).not.toHaveBeenCalled();
+});
+
+test("modified chrome keys pass through", () => {
+  expect(chromeKey("t", { meta: true })).toBe(false);
+  expect(actions.newTab).not.toHaveBeenCalled();
 });

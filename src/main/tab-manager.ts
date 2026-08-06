@@ -1,7 +1,7 @@
-import { type BaseWindow, WebContentsView } from "electron";
+import { type BaseWindow, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS } from "../shared/config";
 import type { BrowserState, Rect, TabId, TabState } from "../shared/ipc";
-import type { KeyInput } from "./vim";
+import type { KeyInput, KeySource } from "./vim";
 
 interface Tab {
   id: TabId;
@@ -15,7 +15,7 @@ interface Tab {
 export class TabManager {
   #window: BaseWindow;
   #emit: (state: BrowserState) => void;
-  #onKey: (input: KeyInput) => boolean = () => false;
+  #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
   #activeId: TabId | null = null;
@@ -29,8 +29,17 @@ export class TabManager {
   }
 
   /** Every tab routes keys here before its page sees them. */
-  interceptKeys(onKey: (input: KeyInput) => boolean): void {
+  interceptKeys(onKey: (input: KeyInput, source: KeySource) => boolean): void {
     this.#onKey = onKey;
+  }
+
+  /**
+   * The chrome needs the same treatment as a page: it is a separate
+   * webContents, so without this every key pressed while the chrome holds
+   * focus is invisible to the mode machine.
+   */
+  interceptChromeKeys(webContents: WebContents): void {
+    this.#bindKeys(webContents, "chrome");
   }
 
   focusActive(): void {
@@ -151,14 +160,21 @@ export class TabManager {
     webContents.on("did-navigate", trackUrl);
     webContents.on("did-navigate-in-page", trackUrl);
 
+    this.#bindKeys(webContents, "page");
+  }
+
+  #bindKeys(webContents: WebContents, source: KeySource): void {
     webContents.on("before-input-event", (event, input) => {
       if (input.type !== "keyDown") return;
-      const consumed = this.#onKey({
-        key: input.key,
-        control: input.control,
-        alt: input.alt,
-        meta: input.meta,
-      });
+      const consumed = this.#onKey(
+        {
+          key: input.key,
+          control: input.control,
+          alt: input.alt,
+          meta: input.meta,
+        },
+        source,
+      );
       if (consumed) event.preventDefault();
     });
   }
