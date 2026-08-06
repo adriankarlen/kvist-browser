@@ -57,9 +57,11 @@ Roughly what's next, in no particular order and with no promised timeline:
 - Password manager integration, Bitwarden first.
 - In-page styling, in the spirit of Stylus: user CSS for sites, not just
   the chrome.
+- Bookmarks.
 - A toggleable UI, so the omnibox, tab bar, and other chrome pieces can be
   hidden on demand.
 - A custom sidebar.
+- Default new tab page.
 
 ## Install & run
 
