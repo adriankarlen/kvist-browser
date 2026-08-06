@@ -10,6 +10,7 @@
     "build": "vp build",
     "check": "vp check",
     "test": "vp test",
+    "package": "vp build && electron-builder --dir",
     "postinstall": "install-electron"
   },
   "dependencies": {
@@ -29,5 +30,24 @@
   "engines": {
     "node": ">=24.11.0"
   },
-  "packageManager": "pnpm@11.20.0"
+  "packageManager": "pnpm@11.20.0",
+  "build": {
+    "appId": "dev.kvist.browser",
+    "productName": "Kvist",
+    "files": ["dist/**/*"],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dir"
+    },
+    "linux": {
+      "target": "dir",
+      "category": "Network"
+    },
+    "win": {
+      "target": "dir"
+    }
+  }
 }
