@@ -6,6 +6,22 @@
     min-height: var(--kv-omnibox-height);
   }
 
+  .kv-mode {
+    flex: none;
+    padding: 0 1ch;
+    color: var(--kv-mode-fg);
+    background: var(--kv-mode-bg);
+    text-transform: uppercase;
+  }
+
+  .kv-mode.is-insert {
+    background: var(--kv-mode-insert-bg);
+  }
+
+  .kv-mode.is-command {
+    background: var(--kv-mode-command-bg);
+  }
+
   .kv-omnibox__button {
     color: var(--kv-omnibox-button-fg);
     padding: 0 0.5ch;

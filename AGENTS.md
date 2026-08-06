@@ -22,7 +22,12 @@ point for everything.
 pnpm dev       # vite dev server + electron, with hot restart/reload
 pnpm build
 pnpm check     # format + lint + typecheck in one pass; --fix to autofix
+pnpm test      # vitest, via vp
 ```
+
+Import test helpers from `vite-plus/test`, not `vitest` — Vite+ bundles vitest
+rather than exposing it as a resolvable dependency, so a bare `vitest` import
+runs but fails typecheck.
 
 Config for `fmt` and `lint` lives in `vite.config.ts`, so `defineConfig` must be
 imported from `vite-plus`, not `vite`. oxfmt has no style options — double
@@ -86,6 +91,12 @@ setsid ./node_modules/.bin/electron . --remote-debugging-port=9222 \
 Then `http://127.0.0.1:9222/json/list` to find the chrome target (title
 `Kvist`), connect to its `webSocketDebuggerUrl`, and use `Runtime.evaluate` to
 click and read computed styles. `grim /tmp/shot.png` screenshots Wayland.
+
+**CDP cannot test key bindings.** `Input.dispatchKeyEvent` injects below the
+level `before-input-event` hooks into, so main never sees those keys. Cover the
+modal logic with unit tests against `Vim` instead, drive the chrome-side paths
+by calling `window.kvist.*` directly, and leave real keystrokes to manual
+checks.
 
 Outbound network is often blocked; serve a local test site instead of relying on
 public URLs. Beware `pkill -f` with a pattern matching the repo path — it

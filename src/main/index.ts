@@ -1,10 +1,12 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
-import { CHANNELS, type Rect, type TabId } from "../shared/ipc";
+import { CHANNELS, type Mode, type Rect, type TabId } from "../shared/ipc";
+import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
+import { Vim } from "./vim";
 
 applyXdgPaths();
 
@@ -37,8 +39,64 @@ function createWindow(config: UserConfig): void {
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 
+  const send = (channel: string, payload: unknown): void => {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload);
+  };
+
+  const vim = new Vim(
+    {
+      newTab: () => tabs.create(),
+      closeTab: () => tabs.closeActive(),
+      nextTab: () => tabs.step(1),
+      prevTab: () => tabs.step(-1),
+      back: () => tabs.goBack(),
+      forward: () => tabs.goForward(),
+      reload: () => tabs.reload(),
+      focusPage: () => tabs.focusActive(),
+      focusChrome: () => win.webContents.focus(),
+      focusOmnibox: () => {
+        win.webContents.focus();
+        send(CHANNELS.focusOmnibox, null);
+      },
+    },
+    (mode) => send(CHANNELS.mode, mode),
+  );
+
+  tabs.interceptKeys((input) => vim.handleKey(input));
+
+  const runCommand = (line: string): void => {
+    const [name = "", ...args] = line.trim().split(/\s+/);
+    const argument = args.join(" ");
+
+    switch (name) {
+      case "":
+        break;
+      case "q":
+      case "quit":
+        tabs.closeActive();
+        break;
+      case "qa":
+        app.quit();
+        break;
+      case "tabnew":
+        tabs.create(argument === "" ? undefined : resolveUrl(argument));
+        break;
+      case "o":
+      case "open":
+        if (argument !== "") tabs.navigate(resolveUrl(argument));
+        break;
+      case "r":
+      case "reload":
+        tabs.reload();
+        break;
+      default:
+        console.error(`kvist: unknown command :${name}`);
+    }
+  };
+
   win.webContents.once("did-finish-load", () => {
     applyConfig(config);
+    send(CHANNELS.mode, vim.mode);
     tabs.create();
   });
 
@@ -59,6 +117,11 @@ function createWindow(config: UserConfig): void {
   on(CHANNELS.goForward, () => tabs.goForward());
   on(CHANNELS.reload, () => tabs.reload());
   on(CHANNELS.toggleDevTools, () => tabs.toggleDevTools());
+  on(CHANNELS.setMode, (mode: Mode) => vim.requestMode(mode));
+  on(CHANNELS.runCommand, (line: string) => {
+    runCommand(line);
+    vim.requestMode("normal");
+  });
 }
 
 void app.whenReady().then(async () => {

@@ -67,6 +67,14 @@
     --kv-tab-hover-fg: var(--kv-color-accent);
     --kv-tab-hover-close: var(--kv-color-danger);
 
+    --kv-mode-fg: var(--kv-color-base);
+    --kv-mode-bg: var(--kv-color-accent);
+    --kv-mode-insert-bg: var(--kv-color-accent-alt);
+    --kv-mode-command-bg: var(--kv-color-warning);
+
+    --kv-cmdline-fg: var(--kv-color-text);
+    --kv-cmdline-prompt-fg: var(--kv-color-warning);
+
     --kv-omnibox-fg: var(--kv-color-text);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
     --kv-omnibox-placeholder-fg: var(--kv-color-muted);

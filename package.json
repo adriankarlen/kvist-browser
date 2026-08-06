@@ -9,6 +9,7 @@
     "dev": "vp dev",
     "build": "vp build",
     "check": "vp check",
+    "test": "vp test",
     "postinstall": "install-electron"
   },
   "dependencies": {

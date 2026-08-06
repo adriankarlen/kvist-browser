@@ -1,0 +1,22 @@
+@layer kvist.components {
+  .kv-cmdline {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    min-height: var(--kv-omnibox-height);
+  }
+
+  .kv-cmdline__prompt {
+    color: var(--kv-cmdline-prompt-fg);
+  }
+
+  .kv-cmdline__input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--kv-cmdline-fg);
+    font: inherit;
+  }
+}

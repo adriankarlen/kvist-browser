@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { UserConfig } from "../shared/config";
-import { type BrowserState, CHANNELS, type KvistApi } from "../shared/ipc";
+import { type BrowserState, CHANNELS, type KvistApi, type Mode } from "../shared/ipc";
 
 const api: KvistApi = {
   onState(listener) {
@@ -13,6 +13,18 @@ const api: KvistApi = {
     ipcRenderer.on(CHANNELS.config, handler);
     return () => void ipcRenderer.off(CHANNELS.config, handler);
   },
+  onMode(listener) {
+    const handler = (_event: unknown, mode: Mode): void => listener(mode);
+    ipcRenderer.on(CHANNELS.mode, handler);
+    return () => void ipcRenderer.off(CHANNELS.mode, handler);
+  },
+  onFocusOmnibox(listener) {
+    const handler = (): void => listener();
+    ipcRenderer.on(CHANNELS.focusOmnibox, handler);
+    return () => void ipcRenderer.off(CHANNELS.focusOmnibox, handler);
+  },
+  setMode: (mode) => ipcRenderer.send(CHANNELS.setMode, mode),
+  runCommand: (line) => ipcRenderer.send(CHANNELS.runCommand, line),
   setContentRect: (rect) => ipcRenderer.send(CHANNELS.contentRect, rect),
   createTab: (url) => ipcRenderer.send(CHANNELS.createTab, url),
   closeTab: (id) => ipcRenderer.send(CHANNELS.closeTab, id),

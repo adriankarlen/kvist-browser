@@ -1,7 +1,9 @@
 <script lang="ts">
   import "./Omnibox.css";
+  import { resolveUrl } from "../../shared/url";
   import { browser } from "./browser.svelte";
   import { ui } from "./settings.svelte";
+  import { vim } from "./vim.svelte";
 
   let input = $state<HTMLInputElement>();
   let draft = $state("");
@@ -12,22 +14,26 @@
     if (!focused) draft = url;
   });
 
-  function resolve(value: string): string {
-    const query = value.trim();
-    if (/^[a-z][a-z0-9+.-]*:/i.test(query)) return query;
-    if (/^[^\s/]+\.[^\s/]+/.test(query)) return `https://${query}`;
-    return `https://duckduckgo.com/?q=${encodeURIComponent(query)}`;
-  }
-
   function submit(event: SubmitEvent): void {
     event.preventDefault();
     if (draft.trim() === "") return;
-    window.kvist.navigate(resolve(draft));
+    window.kvist.navigate(resolveUrl(draft));
     input?.blur();
+    vim.toNormal();
   }
+
+  function onkeydown(event: KeyboardEvent): void {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    input?.blur();
+    vim.toNormal();
+  }
+
+  window.kvist.onFocusOmnibox(() => input?.focus());
 </script>
 
 <form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit}>
+  <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
   <button
     class="kv-omnibox__button"
     type="button"
@@ -62,6 +68,7 @@
       input?.select();
     }}
     onblur={() => (focused = false)}
+    {onkeydown}
   />
 
   <button

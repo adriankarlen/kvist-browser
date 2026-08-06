@@ -1,6 +1,7 @@
 import { type BaseWindow, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS } from "../shared/config";
 import type { BrowserState, Rect, TabId, TabState } from "../shared/ipc";
+import type { KeyInput } from "./vim";
 
 interface Tab {
   id: TabId;
@@ -14,6 +15,7 @@ interface Tab {
 export class TabManager {
   #window: BaseWindow;
   #emit: (state: BrowserState) => void;
+  #onKey: (input: KeyInput) => boolean = () => false;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
   #activeId: TabId | null = null;
@@ -24,6 +26,26 @@ export class TabManager {
   constructor(window: BaseWindow, emit: (state: BrowserState) => void) {
     this.#window = window;
     this.#emit = emit;
+  }
+
+  /** Every tab routes keys here before its page sees them. */
+  interceptKeys(onKey: (input: KeyInput) => boolean): void {
+    this.#onKey = onKey;
+  }
+
+  focusActive(): void {
+    this.#active()?.view.webContents.focus();
+  }
+
+  closeActive(): void {
+    if (this.#activeId !== null) this.close(this.#activeId);
+  }
+
+  step(offset: number): void {
+    if (this.#activeId === null || this.#order.length < 2) return;
+    const index = this.#order.indexOf(this.#activeId);
+    const next = (index + offset + this.#order.length) % this.#order.length;
+    this.activate(this.#order[next]!);
   }
 
   create(url: string = this.homepage): void {
@@ -128,6 +150,17 @@ export class TabManager {
     const trackUrl = (): void => update({ url: webContents.getURL() });
     webContents.on("did-navigate", trackUrl);
     webContents.on("did-navigate-in-page", trackUrl);
+
+    webContents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown") return;
+      const consumed = this.#onKey({
+        key: input.key,
+        control: input.control,
+        alt: input.alt,
+        meta: input.meta,
+      });
+      if (consumed) event.preventDefault();
+    });
   }
 
   #publish(): void {

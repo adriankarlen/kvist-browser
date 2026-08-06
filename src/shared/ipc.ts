@@ -2,6 +2,8 @@ import type { UserConfig } from "./config";
 
 export type TabId = number;
 
+export type Mode = "normal" | "insert" | "command";
+
 export interface TabState {
   id: TabId;
   title: string;
@@ -27,8 +29,12 @@ export interface Rect {
 export const CHANNELS = {
   state: "kvist:state",
   config: "kvist:config",
+  mode: "kvist:mode",
+  setMode: "kvist:set-mode",
+  runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
+  focusOmnibox: "kvist:focus-omnibox",
   closeTab: "kvist:close-tab",
   activateTab: "kvist:activate-tab",
   navigate: "kvist:navigate",
@@ -41,6 +47,11 @@ export const CHANNELS = {
 export interface KvistApi {
   onState: (listener: (state: BrowserState) => void) => () => void;
   onConfig: (listener: (config: UserConfig) => void) => () => void;
+  onMode: (listener: (mode: Mode) => void) => () => void;
+  setMode: (mode: Mode) => void;
+  runCommand: (line: string) => void;
+  /** Chrome asks main to focus the omnibox input; main only moves window focus. */
+  onFocusOmnibox: (listener: () => void) => () => void;
   /** Reports the chrome's content rectangle so the active tab can be positioned under it. */
   setContentRect: (rect: Rect) => void;
   createTab: (url?: string) => void;
