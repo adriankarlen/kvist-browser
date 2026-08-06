@@ -5,7 +5,6 @@ import { setAdblockEnabled } from "./adblock";
 import { CHANNELS, type Mode, type Rect, type TabId } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
-import { loadExtensions } from "./extensions";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
 import { Vim } from "./vim";
@@ -38,9 +37,6 @@ function createWindow(config: UserConfig): void {
   tabs.homepage = config.settings.homepage;
   tabs.focusPage = config.settings.tabFocusPage;
 
-  // Extensions are deliberately absent here: they are loaded once at startup,
-  // since swapping them under a live page leaves it half-instrumented until a
-  // reload.
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
@@ -144,12 +140,9 @@ function createWindow(config: UserConfig): void {
 
 void app.whenReady().then(async () => {
   const config = await loadConfig();
-  // Both attach to the default session, so both have to be in place before the
-  // first tab starts loading.
-  await Promise.all([
-    loadExtensions(config.settings.extensions),
-    setAdblockEnabled(config.settings.adblock),
-  ]);
+  // Attaches to the default session, so it has to be in place before the first
+  // tab starts loading.
+  await setAdblockEnabled(config.settings.adblock);
   createWindow(config);
 
   app.on("activate", () => {

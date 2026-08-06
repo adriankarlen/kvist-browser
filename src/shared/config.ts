@@ -9,12 +9,6 @@ export interface Settings {
    * switches leave the keyboard on the chrome.
    */
   tabFocusPage: boolean;
-  /**
-   * Unpacked extension directories, absolute or relative to the config dir.
-   * Read once at startup; Chromium loads extensions per session and does not
-   * persist them across boots.
-   */
-  extensions: string[];
   /** Network and cosmetic filtering, from the prebuilt ads + tracking lists. */
   adblock: boolean;
 }
@@ -23,7 +17,6 @@ export const DEFAULT_SETTINGS: Settings = {
   homepage: "https://example.com",
   tabOrientation: "horizontal",
   tabFocusPage: true,
-  extensions: [],
   adblock: true,
 };
 

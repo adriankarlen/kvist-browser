@@ -99,19 +99,16 @@ than the one you left, and ignores reports from a webContents that owns no tab
 
 ## Extensions
 
-Unpacked only, listed in `config.toml` and loaded by `src/main/extensions.ts`.
-Use `session.extensions.loadExtension`, not the `session.loadExtension` alias —
-the latter is deprecated in Electron 43.
+There is no extension support, deliberately. It was built and then removed in
+`767b55b`..`HEAD` — the loader worked, but Electron 43 implements too little
+of the extension API for the two extensions worth having. uBlock Origin and
+Bitwarden both die on a missing `chrome.webRequest` implementation, and
+Bitwarden also needs `webNavigation`, `contextMenus`, `notifications` and
+`sidePanel`, none of which exist. Details are on KVI-19 and KVI-20.
 
-Extensions attach to a **session**, and tabs are created without a partition,
-so they must go on `session.defaultSession` or no page will see them. Loading
-happens after `app.whenReady()` but before the window exists, since the first
-tab is created during `did-finish-load` and would otherwise race the load.
-
-Unlike everything else in `config.toml`, this key is startup-only. Chromium
-does not persist loaded extensions across boots, so the list is re-read every
-launch; hot-swapping it would leave already-open pages half-instrumented until
-a reload.
+Go back to `git show 767b55b` before rebuilding this; the loader itself was
+fine, and only ever needed `session.extensions.loadExtension` against
+`session.defaultSession`.
 
 ## Ad blocking
 

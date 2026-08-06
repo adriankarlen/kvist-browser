@@ -48,8 +48,6 @@ unfortunately, a necessary part of a project with this vision.
 - **Vertical or horizontal tabs**, configurable via `config.toml`.
 - **Ad and tracker blocking** built in, using EasyList and uBlock Origin's
   own filter lists. See [Ad blocking](#ad-blocking).
-- **Unpacked Chrome extensions**, listed in `config.toml`. See
-  [Extensions](#extensions).
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
 
 ## Roadmap
@@ -136,8 +134,7 @@ needed.
 
 ```toml
 homepage = "https://example.com"
-adblock = true                      # ad and tracker blocking
-extensions = ["extensions/ublock"]  # unpacked extension folders
+adblock = true              # ad and tracker blocking
 
 [tabs]
 orientation = "horizontal"  # or "vertical"
@@ -163,19 +160,6 @@ This is deliberately not uBlock Origin itself. uBlock cannot run as an
 extension on Electron: the classic build needs a `chrome.webRequest`
 implementation Electron does not ship, and uBlock Origin Lite's rules load
 but are never enforced. Same lists, different engine.
-
-### Extensions
-
-Kvist loads unpacked extensions only — no Chrome Web Store, no `.crx`. Point
-`extensions` at the folders holding the unpacked builds; paths may be
-absolute, start with `~`, or be relative to the config directory. A path that
-fails to load is reported on stderr and skipped, so one broken entry does not
-stop the rest.
-
-Unlike the rest of the config, `extensions` is read once at startup. Chromium
-loads extensions per session and does not persist them, and swapping them
-under a live page leaves it half-instrumented, so changes here need a
-restart.
 
 ### `config.css`
 
