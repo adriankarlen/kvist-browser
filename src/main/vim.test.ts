@@ -13,6 +13,7 @@ const actions = {
   focusPage: vi.fn(),
   focusChrome: vi.fn(),
   focusOmnibox: vi.fn(),
+  blurPage: vi.fn(),
 };
 
 let vim: Vim;
@@ -158,4 +159,37 @@ test("command mode lets the command line type", () => {
 test("modified chrome keys pass through", () => {
   expect(chromeKey("t", { meta: true })).toBe(false);
   expect(actions.newTab).not.toHaveBeenCalled();
+});
+
+test("focusing a text field on the page enters insert", () => {
+  vim.setEditable(true);
+  expect(vim.mode).toBe("insert");
+  expect(key("t")).toBe(false);
+  expect(actions.newTab).not.toHaveBeenCalled();
+});
+
+test("leaving a text field returns to normal", () => {
+  vim.setEditable(true);
+  vim.setEditable(false);
+  expect(vim.mode).toBe("normal");
+  expect(modes).toEqual(["insert", "normal"]);
+});
+
+test("a page text field does not steal the command line", () => {
+  key(":");
+  vim.setEditable(true);
+  expect(vim.mode).toBe("command");
+});
+
+test("Escape blurs the field, so normal mode actually gets the keyboard back", () => {
+  vim.setEditable(true);
+  expect(key("Escape")).toBe(true);
+  expect(actions.blurPage).toHaveBeenCalledOnce();
+  expect(vim.mode).toBe("normal");
+});
+
+test("a field losing focus while already normal changes nothing", () => {
+  vim.setEditable(false);
+  expect(vim.mode).toBe("normal");
+  expect(modes).toEqual([]);
 });

@@ -11,6 +11,7 @@ import { Vim } from "./vim";
 applyXdgPaths();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
+const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 
 function createWindow(config: UserConfig): void {
@@ -22,7 +23,7 @@ function createWindow(config: UserConfig): void {
     webPreferences: { preload },
   });
 
-  const tabs = new TabManager(win, (state) => {
+  const tabs = new TabManager(win, pagePreload, (state) => {
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.state, state);
   });
 
@@ -60,12 +61,20 @@ function createWindow(config: UserConfig): void {
         win.webContents.focus();
         send(CHANNELS.focusOmnibox, null);
       },
+      blurPage: () => tabs.blurActive(),
     },
     (mode) => send(CHANNELS.mode, mode),
   );
 
   tabs.interceptKeys((input, source) => vim.handleKey(input, source));
   tabs.interceptChromeKeys(win.webContents);
+  tabs.observeEditable((editable) => vim.setEditable(editable));
+
+  // Not routed through `on`: the sender is a tab, not the chrome. TabManager
+  // rejects any webContents that does not own a tab.
+  ipcMain.on(CHANNELS.pageEditable, (event, editable: boolean) => {
+    tabs.setEditable(event.sender, editable);
+  });
 
   const runCommand = (line: string): void => {
     const [name = "", ...args] = line.trim().split(/\s+/);

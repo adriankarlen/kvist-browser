@@ -1,6 +1,6 @@
 import { type BaseWindow, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS } from "../shared/config";
-import type { BrowserState, Rect, TabId, TabState } from "../shared/ipc";
+import { type BrowserState, CHANNELS, type Rect, type TabId, type TabState } from "../shared/ipc";
 import type { KeyInput, KeySource } from "./vim";
 
 interface Tab {
@@ -10,12 +10,16 @@ interface Tab {
   url: string;
   favicon: string | null;
   loading: boolean;
+  /** Whether this tab currently has something typable focused. */
+  editable: boolean;
 }
 
 export class TabManager {
   #window: BaseWindow;
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
+  #onEditable: (editable: boolean) => void = () => {};
+  #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
   #activeId: TabId | null = null;
@@ -24,8 +28,9 @@ export class TabManager {
   homepage = DEFAULT_SETTINGS.homepage;
   focusPage = DEFAULT_SETTINGS.tabFocusPage;
 
-  constructor(window: BaseWindow, emit: (state: BrowserState) => void) {
+  constructor(window: BaseWindow, pagePreload: string, emit: (state: BrowserState) => void) {
     this.#window = window;
+    this.#pagePreload = pagePreload;
     this.#emit = emit;
   }
 
@@ -43,8 +48,30 @@ export class TabManager {
     this.#bindKeys(webContents, "chrome");
   }
 
+  /** Tabs report focus landing on a text field, so normal mode can step aside. */
+  observeEditable(onEditable: (editable: boolean) => void): void {
+    this.#onEditable = onEditable;
+  }
+
+  /**
+   * Doubles as the sender check for the editable channel: a webContents that
+   * owns no tab is not one of ours and is ignored.
+   */
+  setEditable(sender: WebContents, editable: boolean): void {
+    const tab = [...this.#tabs.values()].find((candidate) => candidate.view.webContents === sender);
+    if (!tab) return;
+
+    tab.editable = editable;
+    // A background tab losing focus to the chrome must not drag mode with it.
+    if (tab.id === this.#activeId && sender.isFocused()) this.#onEditable(editable);
+  }
+
   focusActive(): void {
     this.#active()?.view.webContents.focus();
+  }
+
+  blurActive(): void {
+    this.#active()?.view.webContents.send(CHANNELS.pageBlur);
   }
 
   closeActive(): void {
@@ -60,8 +87,16 @@ export class TabManager {
 
   create(url: string = this.homepage): void {
     const id = this.#nextId++;
-    const view = new WebContentsView();
-    const tab: Tab = { id, view, title: url, url, favicon: null, loading: true };
+    const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
+    const tab: Tab = {
+      id,
+      view,
+      title: url,
+      url,
+      favicon: null,
+      loading: true,
+      editable: false,
+    };
 
     this.#tabs.set(id, tab);
     this.#order.push(id);
@@ -105,7 +140,11 @@ export class TabManager {
     this.#applyContentRect();
     // Hiding the view that had focus drops it back on the chrome, so without
     // this the page stops receiving keys after the first tab switch.
-    if (this.focusPage) this.focusActive();
+    if (this.focusPage) {
+      this.focusActive();
+      // Mode follows the tab you land on, not the one you left.
+      this.#onEditable(this.#tabs.get(id)!.editable);
+    }
     this.#publish();
   }
 

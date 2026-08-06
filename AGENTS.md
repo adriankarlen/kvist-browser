@@ -42,6 +42,12 @@ src/renderer/   Svelte chrome (tab strip, omnibox). Components in lib/
 src/shared/     Types and channel names imported by all three
 ```
 
+There are two preloads. `index.ts` is the chrome's bridge and exposes
+`window.kvist`; `page.ts` runs in every tab and deliberately exposes nothing,
+since a web page must never reach that API. Each needs its own entry in
+`vite.config.ts` — the plugin bundles a preload to a single file, so one build
+cannot serve several entries.
+
 Tabs are one `WebContentsView` per tab, owned by `TabManager` and hidden with
 `setVisible(false)` rather than being detached.
 
@@ -79,6 +85,17 @@ interception works.
 `activate()` hands keyboard focus back to the page, since hiding the previously
 focused view drops focus on the chrome. `[tabs] focus-page = false` in
 `config.toml` turns that off for anyone who wants focus to stay put.
+
+Pages report focus landing on a text field over `kvist:page-editable`, and vim
+enters insert so normal mode stops eating the user's typing — the same courtesy
+the omnibox gets. That report is asynchronous, unlike keys; it is safe only
+because main caches it, leaving `handleKey` synchronous. Escape blurs the field
+as well as leaving insert, otherwise focus stays in the input and the next key
+goes straight back into it.
+
+`TabManager` keeps the flag per tab, so mode follows the tab you land on rather
+than the one you left, and ignores reports from a webContents that owns no tab
+— which doubles as the sender check on that channel.
 
 ## Styling rules
 
@@ -124,6 +141,12 @@ level `before-input-event` hooks into, so main never sees those keys. Cover the
 modal logic with unit tests against `Vim` instead, drive the chrome-side paths
 by calling `window.kvist.*` directly, and leave real keystrokes to manual
 checks.
+
+**Focus tests need the window frontmost.** Chromium fires no `focusin` or
+`focusout` while the window is in the background, so anything focus-driven
+reads as "nothing happened" if you have since switched apps. Raise the window
+first, and blur between assertions — focusing an element that already has
+focus fires nothing either, which reads as a pass against stale state.
 
 Outbound network is often blocked; serve a local test site instead of relying on
 public URLs. Beware `pkill -f` with a pattern matching the repo path — it

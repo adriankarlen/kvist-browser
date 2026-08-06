@@ -31,6 +31,10 @@ export const CHANNELS = {
   config: "kvist:config",
   mode: "kvist:mode",
   setMode: "kvist:set-mode",
+  /** A tab reporting whether its focused element accepts typing. */
+  pageEditable: "kvist:page-editable",
+  /** Asks a tab to blur whatever it has focused, so normal mode regains the keyboard. */
+  pageBlur: "kvist:page-blur",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",

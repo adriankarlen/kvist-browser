@@ -25,6 +25,8 @@ export interface VimActions {
   focusPage: () => void;
   focusChrome: () => void;
   focusOmnibox: () => void;
+  /** Drops the page's focused element, so leaving insert actually returns the keyboard. */
+  blurPage: () => void;
 }
 
 export class Vim {
@@ -48,6 +50,20 @@ export class Vim {
     this.#set(mode);
   }
 
+  /**
+   * A tab reporting that focus moved on or off something typable. Text fields
+   * own their keys, so normal mode has to step aside rather than swallow them.
+   *
+   * This arrives asynchronously, unlike keys — safe only because it is cached
+   * state, so handleKey still decides synchronously.
+   */
+  setEditable(editable: boolean): void {
+    // The command line is up and holds the keyboard; the page is a bystander.
+    if (this.#mode === "command") return;
+    if (editable) this.#set("insert");
+    else if (this.#mode === "insert") this.#set("normal");
+  }
+
   /** True when the key was consumed and must not reach its webContents. */
   handleKey(input: KeyInput, source: KeySource): boolean {
     if (input.control || input.alt || input.meta) return false;
@@ -64,6 +80,9 @@ export class Vim {
 
     if (this.#mode === "insert") {
       if (input.key !== "Escape") return false;
+      // Leaving the field focused would keep every following key going to it,
+      // which is the confusing half-modal state Escape is meant to end.
+      this.#actions.blurPage();
       this.#actions.focusPage();
       this.#set("normal");
       return true;
