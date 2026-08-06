@@ -167,6 +167,13 @@ See [`AGENTS.md`](./AGENTS.md) for the deeper architectural notes: process
 model, the vim mode machine, IPC conventions, styling rules, and known
 gotchas.
 
+## A note on AI
+
+I use AI tools as an assistant while building Kvist, and some of the code in
+this repository was generated with their help. This isn't a vibe-coded
+project: I review, understand, and take responsibility for everything that
+gets merged. AI is a tool in the process, not the author of it.
+
 ## License
 
 [MIT](./LICENSE)
