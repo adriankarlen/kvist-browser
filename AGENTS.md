@@ -53,6 +53,33 @@ CSS concern.
 IPC is fire-and-forget `send` one way, plus full-snapshot `kvist:state` and
 `kvist:config` broadcasts back. Full snapshots, not diffs.
 
+## Modes
+
+The mode machine (`src/main/vim.ts`) lives in main, because `before-input-event`
+must decide synchronously whether to swallow a key and cannot wait for an IPC
+round trip.
+
+`before-input-event` is per webContents, so keys must be intercepted on **both**
+the page and the chrome — `TabManager.interceptKeys` covers every tab,
+`interceptChromeKeys` covers the window. Hooking only the page leaves vim dead
+whenever focus sits on the chrome, which on macOS is where it lands whenever the
+window is activated.
+
+Chrome keys are gated on mode: normal drives vim, insert and command pass
+everything through so the omnibox and command line can type — including their
+own `Escape`, which they report back via `kvist:set-mode`. **Any chrome control
+that accepts typing must therefore put vim into insert while it holds focus**,
+or normal mode will eat every character. `Omnibox.svelte` does this on
+focus/blur.
+
+Mode has two entry points — keys and `kvist:set-mode` — but commands only have
+keys. A mode indicator that moves is therefore no evidence that key
+interception works.
+
+`activate()` hands keyboard focus back to the page, since hiding the previously
+focused view drops focus on the chrome. `[tabs] focus-page = false` in
+`config.toml` turns that off for anyone who wants focus to stay put.
+
 ## Styling rules
 
 These are load-bearing for the product, not preferences. Hackability is the
