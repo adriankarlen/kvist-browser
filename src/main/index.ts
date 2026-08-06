@@ -33,9 +33,11 @@ function createWindow(config: UserConfig): void {
   }
 
   tabs.homepage = config.settings.homepage;
+  tabs.focusPage = config.settings.tabFocusPage;
 
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
+    tabs.focusPage = next.settings.tabFocusPage;
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 

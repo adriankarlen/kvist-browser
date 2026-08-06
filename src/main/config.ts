@@ -48,6 +48,7 @@ function parseSettings(source: string): Settings {
   const tabs = asTable(root.tabs);
   const { homepage } = root;
   const { orientation } = tabs;
+  const focusPage = tabs["focus-page"];
 
   lastGood = {
     homepage: typeof homepage === "string" ? homepage : DEFAULT_SETTINGS.homepage,
@@ -55,6 +56,7 @@ function parseSettings(source: string): Settings {
       orientation === "horizontal" || orientation === "vertical"
         ? orientation
         : DEFAULT_SETTINGS.tabOrientation,
+    tabFocusPage: typeof focusPage === "boolean" ? focusPage : DEFAULT_SETTINGS.tabFocusPage,
   };
   return lastGood;
 }

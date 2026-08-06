@@ -22,6 +22,7 @@ export class TabManager {
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #nextId = 1;
   homepage = DEFAULT_SETTINGS.homepage;
+  focusPage = DEFAULT_SETTINGS.tabFocusPage;
 
   constructor(window: BaseWindow, emit: (state: BrowserState) => void) {
     this.#window = window;
@@ -102,6 +103,9 @@ export class TabManager {
     }
 
     this.#applyContentRect();
+    // Hiding the view that had focus drops it back on the chrome, so without
+    // this the page stops receiving keys after the first tab switch.
+    if (this.focusPage) this.focusActive();
     this.#publish();
   }
 
