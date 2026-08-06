@@ -47,9 +47,18 @@ unfortunately, a necessary part of a project with this vision.
 - **Vertical or horizontal tabs**, configurable via `config.toml`.
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
 
-Not yet built: in-page vim (link hints, scrolling, search), an ad blocker,
-password manager integration, history and session persistence beyond the
-current window.
+## Roadmap
+
+Roughly what's next, in no particular order and with no promised timeline:
+
+- In-page navigation, the start of in-page vim.
+- Ad blocking, by shipping uBlock rather than reimplementing it.
+- Password manager integration, Bitwarden first.
+- In-page styling, in the spirit of Stylus: user CSS for sites, not just
+  the chrome.
+- A toggleable UI, so the omnibox, tab bar, and other chrome pieces can be
+  hidden on demand.
+- A custom sidebar.
 
 ## Install & run
 
