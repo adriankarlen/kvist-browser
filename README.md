@@ -8,7 +8,7 @@ look (minimal, no chrome chrome, theme from a config file) and a
 [Vimium](https://vimium.github.io/)-style interaction model (normal, insert,
 and command modes, keyboard-first navigation).
 
-> **Status:** early and incomplete. This is a personal hobby project. Expect
+> [!IMPORTANT] **Status:** early and incomplete. This is a personal hobby project. Expect
 > missing features, rough edges, and breaking changes to config format and
 > keybindings.
 
