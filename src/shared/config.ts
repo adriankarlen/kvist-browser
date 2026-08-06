@@ -15,6 +15,8 @@ export interface Settings {
    * persist them across boots.
    */
   extensions: string[];
+  /** Network and cosmetic filtering, from the prebuilt ads + tracking lists. */
+  adblock: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabOrientation: "horizontal",
   tabFocusPage: true,
   extensions: [],
+  adblock: true,
 };
 
 export interface UserConfig {

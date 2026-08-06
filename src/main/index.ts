@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
+import { setAdblockEnabled } from "./adblock";
 import { CHANNELS, type Mode, type Rect, type TabId } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
@@ -43,6 +44,7 @@ function createWindow(config: UserConfig): void {
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
+    void setAdblockEnabled(next.settings.adblock);
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 
@@ -142,7 +144,12 @@ function createWindow(config: UserConfig): void {
 
 void app.whenReady().then(async () => {
   const config = await loadConfig();
-  await loadExtensions(config.settings.extensions);
+  // Both attach to the default session, so both have to be in place before the
+  // first tab starts loading.
+  await Promise.all([
+    loadExtensions(config.settings.extensions),
+    setAdblockEnabled(config.settings.adblock),
+  ]);
   createWindow(config);
 
   app.on("activate", () => {

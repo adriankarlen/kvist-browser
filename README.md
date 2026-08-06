@@ -46,6 +46,8 @@ unfortunately, a necessary part of a project with this vision.
 - **Unlayered user CSS.** Your `config.css` always outranks what Kvist
   ships, with no specificity fights and no `!important`.
 - **Vertical or horizontal tabs**, configurable via `config.toml`.
+- **Ad and tracker blocking** built in, using EasyList and uBlock Origin's
+  own filter lists. See [Ad blocking](#ad-blocking).
 - **Unpacked Chrome extensions**, listed in `config.toml`. See
   [Extensions](#extensions).
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
@@ -55,7 +57,7 @@ unfortunately, a necessary part of a project with this vision.
 Roughly what's next, in no particular order and with no promised timeline:
 
 - In-page navigation, the start of in-page vim.
-- Ad blocking, by shipping uBlock rather than reimplementing it.
+- Per-site blocking toggles, and user filter lists.
 - Password manager integration, Bitwarden first.
 - In-page styling, in the spirit of Stylus: user CSS for sites, not just
   the chrome.
@@ -134,6 +136,7 @@ needed.
 
 ```toml
 homepage = "https://example.com"
+adblock = true                      # ad and tracker blocking
 extensions = ["extensions/ublock"]  # unpacked extension folders
 
 [tabs]
@@ -144,6 +147,22 @@ focus-page = true           # hand keyboard focus to the page after a tab switch
 Anything missing or invalid falls back to the default. A broken file keeps
 the last config that parsed instead of reverting to defaults out from under
 you.
+
+### Ad blocking
+
+On by default, and toggled live with `adblock` in `config.toml`. Kvist blocks
+both network requests and page elements using the prebuilt EasyList and
+uBlock Origin lists, via
+[`@ghostery/adblocker`](https://github.com/ghostery/adblocker).
+
+The filter engine is downloaded on first run and cached under
+`$XDG_DATA_HOME/kvist/`, so later launches are offline and instant. If that
+first download fails, Kvist starts without blocking rather than not starting.
+
+This is deliberately not uBlock Origin itself. uBlock cannot run as an
+extension on Electron: the classic build needs a `chrome.webRequest`
+implementation Electron does not ship, and uBlock Origin Lite's rules load
+but are never enforced. Same lists, different engine.
 
 ### Extensions
 

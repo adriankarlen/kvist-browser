@@ -42,7 +42,16 @@ export default defineConfig({
     electron({
       main: {
         entry: "src/main/index.ts",
-        vite: { build: { outDir: "dist/main" } },
+        vite: {
+          build: {
+            outDir: "dist/main",
+            // The adblocker resolves its own preload with require.resolve at
+            // runtime, which only works from inside its package directory.
+            // Bundling it moves that call to dist/main, where pnpm's
+            // non-hoisted layout cannot see the transitive dependency.
+            rolldownOptions: { external: ["@ghostery/adblocker-electron"] },
+          },
+        },
       },
       // index is the chrome's bridge; page runs in every tab and exposes nothing.
       preload: [preload("index"), preload("page")],

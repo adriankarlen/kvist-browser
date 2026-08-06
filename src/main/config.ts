@@ -46,7 +46,7 @@ function parseSettings(source: string): Settings {
 
   const root = asTable(parsed);
   const tabs = asTable(root.tabs);
-  const { extensions, homepage } = root;
+  const { adblock, extensions, homepage } = root;
   const { orientation } = tabs;
   const focusPage = tabs["focus-page"];
 
@@ -55,6 +55,7 @@ function parseSettings(source: string): Settings {
     extensions: Array.isArray(extensions)
       ? extensions.filter((entry) => typeof entry === "string")
       : DEFAULT_SETTINGS.extensions,
+    adblock: typeof adblock === "boolean" ? adblock : DEFAULT_SETTINGS.adblock,
     tabOrientation:
       orientation === "horizontal" || orientation === "vertical"
         ? orientation

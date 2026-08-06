@@ -113,6 +113,35 @@ does not persist loaded extensions across boots, so the list is re-read every
 launch; hot-swapping it would leave already-open pages half-instrumented until
 a reload.
 
+## Ad blocking
+
+`@ghostery/adblocker-electron`, wired up in `src/main/adblock.ts` against
+`session.defaultSession`. Not uBlock: the classic build needs a
+`chrome.webRequest` implementation Electron does not ship, and uBlock Origin
+Lite's rulesets register but are never enforced. Same filter lists, different
+engine.
+
+**`session.webRequest` allows exactly one listener per event.** The blocker
+claims `onBeforeRequest` and `onHeadersReceived`, so anything else in main
+that wants them will silently displace it, or be displaced. Disabling works by
+removing the listeners outright, for the same reason.
+
+**The package must stay external in the main build.** It resolves its own
+cosmetic-filtering preload with `require.resolve` at runtime; bundling moves
+that call to `dist/main`, where pnpm's non-hoisted layout cannot see the
+transitive dependency, and the app dies on boot. Marked external in
+`vite.config.ts`. This will need revisiting for packaging, since
+electron-builder currently ships `dist/**/*` only.
+
+The engine is fetched on first run and cached under `userData`, which
+`paths.ts` has already pointed at `XDG_DATA_HOME`. A failed fetch is logged
+and skipped rather than thrown — a browser that starts without blocking beats
+one that does not start.
+
+Generic cosmetic filters are keyed on real domains, so a page served from a
+bare IP gets none of them. Test cosmetic filtering against an actual site;
+localhost will read as a false negative.
+
 ## Styling rules
 
 These are load-bearing for the product, not preferences. Hackability is the
