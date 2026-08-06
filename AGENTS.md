@@ -115,6 +115,10 @@ matches its own shell command line.
   state to `XDG_DATA_HOME`. Never write to the config dir.
 - Config watching watches the _directory_, not the files — editors rename over
   files, which swaps the inode and kills a file watch.
+- **`.kv-panel` must keep `overflow: visible`.** Its label is a pseudo-element
+  positioned outside the box to straddle the top border, so any other overflow
+  value clips the label away. A panel that needs to scroll has to scroll an
+  inner element instead of itself.
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
 - Keep `@types/node` pinned to 24.x. Electron and electron-builder pull in
