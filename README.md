@@ -46,6 +46,8 @@ unfortunately, a necessary part of a project with this vision.
 - **Unlayered user CSS.** Your `config.css` always outranks what Kvist
   ships, with no specificity fights and no `!important`.
 - **Vertical or horizontal tabs**, configurable via `config.toml`.
+- **Unpacked Chrome extensions**, listed in `config.toml`. See
+  [Extensions](#extensions).
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
 
 ## Roadmap
@@ -132,6 +134,7 @@ needed.
 
 ```toml
 homepage = "https://example.com"
+extensions = ["extensions/ublock"]  # unpacked extension folders
 
 [tabs]
 orientation = "horizontal"  # or "vertical"
@@ -141,6 +144,19 @@ focus-page = true           # hand keyboard focus to the page after a tab switch
 Anything missing or invalid falls back to the default. A broken file keeps
 the last config that parsed instead of reverting to defaults out from under
 you.
+
+### Extensions
+
+Kvist loads unpacked extensions only — no Chrome Web Store, no `.crx`. Point
+`extensions` at the folders holding the unpacked builds; paths may be
+absolute, start with `~`, or be relative to the config directory. A path that
+fails to load is reported on stderr and skipped, so one broken entry does not
+stop the rest.
+
+Unlike the rest of the config, `extensions` is read once at startup. Chromium
+loads extensions per session and does not persist them, and swapping them
+under a live page leaves it half-instrumented, so changes here need a
+restart.
 
 ### `config.css`
 

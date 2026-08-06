@@ -46,12 +46,15 @@ function parseSettings(source: string): Settings {
 
   const root = asTable(parsed);
   const tabs = asTable(root.tabs);
-  const { homepage } = root;
+  const { extensions, homepage } = root;
   const { orientation } = tabs;
   const focusPage = tabs["focus-page"];
 
   lastGood = {
     homepage: typeof homepage === "string" ? homepage : DEFAULT_SETTINGS.homepage,
+    extensions: Array.isArray(extensions)
+      ? extensions.filter((entry) => typeof entry === "string")
+      : DEFAULT_SETTINGS.extensions,
     tabOrientation:
       orientation === "horizontal" || orientation === "vertical"
         ? orientation

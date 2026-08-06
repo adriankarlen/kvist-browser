@@ -4,6 +4,7 @@ import type { UserConfig } from "../shared/config";
 import { CHANNELS, type Mode, type Rect, type TabId } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
+import { loadExtensions } from "./extensions";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
 import { Vim } from "./vim";
@@ -36,6 +37,9 @@ function createWindow(config: UserConfig): void {
   tabs.homepage = config.settings.homepage;
   tabs.focusPage = config.settings.tabFocusPage;
 
+  // Extensions are deliberately absent here: they are loaded once at startup,
+  // since swapping them under a live page leaves it half-instrumented until a
+  // reload.
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
@@ -138,6 +142,7 @@ function createWindow(config: UserConfig): void {
 
 void app.whenReady().then(async () => {
   const config = await loadConfig();
+  await loadExtensions(config.settings.extensions);
   createWindow(config);
 
   app.on("activate", () => {

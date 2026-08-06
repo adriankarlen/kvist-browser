@@ -97,6 +97,22 @@ goes straight back into it.
 than the one you left, and ignores reports from a webContents that owns no tab
 — which doubles as the sender check on that channel.
 
+## Extensions
+
+Unpacked only, listed in `config.toml` and loaded by `src/main/extensions.ts`.
+Use `session.extensions.loadExtension`, not the `session.loadExtension` alias —
+the latter is deprecated in Electron 43.
+
+Extensions attach to a **session**, and tabs are created without a partition,
+so they must go on `session.defaultSession` or no page will see them. Loading
+happens after `app.whenReady()` but before the window exists, since the first
+tab is created during `did-finish-load` and would otherwise race the load.
+
+Unlike everything else in `config.toml`, this key is startup-only. Chromium
+does not persist loaded extensions across boots, so the list is re-read every
+launch; hot-swapping it would leave already-open pages half-instrumented until
+a reload.
+
 ## Styling rules
 
 These are load-bearing for the product, not preferences. Hackability is the
