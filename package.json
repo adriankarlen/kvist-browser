@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.2",
-    "smol-toml": "^1.7.1"
+    "smol-toml": "^1.7.1",
+    "tldts-experimental": "^7.4.10"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.2.0",

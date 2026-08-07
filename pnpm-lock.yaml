@@ -14,6 +14,9 @@ importers:
       smol-toml:
         specifier: ^1.7.1
         version: 1.7.1
+      tldts-experimental:
+        specifier: ^7.4.10
+        version: 7.4.10
     devDependencies:
       '@sveltejs/vite-plugin-svelte':
         specifier: ^7.2.0
