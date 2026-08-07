@@ -10,7 +10,41 @@ let enabled = false;
 /** How long a cached engine may be used before the lists are refetched. */
 const MAX_ENGINE_AGE = 24 * 60 * 60 * 1000;
 
+/** Ceiling on a single list request, so a hung socket cannot stall startup. */
+const FETCH_TIMEOUT = 15 * 1000;
+
 type InjectMessage = Parameters<ElectronBlocker["onInjectCosmeticFilters"]>[2];
+
+/** Key of the URL-scoped sheet per tab, so navigation can replace it. */
+const urlSheets = new WeakMap<WebContents, string>();
+
+/** Tail of the replacement chain per tab, so overlapping navigations queue. */
+const replacements = new WeakMap<WebContents, Promise<void>>();
+
+/**
+ * `$generichide` and friends are matched against the whole URL, path included,
+ * so the hiding rules are not fixed for the lifetime of a document. The sheet
+ * they produce is tracked and swapped rather than appended, and the swaps are
+ * serialized because two navigations in flight at once would otherwise race
+ * over which key is current.
+ */
+function replaceUrlSheet(sender: WebContents, styles: string): void {
+  const swap = async (): Promise<void> => {
+    if (sender.isDestroyed()) return;
+
+    const previous = urlSheets.get(sender);
+    urlSheets.delete(sender);
+    if (previous !== undefined) await sender.removeInsertedCSS(previous);
+    if (styles.length === 0 || sender.isDestroyed()) return;
+
+    urlSheets.set(sender, await sender.insertCSS(styles, { cssOrigin: "user" }));
+  };
+
+  const queued = (replacements.get(sender) ?? Promise.resolve())
+    .then(swap, swap)
+    .catch((error: unknown) => console.error("kvist: could not apply hiding rules:", error));
+  replacements.set(sender, queued);
+}
 
 /**
  * uBO scriptlets are self-contained bundles that declare their helpers at the
@@ -33,12 +67,6 @@ function runScriptlet(sender: WebContents, script: string): void {
  * Replaces the library's own cosmetic injection. Kept faithful to it, bar the
  * scriptlet wrapping and a real `catch` — upstream wraps an async call in a
  * synchronous `try`, so its failures escape as unhandled rejections.
- *
- * Nothing here needs redoing on history-API navigation. Same-document
- * navigation cannot cross origins, and with `getExtendedRules` off the styles
- * are a pure function of hostname and domain, so a reinjection is byte for byte
- * what the document already carries. Content the SPA adds afterwards arrives on
- * the DOM-update path below rather than through the URL.
  */
 function injectCosmetics(
   sender: WebContents,
@@ -66,11 +94,37 @@ function injectCosmetics(
     callerContext,
   });
 
+  if (isFirstRun) {
+    replaceUrlSheet(sender, active ? styles : "");
+  } else if (active && styles.length > 0) {
+    // Each update covers selectors the earlier passes had not seen, so these
+    // sheets are additive and none of them may be removed.
+    void sender
+      .insertCSS(styles, { cssOrigin: "user" })
+      .catch((error: unknown) => console.error("kvist: could not apply hiding rules:", error));
+  }
+
   if (!active) return;
-  // Each update covers selectors the previous passes had not seen, so the
-  // sheets accumulate by design and none of them may be removed.
-  if (styles.length > 0) void sender.insertCSS(styles, { cssOrigin: "user" });
   for (const script of scripts) runScriptlet(sender, script);
+}
+
+/** Reapplies the URL-scoped hiding rules after a history-API navigation. */
+export function refreshCosmeticStyles(sender: WebContents, url: string): void {
+  if (!blocker || !enabled || sender.isDestroyed()) return;
+
+  const parsed = parse(url);
+  const { active, styles } = blocker.getCosmeticsFilters({
+    domain: parsed.domain ?? "",
+    hostname: parsed.hostname ?? "",
+    url,
+    getBaseRules: true,
+    getInjectionRules: false,
+    getExtendedRules: false,
+    getRulesFromHostname: true,
+    getRulesFromDOM: false,
+  });
+
+  replaceUrlSheet(sender, active ? styles : "");
 }
 
 /** Rejects a cached engine past its shelf life, so `fromCached` refetches. */
@@ -79,6 +133,17 @@ async function readIfFresh(path: string): Promise<Buffer> {
   if (Date.now() - mtimeMs > MAX_ENGINE_AGE) throw new Error("cached engine is stale");
   return readFile(path);
 }
+
+/**
+ * The library retries a failed list fetch but never gives up on one that simply
+ * hangs, and this runs before the first window opens, so a dead connection
+ * would stall the whole app rather than fall through to the cache.
+ */
+const fetchWithTimeout: typeof fetch = (input, init) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+};
 
 /**
  * The engine is a few MB of parsed filter lists, cached as a binary blob. The
@@ -91,7 +156,7 @@ async function engine(): Promise<ElectronBlocker> {
 
   const path = join(app.getPath("userData"), "adblocker-engine.bin");
   const build = (read: (path: string) => Promise<Buffer>): Promise<ElectronBlocker> =>
-    ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, { path, read, write: writeFile });
+    ElectronBlocker.fromPrebuiltAdsAndTracking(fetchWithTimeout, { path, read, write: writeFile });
 
   let instance: ElectronBlocker;
   try {

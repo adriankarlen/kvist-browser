@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
-import { setAdblockEnabled } from "./adblock";
+import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import { loadConfig, watchConfig } from "./config";
@@ -75,6 +75,7 @@ function createWindow(config: UserConfig): void {
   tabs.interceptKeys((input, source) => vim.handleKey(input, source));
   tabs.interceptChromeKeys(win.webContents);
   tabs.observeEditable((editable) => vim.setEditable(editable));
+  tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
 
   // Not routed through `on`: the sender is a tab, not the chrome. TabManager
   // rejects any webContents that does not own a tab.

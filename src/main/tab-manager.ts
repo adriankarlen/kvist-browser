@@ -27,6 +27,7 @@ export class TabManager {
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #onEditable: (editable: boolean) => void = () => {};
+  #onInPageNavigation: (contents: WebContents, url: string) => void = () => {};
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
@@ -59,6 +60,14 @@ export class TabManager {
   /** Tabs report focus landing on a text field, so normal mode can step aside. */
   observeEditable(onEditable: (editable: boolean) => void): void {
     this.#onEditable = onEditable;
+  }
+
+  /**
+   * History-API navigation, which changes the URL without reloading the frame.
+   * Anything keyed to the URL rather than the document has to be reapplied.
+   */
+  observeInPageNavigation(handler: (contents: WebContents, url: string) => void): void {
+    this.#onInPageNavigation = handler;
   }
 
   /**
@@ -248,7 +257,10 @@ export class TabManager {
 
     const trackUrl = (): void => update({ url: webContents.getURL() });
     webContents.on("did-navigate", trackUrl);
-    webContents.on("did-navigate-in-page", trackUrl);
+    webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+      trackUrl();
+      if (isMainFrame) this.#onInPageNavigation(webContents, url);
+    });
 
     this.#bindKeys(webContents, "page");
   }
