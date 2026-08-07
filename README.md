@@ -67,12 +67,11 @@ Roughly what's next, in no particular order and with no promised timeline:
 
 ## Install & run
 
-Requires Node 24.11 or newer, and pnpm. Node and pnpm are pinned via
-`.node-version` and managed with [fnm](https://github.com/Schniz/fnm) rather
-than living on the default `PATH`:
+There are no published releases yet, to use it, build from source.
+
+ Node and pnpm. Pinned via `.node-version`.
 
 ```sh
-eval "$(fnm env --use-on-cwd)"   # or `fnm use` inside the repo
 pnpm install
 ```
 
