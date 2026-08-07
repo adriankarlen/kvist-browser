@@ -33,6 +33,12 @@ function runScriptlet(sender: WebContents, script: string): void {
  * Replaces the library's own cosmetic injection. Kept faithful to it, bar the
  * scriptlet wrapping and a real `catch` — upstream wraps an async call in a
  * synchronous `try`, so its failures escape as unhandled rejections.
+ *
+ * Nothing here needs redoing on history-API navigation. Same-document
+ * navigation cannot cross origins, and with `getExtendedRules` off the styles
+ * are a pure function of hostname and domain, so a reinjection is byte for byte
+ * what the document already carries. Content the SPA adds afterwards arrives on
+ * the DOM-update path below rather than through the URL.
  */
 function injectCosmetics(
   sender: WebContents,
@@ -61,32 +67,10 @@ function injectCosmetics(
   });
 
   if (!active) return;
+  // Each update covers selectors the previous passes had not seen, so the
+  // sheets accumulate by design and none of them may be removed.
   if (styles.length > 0) void sender.insertCSS(styles, { cssOrigin: "user" });
   for (const script of scripts) runScriptlet(sender, script);
-}
-
-/**
- * In-page navigation reuses the realm, so the scriptlets injected at load are
- * still resident and still hooking `fetch`/`XHR` — running them again would
- * stack interceptors on top of the live ones. Only the hiding rules are keyed
- * to the URL, so only they are reapplied.
- */
-export function refreshCosmeticStyles(sender: WebContents, url: string): void {
-  if (!blocker || !enabled || sender.isDestroyed()) return;
-
-  const parsed = parse(url);
-  const { active, styles } = blocker.getCosmeticsFilters({
-    domain: parsed.domain ?? "",
-    hostname: parsed.hostname ?? "",
-    url,
-    getBaseRules: false,
-    getInjectionRules: false,
-    getExtendedRules: false,
-    getRulesFromHostname: true,
-    getRulesFromDOM: false,
-  });
-
-  if (active && styles.length > 0) void sender.insertCSS(styles, { cssOrigin: "user" });
 }
 
 /** Rejects a cached engine past its shelf life, so `fromCached` refetches. */
