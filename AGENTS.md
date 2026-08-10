@@ -51,6 +51,24 @@ cannot serve several entries.
 Tabs are one `WebContentsView` per tab, owned by `TabManager` and hidden with
 `setVisible(false)` rather than being detached.
 
+`window.open` and `target="_blank"` are denied and answered with a tab of our
+own, so everything a page opens stays inside the tab model. Two hard limits
+make it that shape, both verified against Electron 43:
+
+- **`createWindow` cannot return a `WebContentsView`'s webContents.** It is the
+  documented way to keep the opener relationship — `window.opener`, a live
+  handle, `window.close()` — but Chromium hangs the whole process adopting one.
+  Denying is why `window.open` returns null, and why a `target="_blank"` POST
+  loses its `postBody`.
+- **Never call back into Chromium from inside its own window creation or
+  teardown.** Building the tab in the open handler deadlocks; so does
+  unwinding one in `destroyed`. Both defer with `setImmediate`.
+
+**A destroyed view is toxic — even reading `view.webContents` hangs.** A page
+can close itself, and the tab is then left holding a dead view, so `#forget`
+drops the tab without touching it. `close` is the only path that may touch a
+view, because it runs while the view is still alive.
+
 **The renderer owns layout.** Main does not know the chrome's height — the
 renderer measures its own content area and pushes the rectangle over IPC, and
 main just applies it. Keep it that way; it is what makes tab orientation a pure
@@ -268,7 +286,8 @@ a comment when something non-obvious came up — those comments are the main
 record of why things are the way they are.
 
 Phases are not strictly sequential. Agreed order: 0 → 1 → 2 → 3 (chrome-level
-vim only) → 4 (uBlock only) → 3 (in-page vim) → 5 → 4 (Bitwarden) → 6 → 7.
+vim only) → 4 (uBlock only) → 3 (in-page vim) → 3.5 → 5 → 6 → 7, with 4
+(Bitwarden) parked until Electron's extension API surface grows.
 
 Out of scope unless revisited: history/bookmark sync, extension-store
 integration, any GUI settings panel.

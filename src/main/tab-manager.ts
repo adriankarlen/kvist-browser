@@ -11,6 +11,12 @@ import {
 } from "../shared/ipc";
 import type { KeyInput, KeySource } from "./vim";
 
+interface CreateOptions {
+  /** Open next to this tab rather than at the end, as a page-opened tab should. */
+  after?: TabId;
+  background?: boolean;
+}
+
 interface Tab {
   id: TabId;
   view: WebContentsView;
@@ -137,37 +143,34 @@ export class TabManager {
     this.activate(this.#order[next]!);
   }
 
-  create(url: string = this.homepage): void {
-    const id = this.#nextId++;
-    const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
-    const tab: Tab = {
-      id,
-      view,
-      title: url,
-      url,
-      favicon: null,
-      loading: true,
-      editable: false,
-    };
-
-    this.#tabs.set(id, tab);
-    this.#order.push(id);
-    this.#window.contentView.addChildView(view);
-    this.#track(tab);
-
-    void view.webContents.loadURL(url);
-    this.activate(id);
+  create(url: string = this.homepage, options: CreateOptions = {}): void {
+    const tab = this.#adopt(url, options.after);
+    this.#attach(tab);
+    void tab.view.webContents.loadURL(url);
+    if (options.background) this.#publish();
+    else this.activate(tab.id);
   }
 
   close(id: TabId): void {
     const tab = this.#tabs.get(id);
     if (!tab) return;
 
-    const index = this.#order.indexOf(id);
-    this.#tabs.delete(id);
-    this.#order.splice(index, 1);
     this.#window.contentView.removeChildView(tab.view);
     tab.view.webContents.close();
+    this.#forget(id);
+  }
+
+  /**
+   * Drops a tab without touching its view, which `close` cannot do: once a
+   * webContents is destroyed, reaching through the view for it hangs the
+   * process, so a view that died on its own is left parented and forgotten.
+   */
+  #forget(id: TabId): void {
+    const index = this.#order.indexOf(id);
+    if (index === -1) return;
+
+    this.#tabs.delete(id);
+    this.#order.splice(index, 1);
 
     if (this.#order.length === 0) {
       this.#window.close();
@@ -228,6 +231,26 @@ export class TabManager {
     else contents.openDevTools({ mode: "bottom" });
   }
 
+  /** Registers a view as a tab; the caller navigates it and decides visibility. */
+  #adopt(url: string, after?: TabId): Tab {
+    const id = this.#nextId++;
+    const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
+    const tab: Tab = { id, view, title: url, url, favicon: null, loading: true, editable: false };
+
+    this.#tabs.set(id, tab);
+    const index = after === undefined ? -1 : this.#order.indexOf(after);
+    if (index === -1) this.#order.push(id);
+    else this.#order.splice(index + 1, 0, id);
+
+    this.#track(tab);
+    return tab;
+  }
+
+  #attach(tab: Tab): void {
+    tab.view.setVisible(false);
+    this.#window.contentView.addChildView(tab.view);
+  }
+
   #active(): Tab | undefined {
     return this.#activeId === null ? undefined : this.#tabs.get(this.#activeId);
   }
@@ -253,6 +276,34 @@ export class TabManager {
     webContents.on("did-stop-loading", () => update({ loading: false }));
     webContents.on("page-favicon-updated", (_event, favicons) => {
       update({ favicon: favicons[0] ?? null });
+    });
+
+    // `window.open` and `target="_blank"`, answered with a tab of our own.
+    // Handing Chromium a `WebContentsView`'s webContents through `createWindow`
+    // would keep the opener relationship, but it deadlocks the process in
+    // Electron 43 — so the request is denied and the tab opened separately,
+    // which is why the page gets null back from `window.open`.
+    webContents.setWindowOpenHandler((details) => {
+      // Denying is answered synchronously; the tab is not built until Chromium
+      // has left window creation.
+      setImmediate(() => {
+        if (!this.#tabs.has(tab.id) || this.#window.isDestroyed()) return;
+        this.create(details.url, {
+          after: tab.id,
+          background: details.disposition === "background-tab",
+        });
+      });
+      return { action: "deny" };
+    });
+
+    // A page calling `window.close()` takes its own webContents down, leaving
+    // the tab holding a dead view. Unwinding inside Chromium's teardown hangs
+    // it, so this waits; a tab closed through `close` is already forgotten by
+    // the time this runs, and `#forget` ignores it.
+    webContents.on("destroyed", () => {
+      setImmediate(() => {
+        if (!this.#window.isDestroyed()) this.#forget(tab.id);
+      });
     });
 
     const trackUrl = (): void => update({ url: webContents.getURL() });

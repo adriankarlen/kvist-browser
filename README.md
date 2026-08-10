@@ -69,7 +69,7 @@ Roughly what's next, in no particular order and with no promised timeline:
 
 There are no published releases yet, to use it, build from source.
 
- Node and pnpm. Pinned via `.node-version`.
+Node and pnpm. Pinned via `.node-version`.
 
 ```sh
 pnpm install
