@@ -47,11 +47,11 @@
   }
 </script>
 
-<form class="kv-panel kv-find" data-label="find" onsubmit={submit}>
-  <span class="kv-find__prompt">/</span>
+<form class="kv-panel kv-line kv-find" data-label="find" onsubmit={submit}>
+  <span class="kv-line__prompt">/</span>
   {#if vim.mode === "find"}
     <input
-      class="kv-find__input"
+      class="kv-line__input"
       bind:this={input}
       bind:value={query}
       spellcheck="false"

@@ -1,0 +1,27 @@
+/*
+ * Structural base for single-line chrome prompts (CommandLine, FindLine).
+ * Colour is the concern of each component; only layout and the input reset
+ * live here.
+ */
+@layer kvist.components {
+  .kv-line {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    min-height: var(--kv-omnibox-height);
+  }
+
+  .kv-line__prompt {
+    color: var(--kv-line-prompt-fg);
+  }
+
+  .kv-line__input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    font: inherit;
+    color: var(--kv-line-fg);
+  }
+}

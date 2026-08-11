@@ -26,10 +26,10 @@
   }
 </script>
 
-<form class="kv-panel kv-cmdline" data-label="cmd" onsubmit={submit}>
-  <span class="kv-cmdline__prompt">:</span>
+<form class="kv-panel kv-line kv-cmdline" data-label="cmd" onsubmit={submit}>
+  <span class="kv-line__prompt">:</span>
   <input
-    class="kv-cmdline__input"
+    class="kv-line__input"
     bind:this={input}
     bind:value={line}
     spellcheck="false"
