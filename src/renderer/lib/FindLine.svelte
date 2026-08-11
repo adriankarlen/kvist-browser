@@ -20,7 +20,9 @@
   const count = $derived.by(() => {
     const result = find.result;
     if (result === null) return "";
-    return result.matches === 0 ? "no matches" : `${result.active}/${result.matches}`;
+    return result.matches === 0
+      ? "no matches"
+      : `${result.active}/${result.matches}`;
   });
 
   function oninput(): void {
@@ -31,6 +33,10 @@
     if (event.key !== "Escape") return;
     event.preventDefault();
     find.stop();
+    vim.toNormal();
+  }
+
+  function onblur(): void {
     vim.toNormal();
   }
 
