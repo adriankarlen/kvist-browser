@@ -2,9 +2,11 @@ import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
 import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
+import { createApi } from "./api";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
-import { resolveUrl } from "../shared/url";
+import { registerCommands } from "./commands";
 import { loadConfig, watchConfig } from "./config";
+import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
 import { Vim } from "./vim";
@@ -48,28 +50,15 @@ function createWindow(config: UserConfig): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
 
+  const api = createApi(tabs, win, () => app.quit());
+  const commands = registerCommands(api);
+
   const vim = new Vim(
-    {
-      newTab: () => tabs.create(),
-      closeTab: () => tabs.closeActive(),
-      nextTab: () => tabs.step(1),
-      prevTab: () => tabs.step(-1),
-      back: () => tabs.goBack(),
-      forward: () => tabs.goForward(),
-      reload: () => tabs.reload(),
-      focusPage: () => tabs.focusActive(),
-      focusChrome: () => win.webContents.focus(),
-      focusOmnibox: () => {
-        win.webContents.focus();
-        send(CHANNELS.focusOmnibox, null);
-      },
-      blurPage: () => tabs.blurActive(),
-      scrollPage: (command) => tabs.scrollActive(command),
-      findNext: (forward) => tabs.findNext(forward),
-      stopFind: () => tabs.stopFind(),
-      showHints: () => tabs.showHints(),
-      hideHints: () => tabs.hideHints(),
-      hintKey: (key) => tabs.hintKey(key),
+    DEFAULT_KEYBINDS,
+    (name, arg) => {
+      if (!commands.execute(name, arg)) {
+        console.error(`kvist: unknown command ${name}`);
+      }
     },
     (mode) => send(CHANNELS.mode, mode),
   );
@@ -95,32 +84,11 @@ function createWindow(config: UserConfig): void {
   });
 
   const runCommand = (line: string): void => {
-    const [name = "", ...args] = line.trim().split(/\s+/);
-    const argument = args.join(" ");
-
-    switch (name) {
-      case "":
-        break;
-      case "q":
-      case "quit":
-        tabs.closeActive();
-        break;
-      case "qa":
-        app.quit();
-        break;
-      case "tabnew":
-        tabs.create(argument === "" ? undefined : resolveUrl(argument));
-        break;
-      case "o":
-      case "open":
-        if (argument !== "") tabs.navigate(resolveUrl(argument));
-        break;
-      case "r":
-      case "reload":
-        tabs.reload();
-        break;
-      default:
-        console.error(`kvist: unknown command :${name}`);
+    const [name = "", ...rest] = line.trim().split(/\s+/);
+    if (name === "") return;
+    const arg = rest.join(" ") || undefined;
+    if (!commands.execute(name, arg)) {
+      console.error(`kvist: unknown command :${name}`);
     }
   };
 
