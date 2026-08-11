@@ -22,6 +22,10 @@
     background: var(--kv-mode-command-bg);
   }
 
+  .kv-mode.is-find {
+    background: var(--kv-mode-find-bg);
+  }
+
   .kv-omnibox__button {
     color: var(--kv-omnibox-button-fg);
     padding: 0 0.5ch;

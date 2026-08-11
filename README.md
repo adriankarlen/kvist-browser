@@ -88,10 +88,11 @@ entry point behind every script above.
 
 ## Keybindings
 
-Kvist has four modes: **normal** (default, keys are commands), **insert**
+Kvist has five modes: **normal** (default, keys are commands), **insert**
 (typing goes to a focused field or the omnibox), **command** (a `:` line at
-the bottom that runs a command on submit), and **hint** (labels are shown on
-the page and typing one follows it).
+the bottom that runs a command on submit), **hint** (labels are shown on the
+page and typing one follows it), and **find** (a `/` line that searches the
+page as you type).
 
 Escape always returns to normal mode and blurs whatever had focus.
 
@@ -113,6 +114,9 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `gg` | Scroll to the top                   |
 | `G`  | Scroll to the bottom                |
 | `f`  | Hint mode: label every link         |
+| `/`  | Find mode: search the page          |
+| `n`  | Next match                          |
+| `N`  | Previous match                      |
 | `i`  | Insert mode (focus the page)        |
 | `o`  | Insert mode, focused on the omnibox |
 | `:`  | Command mode                        |
@@ -135,6 +139,14 @@ straight into insert mode. Labels are drawn from the home row and are all the
 same length, so a hint fires as soon as its last key lands.
 
 Only what is visible gets a label — scroll first, hint second.
+
+### Find mode
+
+`/` opens a search line and jumps as you type; Enter keeps the matches and
+closes the line, Escape gives up. `n` and `N` walk the matches afterward,
+and Escape in normal mode clears the highlighting. The match count sits at
+the end of the line, and the search belongs to the tab, so switching tabs
+switches what is highlighted.
 
 Both keybindings and commands are early and intentionally minimal. See
 `src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add

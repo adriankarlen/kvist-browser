@@ -65,6 +65,8 @@ function createWindow(config: UserConfig): void {
       },
       blurPage: () => tabs.blurActive(),
       scrollPage: (command) => tabs.scrollActive(command),
+      findNext: (forward) => tabs.findNext(forward),
+      stopFind: () => tabs.stopFind(),
       showHints: () => tabs.showHints(),
       hideHints: () => tabs.hideHints(),
       hintKey: (key) => tabs.hintKey(key),
@@ -75,6 +77,7 @@ function createWindow(config: UserConfig): void {
   tabs.interceptKeys((input, source) => vim.handleKey(input, source));
   tabs.interceptChromeKeys(win.webContents);
   tabs.observeEditable((editable) => vim.setEditable(editable));
+  tabs.observeFind((result) => send(CHANNELS.findResult, result));
   tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
 
   // Not routed through `on`: the sender is a tab, not the chrome. TabManager
@@ -144,6 +147,8 @@ function createWindow(config: UserConfig): void {
   on(CHANNELS.goForward, () => tabs.goForward());
   on(CHANNELS.reload, () => tabs.reload());
   on(CHANNELS.toggleDevTools, () => tabs.toggleDevTools());
+  on(CHANNELS.find, (query: string) => tabs.find(query));
+  on(CHANNELS.findStop, () => tabs.stopFind());
   on(CHANNELS.setMode, (mode: Mode) => vim.requestMode(mode));
   on(CHANNELS.runCommand, (line: string) => {
     runCommand(line);

@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from "../shared/config";
 import {
   type BrowserState,
   CHANNELS,
+  type FindResult,
   type Point,
   type Rect,
   type ScrollCommand,
@@ -26,6 +27,11 @@ interface Tab {
   loading: boolean;
   /** Whether this tab currently has something typable focused. */
   editable: boolean;
+  /** The live find query, or "" when nothing is being searched for. */
+  find: string;
+  findResult: FindResult | null;
+  /** The request id of the in-flight search, so a stale result can be told apart from the current one. */
+  findRequestId: number | null;
 }
 
 export class TabManager {
@@ -33,6 +39,7 @@ export class TabManager {
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #onEditable: (editable: boolean) => void = () => {};
+  #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (contents: WebContents, url: string) => void = () => {};
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
@@ -68,6 +75,11 @@ export class TabManager {
     this.#onEditable = onEditable;
   }
 
+  /** Match counts for the active tab, so the chrome can show them. */
+  observeFind(onFind: (result: FindResult | null) => void): void {
+    this.#onFind = onFind;
+  }
+
   /**
    * History-API navigation, which changes the URL without reloading the frame.
    * Anything keyed to the URL rather than the document has to be reapplied.
@@ -99,6 +111,42 @@ export class TabManager {
 
   scrollActive(command: ScrollCommand): void {
     this.#send(CHANNELS.pageScroll, command);
+  }
+
+  /**
+   * Searches from the top, which is what an incremental prompt wants — every
+   * keystroke is a new query and should land on the first match again.
+   */
+  find(query: string): void {
+    const tab = this.#active();
+    if (!tab) return;
+    // findInPage rejects an empty string, and an emptied prompt means "stop".
+    if (query === "") {
+      this.stopFind();
+      return;
+    }
+
+    tab.find = query;
+    // `findNext: false` is the documented default, but passing it explicitly
+    // makes Electron 43 run the search and never emit `found-in-page` — so a
+    // new search has to be spelled as the absence of the option.
+    tab.findRequestId = tab.view.webContents.findInPage(query, { forward: true });
+  }
+
+  /** `n` / `N`, which continue the query the prompt left behind. */
+  findNext(forward: boolean): void {
+    const tab = this.#active();
+    if (!tab || tab.find === "") return;
+    tab.findRequestId = tab.view.webContents.findInPage(tab.find, { forward, findNext: true });
+  }
+
+  stopFind(): void {
+    const tab = this.#active();
+    if (!tab || tab.find === "") return;
+    tab.find = "";
+    tab.findRequestId = null;
+    tab.view.webContents.stopFindInPage("clearSelection");
+    this.#reportFind(tab, null);
   }
 
   showHints(): void {
@@ -200,6 +248,8 @@ export class TabManager {
       // Mode follows the tab you land on, not the one you left.
       this.#onEditable(this.#tabs.get(id)!.editable);
     }
+    // Matches are per tab, so the chrome has to be told whose it is showing.
+    this.#onFind(this.#tabs.get(id)!.findResult);
     this.#publish();
   }
 
@@ -235,7 +285,18 @@ export class TabManager {
   #adopt(url: string, after?: TabId): Tab {
     const id = this.#nextId++;
     const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
-    const tab: Tab = { id, view, title: url, url, favicon: null, loading: true, editable: false };
+    const tab: Tab = {
+      id,
+      view,
+      title: url,
+      url,
+      favicon: null,
+      loading: true,
+      editable: false,
+      find: "",
+      findResult: null,
+      findRequestId: null,
+    };
 
     this.#tabs.set(id, tab);
     const index = after === undefined ? -1 : this.#order.indexOf(after);
@@ -261,6 +322,12 @@ export class TabManager {
 
   #applyContentRect(): void {
     this.#active()?.view.setBounds(this.#contentRect);
+  }
+
+  /** A background tab's matches are its own business until it is activated. */
+  #reportFind(tab: Tab, result: FindResult | null): void {
+    tab.findResult = result;
+    if (tab.id === this.#activeId) this.#onFind(result);
   }
 
   #track(tab: Tab): void {
@@ -306,8 +373,30 @@ export class TabManager {
       });
     });
 
+    webContents.on("found-in-page", (_event, result) => {
+      // A search Chromium re-ran for a document we have already given up on,
+      // or a stale request superseded by a newer one — both report late.
+      if (tab.find === "" || result.requestId !== tab.findRequestId) return;
+      this.#reportFind(tab, {
+        query: tab.find,
+        matches: result.matches,
+        active: result.activeMatchOrdinal,
+      });
+    });
+
     const trackUrl = (): void => update({ url: webContents.getURL() });
-    webContents.on("did-navigate", trackUrl);
+    webContents.on("did-navigate", () => {
+      // The matches belonged to a document that is gone. Chromium keeps the
+      // session and re-runs it against the new one, so the search has to be
+      // ended rather than merely forgotten.
+      if (tab.find !== "") {
+        tab.find = "";
+        tab.findRequestId = null;
+        webContents.stopFindInPage("clearSelection");
+        this.#reportFind(tab, null);
+      }
+      trackUrl();
+    });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       trackUrl();
       if (isMainFrame) this.#onInPageNavigation(webContents, url);

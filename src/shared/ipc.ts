@@ -2,7 +2,7 @@ import type { UserConfig } from "./config";
 
 export type TabId = number;
 
-export type Mode = "normal" | "insert" | "command" | "hint";
+export type Mode = "normal" | "insert" | "command" | "hint" | "find";
 
 /** Scrolling lives in the page, so main names the movement rather than the pixels. */
 export type ScrollCommand = "down" | "up" | "half-down" | "half-up" | "top" | "bottom";
@@ -15,6 +15,14 @@ export interface TabState {
   loading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+}
+
+/** Where a find has got to, as `found-in-page` reports it. */
+export interface FindResult {
+  query: string;
+  matches: number;
+  /** 1-based index of the highlighted match; 0 when there are none. */
+  active: number;
 }
 
 export interface BrowserState {
@@ -56,6 +64,11 @@ export const CHANNELS = {
   hintsClick: "kvist:hints-click",
   /** The page reporting that hinting ended, so main can leave hint mode. */
   hintsDone: "kvist:hints-done",
+  /** Find-in-page: the chrome types the query, main drives `findInPage`. */
+  find: "kvist:find",
+  findStop: "kvist:find-stop",
+  /** Match counts back to the chrome; null once a find is over. */
+  findResult: "kvist:find-result",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
@@ -74,6 +87,10 @@ export interface KvistApi {
   onConfig: (listener: (config: UserConfig) => void) => () => void;
   onMode: (listener: (mode: Mode) => void) => () => void;
   setMode: (mode: Mode) => void;
+  onFindResult: (listener: (result: FindResult | null) => void) => () => void;
+  /** Restarts the search from the top; an empty query stops it. */
+  find: (query: string) => void;
+  stopFind: () => void;
   runCommand: (line: string) => void;
   /** Chrome asks main to focus the omnibox input; main only moves window focus. */
   onFocusOmnibox: (listener: () => void) => () => void;
