@@ -1,0 +1,811 @@
+<!-- based on https://github.com/ch4zex/localnoteboard -->
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>kvist</title>
+  <style>
+    :root {
+      --gap: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--kv-color-surface);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: var(--kv-font-family, monospace);
+      color: var(--kv-color-text);
+      overflow: hidden;
+    }
+
+    #dashboard-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #dashboard-container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      grid-template-rows: auto 1fr auto;
+      grid-template-areas:
+        "clock   links"
+        "timer   scratch"
+        "dump    scratch";
+      gap: var(--gap);
+      width: 680px;
+      height: 500px;
+      transform-origin: center;
+    }
+
+    /* ── boxes ───────────────────────────────────────────── */
+
+    .box {
+      background-color: var(--kv-color-base);
+      border: 2px solid var(--kv-color-overlay);
+      padding: 15px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: border-color 0.2s ease;
+    }
+
+    .box:hover {
+      border-color: var(--kv-color-accent);
+    }
+
+    .clock-box {
+      grid-area: clock;
+    }
+
+    .timer-box {
+      grid-area: timer;
+    }
+
+    .dump-box {
+      grid-area: dump;
+    }
+
+    .links-box {
+      grid-area: links;
+    }
+
+    .scratchpad-box {
+      grid-area: scratch;
+      min-height: 0;
+    }
+
+    /* ── shared component styles ─────────────────────────── */
+
+    .header {
+      font-size: 11px;
+      border-bottom: 1px solid var(--kv-color-overlay);
+      padding-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--kv-color-muted);
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+
+    .status-text {
+      font-size: 10px;
+      color: var(--kv-color-muted);
+      margin-top: auto;
+      flex-shrink: 0;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    button {
+      background: transparent;
+      border: 1px solid var(--kv-color-overlay);
+      color: var(--kv-color-text);
+      padding: 5px 10px;
+      font-family: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--kv-color-overlay);
+      color: var(--kv-color-accent-alt);
+      border-color: var(--kv-color-accent-alt);
+    }
+
+    /* ── clock ───────────────────────────────────────────── */
+
+    .clock-display {
+      font-size: 44px;
+      text-align: left;
+      margin: auto 0;
+      letter-spacing: 2px;
+      color: var(--kv-color-accent);
+    }
+
+    .timezone-input {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--kv-color-overlay);
+      color: var(--kv-color-muted);
+      font-family: inherit;
+      font-size: 10px;
+      text-align: center;
+      width: 120px;
+      outline: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .clock-box:hover .timezone-input {
+      opacity: 1;
+    }
+
+    .timezone-input:focus {
+      border-bottom-color: var(--kv-color-accent-alt);
+      color: var(--kv-color-text);
+    }
+
+    /* ── timer ───────────────────────────────────────────── */
+
+    .timer-display {
+      font-size: 54px;
+      text-align: center;
+      margin: 5px 0;
+      letter-spacing: 3px;
+      flex-shrink: 0;
+    }
+
+    .progress-container {
+      width: 100%;
+      height: 10px;
+      border: 1px solid var(--kv-color-overlay);
+      background-color: var(--kv-color-surface);
+      margin-bottom: 15px;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background-color: var(--kv-color-accent-alt);
+      transition: width 0.1s linear;
+    }
+
+    .timer-settings {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      display: flex;
+      gap: 10px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .timer-box:hover .timer-settings {
+      opacity: 1;
+    }
+
+    .timer-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--kv-color-overlay);
+      color: var(--kv-color-muted);
+      font-family: inherit;
+      font-size: 11px;
+      text-align: center;
+      width: 2ch;
+      outline: none;
+      padding: 2px 0;
+    }
+
+    .timer-input:focus {
+      border-bottom-color: var(--kv-color-accent-alt);
+      color: var(--kv-color-text);
+    }
+
+    /* ── quick links ─────────────────────────────────────── */
+
+    .links-box {
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .links-box::-webkit-scrollbar {
+      display: none;
+    }
+
+    .links-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 6px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .link-item {
+      color: var(--kv-color-accent-alt);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 4px 5px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .link-item:hover {
+      border-left-color: var(--kv-color-accent-alt);
+      background-color: var(--kv-color-overlay);
+      padding-left: 10px;
+    }
+
+    .link-editor-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .link-edit-input {
+      background: var(--kv-color-overlay);
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--kv-color-accent-alt);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 2px 5px;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    .link-edit-input:focus {
+      border-bottom-color: var(--kv-color-accent);
+      background: var(--kv-color-base);
+    }
+
+    .links-grid.edit-mode {
+      gap: 6px;
+    }
+
+    #edit-links-toggle {
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.3s;
+      color: var(--kv-color-muted);
+      font-weight: bold;
+      padding: 0 5px;
+      font-size: 18px;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .links-box:hover #edit-links-toggle {
+      opacity: 0.6;
+    }
+
+    /* ── scratchpad ──────────────────────────────────────── */
+
+    .scratchpad-box {
+      overflow: hidden;
+    }
+
+    #scratchpad-area {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--kv-color-muted);
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+      padding: 4px 0;
+      scrollbar-width: none;
+      min-height: 0;
+    }
+
+    #scratchpad-area::-webkit-scrollbar {
+      display: none;
+    }
+
+    #scratchpad-area:focus {
+      color: var(--kv-color-text);
+    }
+
+    /* ── dump ────────────────────────────────────────────── */
+
+    .dump-box .controls {
+      justify-content: flex-start;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="dashboard-wrapper">
+    <div id="dashboard-container">
+      <!-- Clock -->
+      <div class="box clock-box">
+        <div class="header">
+          <span>SYSTEM: TIME</span>
+          <span id="clock-tz-label"></span>
+        </div>
+        <div class="clock-display" id="clock">00:00:00</div>
+        <input type="text" id="timezone-input" class="timezone-input" placeholder="Europe/Stockholm" spellcheck="false"
+          autocomplete="off" />
+      </div>
+
+      <!-- Pomodoro Timer -->
+      <div class="box timer-box">
+        <div class="header">
+          <span>SYSTEM: POMODORO</span>
+          <span id="mode-text" style="color: var(--kv-color-accent-alt)">MODE: FOCUS</span>
+        </div>
+        <div class="timer-display" id="timer">30:00</div>
+        <div class="progress-container" id="progress-container">
+          <div id="progress-bar"></div>
+        </div>
+        <div class="controls">
+          <button id="startBtn">Start</button>
+          <button id="pauseBtn">Pause</button>
+          <button id="resetBtn">Reset</button>
+        </div>
+        <div class="status-text" id="timer-status">> STATUS: READY_</div>
+        <div class="timer-settings">
+          <input type="text" id="focus-time-input" class="timer-input" placeholder="30" spellcheck="false"
+            maxlength="2" />
+          <input type="text" id="break-time-input" class="timer-input" placeholder="05" spellcheck="false"
+            maxlength="2" />
+        </div>
+      </div>
+
+      <!-- System Dump -->
+      <div class="box dump-box">
+        <div class="header">
+          <span>SYSTEM: DUMP</span>
+          <span>LOCAL_ONLY</span>
+        </div>
+        <div class="controls">
+          <button id="saveDumpBtn">Export</button>
+          <button id="loadDumpBtn">Import</button>
+          <input type="file" id="load-input" style="display: none" accept=".json" />
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="box links-box">
+        <div class="header">
+          <span>SYSTEM: QUICK_ACCESS</span>
+          <span id="edit-links-toggle">+</span>
+        </div>
+        <div class="links-grid" id="links-grid"></div>
+      </div>
+
+      <!-- Scratchpad -->
+      <div class="box scratchpad-box">
+        <div class="header">
+          <span>SYSTEM: SCRATCHPAD</span>
+          <span>TEMP_STORAGE</span>
+        </div>
+        <textarea id="scratchpad-area" placeholder="> TEMPORARY_DATA_" spellcheck="false"></textarea>
+      </div>
+    </div>
+  </div>
+  <script>
+    /** --- UTILITIES --- **/
+
+    function debounce(func, timeout = 500) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => func.apply(this, args), timeout);
+      };
+    }
+
+    /** --- SCALING --- **/
+
+    function handleScaling() {
+      const container = document.getElementById("dashboard-container");
+      const wrapper = document.getElementById("dashboard-wrapper");
+      const scaleX = wrapper.clientWidth / container.offsetWidth;
+      const scaleY = wrapper.clientHeight / container.offsetHeight;
+      container.style.transform = `scale(${Math.min(scaleX, scaleY, 1)})`;
+    }
+
+    new ResizeObserver(handleScaling).observe(document.getElementById("dashboard-container"));
+    window.addEventListener("resize", handleScaling);
+    handleScaling();
+
+    /** --- CLOCK --- **/
+
+    const timezoneInput = document.getElementById("timezone-input");
+    const clockTzLabel = document.getElementById("clock-tz-label");
+    let currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    const syncConfig = debounce(() => {
+      localStorage.setItem(
+        "dash_config",
+        JSON.stringify({
+          dash_timezone: currentTimezone,
+          dash_focus_time: focusDurationSeconds / 60,
+          dash_break_time: breakDurationSeconds / 60,
+        }),
+      );
+    });
+
+    timezoneInput.addEventListener("input", () => {
+      const val = timezoneInput.value.trim();
+      let valid = false;
+      try {
+        new Intl.DateTimeFormat("en", {timeZone: val}).format(new Date());
+        valid = true;
+      } catch (_) {
+        if (/^UTC\s*[+-]\s*\d+$/i.test(val)) valid = true;
+      }
+      if (valid) {
+        currentTimezone = val;
+        timezoneInput.style.color = "var(--kv-color-text)";
+        clockTzLabel.textContent = val.toUpperCase();
+        syncConfig();
+      } else {
+        timezoneInput.style.color = "var(--kv-color-danger)";
+      }
+    });
+
+    function updateClock() {
+      const now = new Date();
+      const utcRx = /^UTC\s*([+-])\s*(\d+)$/i;
+      const m = currentTimezone.match(utcRx);
+      try {
+        let timeString;
+        if (m) {
+          const offset = (m[1] === "+" ? 1 : -1) * parseInt(m[2]) * 3600000;
+          timeString = new Date(now.getTime() + offset).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZone: "UTC",
+          });
+        } else {
+          timeString = now.toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZone: currentTimezone,
+          });
+        }
+        document.getElementById("clock").textContent = timeString;
+      } catch (_) {
+        document.getElementById("clock").textContent = now.toLocaleTimeString("en-GB");
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    /** --- QUICK LINKS --- **/
+
+    const linksGrid = document.getElementById("links-grid");
+    const editToggle = document.getElementById("edit-links-toggle");
+    let isEditMode = false;
+    let links = [];
+
+    const syncLinks = debounce(() => {
+      localStorage.setItem("dash_links", JSON.stringify(links));
+    });
+
+    editToggle.addEventListener("click", () => {
+      isEditMode = !isEditMode;
+      editToggle.textContent = isEditMode ? "×" : "+";
+      editToggle.style.color = isEditMode ? "var(--kv-color-danger)" : "var(--kv-color-muted)";
+      linksGrid.classList.toggle("edit-mode", isEditMode);
+      if (!isEditMode) syncLinks();
+      renderLinks();
+    });
+
+    function renderLinks() {
+      linksGrid.innerHTML = "";
+      links.forEach((link, i) => {
+        if (isEditMode) {
+          const wrap = document.createElement("div");
+          wrap.className = "link-editor-container";
+
+          const nameIn = document.createElement("input");
+          nameIn.className = "link-edit-input";
+          nameIn.value = link.name;
+          nameIn.placeholder = "Name";
+          nameIn.addEventListener("input", (e) => {
+            links[i].name = e.target.value.toUpperCase();
+            syncLinks();
+          });
+
+          const urlIn = document.createElement("input");
+          urlIn.className = "link-edit-input";
+          urlIn.style.fontSize = "9px";
+          urlIn.style.color = "var(--kv-color-muted)";
+          urlIn.value = link.url;
+          urlIn.placeholder = "URL";
+          urlIn.addEventListener("input", (e) => {
+            links[i].url = e.target.value;
+            syncLinks();
+          });
+
+          wrap.append(nameIn, urlIn);
+          linksGrid.appendChild(wrap);
+        } else if (link.name.trim()) {
+          const a = document.createElement("a");
+          a.href = link.url;
+          a.className = "link-item";
+          a.textContent = `> ${link.name}`;
+          linksGrid.appendChild(a);
+        }
+      });
+    }
+
+    /** --- POMODORO TIMER --- **/
+
+    const FOCUS_DEFAULT = 30;
+    const BREAK_DEFAULT = 5;
+
+    let focusDurationSeconds = FOCUS_DEFAULT * 60;
+    let breakDurationSeconds = BREAK_DEFAULT * 60;
+    let timeLeft = focusDurationSeconds;
+    let totalTime = focusDurationSeconds;
+    let currentMode = "FOCUS";
+    let timerId = null;
+    let isRunning = false;
+
+    const timerDisplay = document.getElementById("timer");
+    const progressBar = document.getElementById("progress-bar");
+    const focusTimeInput = document.getElementById("focus-time-input");
+    const breakTimeInput = document.getElementById("break-time-input");
+    const progressCont = document.getElementById("progress-container");
+    const startBtn = document.getElementById("startBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const timerStatusEl = document.getElementById("timer-status");
+    const modeText = document.getElementById("mode-text");
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playBeep() {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 1);
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(timeLeft / 60);
+      const secs = timeLeft % 60;
+      timerDisplay.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+      const pct = ((totalTime - timeLeft) / totalTime) * 100;
+      const color =
+        currentMode === "FOCUS" ? "var(--kv-color-accent-alt)" : "var(--kv-color-accent)";
+      progressBar.style.width = `${pct}%`;
+      progressBar.style.backgroundColor = color;
+      modeText.style.color = color;
+      modeText.textContent = `MODE: ${currentMode}`;
+
+      if (timeLeft <= 0) handleSessionComplete();
+    }
+
+    function handleSessionComplete() {
+      clearInterval(timerId);
+      playBeep();
+      isRunning = false;
+      currentMode = currentMode === "FOCUS" ? "BREAK" : "FOCUS";
+      timeLeft = totalTime =
+        currentMode === "FOCUS" ? focusDurationSeconds : breakDurationSeconds;
+      timerStatusEl.textContent = `> STATUS: ${currentMode}_STARTED`;
+      updateTimerDisplay();
+      setTimeout(startTimer, 1000);
+    }
+
+    progressCont.addEventListener("click", (e) => {
+      const rect = progressCont.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      timeLeft = Math.max(0, Math.floor(totalTime * (1 - pct)));
+      updateTimerDisplay();
+    });
+
+    function startTimer() {
+      if (isRunning) return;
+      isRunning = true;
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      timerStatusEl.textContent = "> STATUS: RUNNING...";
+      timerId = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+      }, 1000);
+    }
+
+    startBtn.addEventListener("click", startTimer);
+    pauseBtn.addEventListener("click", () => {
+      clearInterval(timerId);
+      isRunning = false;
+      timerStatusEl.textContent = "> STATUS: PAUSED";
+    });
+    resetBtn.addEventListener("click", () => {
+      clearInterval(timerId);
+      isRunning = false;
+      currentMode = "FOCUS";
+      timeLeft = totalTime = focusDurationSeconds;
+      timerStatusEl.textContent = "> STATUS: READY_";
+      updateTimerDisplay();
+    });
+
+    function handleTimeInputChange(e) {
+      const el = e.target;
+      const val = parseInt(el.value.trim());
+      if (isNaN(val) || val < 1 || val > 99) {
+        el.style.color = "var(--kv-color-danger)";
+        return;
+      }
+      el.style.color = "var(--kv-color-text)";
+      if (el.id === "focus-time-input") {
+        focusDurationSeconds = val * 60;
+        syncConfig();
+        if (!isRunning && currentMode === "FOCUS") {
+          timeLeft = totalTime = focusDurationSeconds;
+          updateTimerDisplay();
+        }
+      } else {
+        breakDurationSeconds = val * 60;
+        syncConfig();
+        if (!isRunning && currentMode === "BREAK") {
+          timeLeft = totalTime = breakDurationSeconds;
+          updateTimerDisplay();
+        }
+      }
+    }
+
+    focusTimeInput.addEventListener("input", handleTimeInputChange);
+    breakTimeInput.addEventListener("input", handleTimeInputChange);
+
+    /** --- SCRATCHPAD --- **/
+
+    const scratchpadArea = document.getElementById("scratchpad-area");
+    scratchpadArea.addEventListener("input", () => {
+      localStorage.setItem("dash_scratchpad", scratchpadArea.value);
+    });
+
+    /** --- SYSTEM DUMP --- **/
+
+    const loadInput = document.getElementById("load-input");
+
+    document.getElementById("saveDumpBtn").addEventListener("click", () => {
+      const dump = {
+        dash_config: localStorage.getItem("dash_config"),
+        dash_links: localStorage.getItem("dash_links"),
+        dash_scratchpad: localStorage.getItem("dash_scratchpad"),
+        export_date: new Date().toISOString(),
+      };
+      const blob = new Blob([JSON.stringify(dump, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "kvist-dashboard.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("loadDumpBtn").addEventListener("click", () => loadInput.click());
+
+    loadInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (data.dash_config) localStorage.setItem("dash_config", data.dash_config);
+          if (data.dash_links) localStorage.setItem("dash_links", data.dash_links);
+          if (data.dash_scratchpad) localStorage.setItem("dash_scratchpad", data.dash_scratchpad);
+          location.reload();
+        } catch (err) {
+          alert("Error loading dump: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    /** --- KEYBOARD SHORTCUTS --- **/
+
+    let isSpacePressed = false;
+
+    window.addEventListener("keydown", (e) => {
+      const typing = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
+      if (e.code === "Space" && !typing) {
+        e.preventDefault();
+        isSpacePressed = true;
+      }
+      if (!isSpacePressed || typing) return;
+      switch (e.code) {
+        case "KeyE":
+          startBtn.click();
+          break;
+        case "KeyR":
+          resetBtn.click();
+          break;
+        case "KeyS":
+          scratchpadArea.focus();
+          break;
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") isSpacePressed = false;
+    });
+
+    /** --- INIT --- **/
+
+    function initDashboard() {
+      const config = JSON.parse(localStorage.getItem("dash_config") || "{}");
+      const savedLinks = localStorage.getItem("dash_links");
+
+      scratchpadArea.value = localStorage.getItem("dash_scratchpad") || "";
+
+      if (config.dash_timezone) {
+        currentTimezone = config.dash_timezone;
+        timezoneInput.value = currentTimezone;
+        clockTzLabel.textContent = currentTimezone.toUpperCase();
+      }
+      if (config.dash_focus_time) focusDurationSeconds = parseInt(config.dash_focus_time) * 60;
+      if (config.dash_break_time) breakDurationSeconds = parseInt(config.dash_break_time) * 60;
+
+      focusTimeInput.value = focusDurationSeconds / 60;
+      breakTimeInput.value = breakDurationSeconds / 60;
+      timeLeft = totalTime = focusDurationSeconds;
+      updateTimerDisplay();
+
+      links = savedLinks
+        ? JSON.parse(savedLinks)
+        : [
+          {name: "GITHUB", url: "https://github.com"},
+          {name: "YOUTUBE", url: "https://youtube.com"},
+        ];
+      renderLinks();
+    }
+
+    initDashboard();
+  </script>
+</body>
+
+</html>

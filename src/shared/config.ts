@@ -14,7 +14,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  homepage: "https://example.com",
+  homepage: "kvist://newtab",
   tabOrientation: "horizontal",
   tabFocusPage: true,
   adblock: true,
