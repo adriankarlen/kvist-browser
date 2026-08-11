@@ -16,6 +16,10 @@
 
   .kv-panel[data-label]::before {
     content: attr(data-label);
+    max-width: 50ch;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     position: absolute;
     top: 0;
     left: var(--kv-panel-label-horizontal-offset);
