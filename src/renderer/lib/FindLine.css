@@ -1,0 +1,33 @@
+@layer kvist.components {
+  .kv-find {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    min-height: var(--kv-omnibox-height);
+  }
+
+  .kv-find__prompt {
+    color: var(--kv-find-prompt-fg);
+  }
+
+  .kv-find__query {
+    flex: 1;
+    min-width: 0;
+    color: var(--kv-find-fg);
+  }
+
+  .kv-find__input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--kv-find-fg);
+    font: inherit;
+  }
+
+  .kv-find__count {
+    flex: none;
+    color: var(--kv-find-count-fg);
+  }
+}

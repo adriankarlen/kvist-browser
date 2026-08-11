@@ -28,6 +28,9 @@ export interface VimActions {
   /** Drops the page's focused element, so leaving insert actually returns the keyboard. */
   blurPage: () => void;
   scrollPage: (command: ScrollCommand) => void;
+  /** Cycles through the matches the find prompt left behind. */
+  findNext: (forward: boolean) => void;
+  stopFind: () => void;
   showHints: () => void;
   hideHints: () => void;
   /** Feeds one key to the page, which owns hint matching. */
@@ -49,6 +52,11 @@ export class Vim {
     return this.#mode;
   }
 
+  /** Modes where a chrome text input is open and owns every key it can type. */
+  get #prompting(): boolean {
+    return this.#mode === "command" || this.#mode === "find";
+  }
+
   /** Mode changes requested by the chrome, e.g. escaping out of the command line. */
   requestMode(mode: Mode): void {
     if (mode === "normal") this.#actions.focusPage();
@@ -63,8 +71,8 @@ export class Vim {
    * state, so handleKey still decides synchronously.
    */
   setEditable(editable: boolean): void {
-    // The command line is up and holds the keyboard; the page is a bystander.
-    if (this.#mode === "command") return;
+    // A chrome prompt is up and holds the keyboard; the page is a bystander.
+    if (this.#prompting) return;
     if (editable) this.#set("insert");
     else if (this.#mode === "insert") this.#set("normal");
   }
@@ -89,9 +97,9 @@ export class Vim {
       return this.#mode === "normal" ? this.#normal(input.key) : false;
     }
 
-    // The command line lives in the chrome, so a page that still has focus
-    // must not steal from it.
-    if (this.#mode === "command") return false;
+    // The prompts live in the chrome, so a page that still has focus must not
+    // steal from them.
+    if (this.#prompting) return false;
 
     if (this.#mode === "hint") return this.#hint(input.key);
 
@@ -135,6 +143,9 @@ export class Vim {
     switch (key) {
       case "Escape":
         this.#pending = "";
+        // Nothing else in normal mode holds state a user would want dropped,
+        // and leftover match highlighting is the one thing that lingers.
+        this.#actions.stopFind();
         return true;
       case "g":
         this.#pending = "g";
@@ -179,6 +190,16 @@ export class Vim {
       case "o":
         this.#actions.focusOmnibox();
         this.#set("insert");
+        return true;
+      case "n":
+        this.#actions.findNext(true);
+        return true;
+      case "N":
+        this.#actions.findNext(false);
+        return true;
+      case "/":
+        this.#actions.focusChrome();
+        this.#set("find");
         return true;
       case ":":
         this.#actions.focusChrome();

@@ -15,6 +15,8 @@ const actions = {
   focusOmnibox: vi.fn(),
   blurPage: vi.fn(),
   scrollPage: vi.fn(),
+  findNext: vi.fn(),
+  stopFind: vi.fn(),
   showHints: vi.fn(),
   hideHints: vi.fn(),
   hintKey: vi.fn(),
@@ -257,6 +259,39 @@ test("the page reporting hints finished returns to normal", () => {
   key("f");
   vim.endHints();
   expect(vim.mode).toBe("normal");
+});
+
+test("slash opens the find prompt and moves focus to the chrome", () => {
+  key("/");
+  expect(vim.mode).toBe("find");
+  expect(actions.focusChrome).toHaveBeenCalledOnce();
+});
+
+test("find mode leaves keys to the prompt, from either source", () => {
+  key("/");
+  expect(key("t")).toBe(false);
+  expect(chromeKey("t")).toBe(false);
+  expect(chromeKey("Escape")).toBe(false);
+  expect(actions.newTab).not.toHaveBeenCalled();
+});
+
+test("a page text field does not steal the find prompt", () => {
+  key("/");
+  vim.setEditable(true);
+  expect(vim.mode).toBe("find");
+});
+
+test("n and N cycle matches once the prompt is gone", () => {
+  key("/");
+  vim.requestMode("normal");
+  expect(key("n")).toBe(true);
+  expect(key("N")).toBe(true);
+  expect(actions.findNext.mock.calls.flat()).toEqual([true, false]);
+});
+
+test("Escape in normal mode clears the match highlighting", () => {
+  key("Escape");
+  expect(actions.stopFind).toHaveBeenCalledOnce();
 });
 
 test("selecting a field keeps insert rather than snapping back to normal", () => {

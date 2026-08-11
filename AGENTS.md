@@ -89,9 +89,10 @@ the page and the chrome — `TabManager.interceptKeys` covers every tab,
 whenever focus sits on the chrome, which on macOS is where it lands whenever the
 window is activated.
 
-Chrome keys are gated on mode: normal drives vim, insert and command pass
-everything through so the omnibox and command line can type — including their
-own `Escape`, which they report back via `kvist:set-mode`. **Any chrome control
+Chrome keys are gated on mode: normal drives vim, while insert, command and
+find pass everything through so the omnibox, command line and find prompt can
+type — including their own `Escape`, which they report back via
+`kvist:set-mode`. **Any chrome control
 that accepts typing must therefore put vim into insert while it holds focus**,
 or normal mode will eat every character. `Omnibox.svelte` does this on
 focus/blur.
@@ -138,6 +139,33 @@ the point does not hit the element.
 
 Hint labels are inline-styled rather than classed: the page's own stylesheet is
 hostile territory, and a class is one `!important` away from being hidden.
+
+## Find in page
+
+`/` opens a prompt in the chrome, `n` and `N` cycle, and Escape in normal mode
+clears the highlighting. Chromium owns the search, so main only drives
+`findInPage` and forwards `found-in-page` counts to the chrome on
+`kvist:find-result`; the chrome keeps no query of its own, since the matches
+live on the tab and switching tabs has to change what is on screen.
+
+Find is a mode, not a widget. Like `command`, it swallows nothing and lets the
+chrome type — `Vim.#prompting` is the pair of them — and the bar outlives the
+mode, because `n` needs somewhere to report to once the prompt is gone.
+
+Two Electron 43 traps, both found the hard way:
+
+- **`findInPage(text, { findNext: false })` never emits `found-in-page`**, even
+  though `false` is the documented default. Passing `{ forward: true }` and
+  leaving `findNext` out searches identically and does report. A new search is
+  therefore spelled as the _absence_ of the option.
+- **A find session survives navigation.** Chromium re-runs it against the new
+  document and reports matches for a page the user never searched, so
+  `did-navigate` has to call `stopFindInPage` rather than merely forgetting the
+  query.
+
+Testing this needs the window frontmost — find is one of the things Chromium
+does not run while the window is occluded, so the whole feature reads as broken
+from a background window.
 
 ## Extensions
 
