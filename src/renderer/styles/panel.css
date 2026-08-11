@@ -16,7 +16,7 @@
 
   .kv-panel[data-label]::before {
     content: attr(data-label);
-    max-width: 50ch;
+    max-width: var(--kv-panel-label-max-width);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -24,7 +24,7 @@
     top: 0;
     left: var(--kv-panel-label-horizontal-offset);
     transform: translateY(var(--kv-panel-label-vertical-offset));
-    padding: 0 0.5ch;
+    padding: var(--kv-panel-label-padding);
     background: var(--kv-panel-label-bg);
     color: var(--kv-panel-label-fg);
     font-size: var(--kv-panel-label-size);

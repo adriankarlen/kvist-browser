@@ -57,6 +57,8 @@
     --kv-panel-label-size: 14px;
     --kv-panel-label-horizontal-offset: 2ch;
     --kv-panel-label-vertical-offset: -60%;
+    --kv-panel-label-padding: 0 0.5ch;
+    --kv-panel-label-max-width: 50ch;
 
     --kv-tab-fg: var(--kv-color-muted);
     --kv-tab-bg: transparent;
