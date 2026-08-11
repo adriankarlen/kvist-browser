@@ -1,4 +1,5 @@
-import type { Mode, ScrollCommand } from "../shared/ipc";
+import type { Mode } from "../shared/ipc";
+import type { Keybind } from "./keybinds";
 
 export interface KeyInput {
   key: string;
@@ -14,37 +15,20 @@ export interface KeyInput {
  */
 export type KeySource = "page" | "chrome";
 
-export interface VimActions {
-  newTab: () => void;
-  closeTab: () => void;
-  nextTab: () => void;
-  prevTab: () => void;
-  back: () => void;
-  forward: () => void;
-  reload: () => void;
-  focusPage: () => void;
-  focusChrome: () => void;
-  focusOmnibox: () => void;
-  /** Drops the page's focused element, so leaving insert actually returns the keyboard. */
-  blurPage: () => void;
-  scrollPage: (command: ScrollCommand) => void;
-  /** Cycles through the matches the find prompt left behind. */
-  findNext: (forward: boolean) => void;
-  stopFind: () => void;
-  showHints: () => void;
-  hideHints: () => void;
-  /** Feeds one key to the page, which owns hint matching. */
-  hintKey: (key: string) => void;
-}
-
 export class Vim {
   #mode: Mode = "normal";
   #pending = "";
-  #actions: VimActions;
+  #keybinds: readonly Keybind[];
+  #execute: (name: string, arg?: string) => void;
   #onMode: (mode: Mode) => void;
 
-  constructor(actions: VimActions, onMode: (mode: Mode) => void) {
-    this.#actions = actions;
+  constructor(
+    keybinds: readonly Keybind[],
+    execute: (name: string, arg?: string) => void,
+    onMode: (mode: Mode) => void,
+  ) {
+    this.#keybinds = keybinds;
+    this.#execute = execute;
     this.#onMode = onMode;
   }
 
@@ -59,7 +43,7 @@ export class Vim {
 
   /** Mode changes requested by the chrome, e.g. escaping out of the command line. */
   requestMode(mode: Mode): void {
-    if (mode === "normal") this.#actions.focusPage();
+    if (mode === "normal") this.#execute("focus.page");
     this.#set(mode);
   }
 
@@ -93,121 +77,66 @@ export class Vim {
     // Chrome inputs own every key they can type, and own their own Escape —
     // the omnibox and command line report the mode change back over IPC.
     if (source === "chrome") {
-      if (this.#mode === "hint") return this.#hint(input.key);
-      return this.#mode === "normal" ? this.#normal(input.key) : false;
+      if (this.#mode !== "normal" && this.#mode !== "hint") return false;
+    } else {
+      // The prompts live in the chrome, so a page that still has focus must not
+      // steal from them.
+      if (this.#prompting) return false;
     }
 
-    // The prompts live in the chrome, so a page that still has focus must not
-    // steal from them.
-    if (this.#prompting) return false;
+    // Try keybind dispatch.
+    const dispatched = this.#dispatch(input.key);
+    if (dispatched) return true;
 
-    if (this.#mode === "hint") return this.#hint(input.key);
-
-    if (this.#mode === "insert") {
-      if (input.key !== "Escape") return false;
-      // Leaving the field focused would keep every following key going to it,
-      // which is the confusing half-modal state Escape is meant to end.
-      this.#actions.blurPage();
-      this.#actions.focusPage();
-      this.#set("normal");
+    // Every key belongs to hinting while it is up, so nothing leaks to the
+    // page mid-selection. The page decides when a label matched and reports
+    // back.
+    if (this.#mode === "hint") {
+      this.#execute("hints.key", input.key);
       return true;
     }
 
-    return this.#normal(input.key);
+    return false;
   }
 
   /**
-   * Every key belongs to hinting while it is up, so nothing leaks to the page
-   * mid-selection. The page decides when a label matched and reports back.
+   * Looks up the key (appended to any pending prefix) against the keybind
+   * table for the current mode.
+   *
+   * Returns true when the key was consumed — either by matching a binding,
+   * extending a prefix, or swallowing the tail of an unknown sequence.
    */
-  #hint(key: string): boolean {
-    if (key === "Escape") {
-      this.#actions.hideHints();
-      this.#set("normal");
-      return true;
-    }
-    this.#actions.hintKey(key);
-    return true;
-  }
+  #dispatch(key: string): boolean {
+    const sequence = this.#pending + key;
 
-  #normal(key: string): boolean {
-    if (this.#pending === "g") {
+    // Exact match — execute the command and apply the mode transition.
+    const match = this.#keybinds.find((kb) => kb.mode === this.#mode && kb.keys === sequence);
+
+    if (match) {
       this.#pending = "";
-      if (key === "t") this.#actions.nextTab();
-      else if (key === "T") this.#actions.prevTab();
-      else if (key === "g") this.#actions.scrollPage("top");
-      // Swallow the rest of an unknown g-sequence rather than leaking it.
+      if (match.command) this.#execute(match.command);
+      if (match.enter !== undefined) this.#set(match.enter);
       return true;
     }
 
-    switch (key) {
-      case "Escape":
-        this.#pending = "";
-        // Nothing else in normal mode holds state a user would want dropped,
-        // and leftover match highlighting is the one thing that lingers.
-        this.#actions.stopFind();
-        return true;
-      case "g":
-        this.#pending = "g";
-        return true;
-      case "t":
-        this.#actions.newTab();
-        return true;
-      case "x":
-        this.#actions.closeTab();
-        return true;
-      case "r":
-        this.#actions.reload();
-        return true;
-      case "j":
-        this.#actions.scrollPage("down");
-        return true;
-      case "k":
-        this.#actions.scrollPage("up");
-        return true;
-      case "d":
-        this.#actions.scrollPage("half-down");
-        return true;
-      case "u":
-        this.#actions.scrollPage("half-up");
-        return true;
-      case "G":
-        this.#actions.scrollPage("bottom");
-        return true;
-      case "f":
-        this.#actions.showHints();
-        this.#set("hint");
-        return true;
-      case "H":
-        this.#actions.back();
-        return true;
-      case "L":
-        this.#actions.forward();
-        return true;
-      case "i":
-        this.#set("insert");
-        return true;
-      case "o":
-        this.#actions.focusOmnibox();
-        this.#set("insert");
-        return true;
-      case "n":
-        this.#actions.findNext(true);
-        return true;
-      case "N":
-        this.#actions.findNext(false);
-        return true;
-      case "/":
-        this.#actions.focusChrome();
-        this.#set("find");
-        return true;
-      case ":":
-        this.#actions.focusChrome();
-        this.#set("command");
-        return true;
-      default:
-        return false;
+    // Prefix of a longer binding — wait for the next key.
+    const isPrefix = this.#keybinds.some(
+      (kb) =>
+        kb.mode === this.#mode && kb.keys.startsWith(sequence) && kb.keys.length > sequence.length,
+    );
+
+    if (isPrefix) {
+      this.#pending = sequence;
+      return true;
     }
+
+    // An unknown sequence following a prefix is swallowed rather than leaked.
+    if (this.#pending !== "") {
+      this.#pending = "";
+      return true;
+    }
+
+    return false;
   }
 
   #set(mode: Mode): void {
