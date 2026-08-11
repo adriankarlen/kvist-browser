@@ -18,8 +18,8 @@
     content: attr(data-label);
     position: absolute;
     top: 0;
-    left: var(--kv-panel-label-offset);
-    transform: translateY(-60%);
+    left: var(--kv-panel-label-horizontal-offset);
+    transform: translateY(var(--kv-panel-label-vertical-offset));
     padding: 0 0.5ch;
     background: var(--kv-panel-label-bg);
     color: var(--kv-panel-label-fg);

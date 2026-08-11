@@ -55,7 +55,8 @@
     --kv-panel-label-bg: var(--kv-chrome-bg);
     --kv-panel-label-fg: var(--kv-color-subtle);
     --kv-panel-label-size: 14px;
-    --kv-panel-label-offset: 2ch;
+    --kv-panel-label-horizontal-offset: 2ch;
+    --kv-panel-label-vertical-offset: -60%;
 
     --kv-tab-fg: var(--kv-color-muted);
     --kv-tab-bg: transparent;
