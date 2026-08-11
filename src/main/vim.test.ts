@@ -69,6 +69,8 @@ test("modified keys always pass through so page shortcuts still work", () => {
 test("insert mode passes keys through and Escape returns to normal", () => {
   key("i");
   expect(vim.mode).toBe("insert");
+  // enter-only binding changes mode without dispatching a command
+  expect(execute).not.toHaveBeenCalled();
 
   expect(key("t")).toBe(false);
   expect(execute).not.toHaveBeenCalledWith("tab.new");

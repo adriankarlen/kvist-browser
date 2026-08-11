@@ -74,9 +74,11 @@ export function createApi(tabs: TabManager, win: BrowserWindow, quit: () => void
     },
     focus: {
       page: () => tabs.focusActive(),
-      chrome: () => win.webContents.focus(),
+      chrome: () => {
+        if (!win.isDestroyed()) win.webContents.focus();
+      },
       omnibox: () => {
-        win.webContents.focus();
+        if (!win.isDestroyed()) win.webContents.focus();
         send(CHANNELS.focusOmnibox, null);
       },
       blurPage: () => tabs.blurActive(),

@@ -20,8 +20,8 @@ export class CommandRegistry {
 
   /** Runs a command by name or alias. Returns false if the command is unknown. */
   execute(nameOrAlias: string, arg?: string): boolean {
-    const name = this.#aliases.get(nameOrAlias) ?? nameOrAlias;
-    const handler = this.#handlers.get(name);
+    const handler =
+      this.#handlers.get(nameOrAlias) ?? this.#handlers.get(this.#aliases.get(nameOrAlias) ?? "");
     if (!handler) return false;
     handler(arg);
     return true;
@@ -29,8 +29,9 @@ export class CommandRegistry {
 
   /** Resolves an alias to its canonical name, or undefined if unknown. */
   resolve(nameOrAlias: string): string | undefined {
-    const name = this.#aliases.get(nameOrAlias) ?? nameOrAlias;
-    return this.#handlers.has(name) ? name : undefined;
+    if (this.#handlers.has(nameOrAlias)) return nameOrAlias;
+    const name = this.#aliases.get(nameOrAlias);
+    return name !== undefined && this.#handlers.has(name) ? name : undefined;
   }
 }
 
