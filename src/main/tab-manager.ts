@@ -30,6 +30,8 @@ interface Tab {
   /** The live find query, or "" when nothing is being searched for. */
   find: string;
   findResult: FindResult | null;
+  /** The request id of the in-flight search, so a stale result can be told apart from the current one. */
+  findRequestId: number | null;
 }
 
 export class TabManager {
@@ -128,20 +130,21 @@ export class TabManager {
     // `findNext: false` is the documented default, but passing it explicitly
     // makes Electron 43 run the search and never emit `found-in-page` — so a
     // new search has to be spelled as the absence of the option.
-    tab.view.webContents.findInPage(query, { forward: true });
+    tab.findRequestId = tab.view.webContents.findInPage(query, { forward: true });
   }
 
   /** `n` / `N`, which continue the query the prompt left behind. */
   findNext(forward: boolean): void {
     const tab = this.#active();
     if (!tab || tab.find === "") return;
-    tab.view.webContents.findInPage(tab.find, { forward, findNext: true });
+    tab.findRequestId = tab.view.webContents.findInPage(tab.find, { forward, findNext: true });
   }
 
   stopFind(): void {
     const tab = this.#active();
     if (!tab || tab.find === "") return;
     tab.find = "";
+    tab.findRequestId = null;
     tab.view.webContents.stopFindInPage("clearSelection");
     this.#reportFind(tab, null);
   }
@@ -292,6 +295,7 @@ export class TabManager {
       editable: false,
       find: "",
       findResult: null,
+      findRequestId: null,
     };
 
     this.#tabs.set(id, tab);
@@ -370,8 +374,9 @@ export class TabManager {
     });
 
     webContents.on("found-in-page", (_event, result) => {
-      // A search Chromium re-ran for a document we have already given up on.
-      if (tab.find === "") return;
+      // A search Chromium re-ran for a document we have already given up on,
+      // or a stale request superseded by a newer one — both report late.
+      if (tab.find === "" || result.requestId !== tab.findRequestId) return;
       this.#reportFind(tab, {
         query: tab.find,
         matches: result.matches,
@@ -386,6 +391,7 @@ export class TabManager {
       // ended rather than merely forgotten.
       if (tab.find !== "") {
         tab.find = "";
+        tab.findRequestId = null;
         webContents.stopFindInPage("clearSelection");
         this.#reportFind(tab, null);
       }

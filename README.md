@@ -143,7 +143,7 @@ Only what is visible gets a label — scroll first, hint second.
 ### Find mode
 
 `/` opens a search line and jumps as you type; Enter keeps the matches and
-closes the line, Escape gives up. `n` and `N` walk the matches afterwards,
+closes the line, Escape gives up. `n` and `N` walk the matches afterward,
 and Escape in normal mode clears the highlighting. The match count sits at
 the end of the line, and the search belongs to the tab, so switching tabs
 switches what is highlighted.

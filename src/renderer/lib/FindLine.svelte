@@ -52,6 +52,7 @@
       autocomplete="off"
       {oninput}
       {onkeydown}
+      {onblur}
     />
   {:else}
     <span class="kv-find__query">{find.query}</span>
