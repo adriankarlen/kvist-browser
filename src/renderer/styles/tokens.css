@@ -64,7 +64,6 @@
     --kv-tab-bg: transparent;
     --kv-tab-active-fg: var(--kv-color-text);
     --kv-tab-active-bg: var(--kv-color-overlay);
-    --kv-tab-border: var(--kv-border-color);
     --kv-tab-marker-fg: var(--kv-color-accent);
     --kv-tab-hover-bg: var(--kv-color-surface);
     --kv-tab-hover-fg: var(--kv-color-accent);

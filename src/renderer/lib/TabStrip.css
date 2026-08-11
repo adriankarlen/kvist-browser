@@ -30,12 +30,10 @@
 
   .kv-tabstrip.is-horizontal .kv-tab {
     flex: 0 1 var(--kv-tab-width);
-    border-right: var(--kv-border-width) solid var(--kv-tab-border);
   }
 
   .kv-tabstrip.is-vertical .kv-tab {
     flex: none;
-    border-bottom: var(--kv-border-width) solid var(--kv-tab-border);
   }
 
   .kv-tab.is-active {
