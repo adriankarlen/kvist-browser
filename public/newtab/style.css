@@ -1,0 +1,173 @@
+:root {
+  --gap: 20px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--kv-color-base);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: var(--kv-font-family, monospace);
+  color: var(--kv-color-text);
+  overflow: hidden;
+}
+
+#title {
+  color: var(--kv-color-text);
+}
+
+#dashboard-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: var(--gap);
+  width: 100vw;
+  height: 100vh;
+}
+
+#dashboard-container {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "clock scratch"
+    "links scratch";
+  gap: var(--gap);
+  width: 680px;
+  height: 500px;
+  transform-origin: center;
+}
+
+/* ── boxes ───────────────────────────────────────────── */
+
+.box {
+  background-color: var(--kv-color-surface);
+  border: var(--kv-border-width) solid var(--kv-border-color);
+  border-radius: var(--kv-radius);
+  padding: 15px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease;
+}
+
+.box:hover,
+.box:focus-within {
+  border-color: var(--kv-color-accent);
+}
+
+.clock-box {
+  grid-area: clock;
+}
+
+.links-box {
+  grid-area: links;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.links-box::-webkit-scrollbar {
+  display: none;
+}
+
+.scratchpad-box {
+  grid-area: scratch;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── shared component styles ─────────────────────────── */
+
+.header {
+  font-size: 11px;
+  font-weight: 400;
+  border-bottom: 1px solid var(--kv-color-overlay);
+  padding-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--kv-color-muted);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* ── clock ───────────────────────────────────────────── */
+
+.clock-display {
+  font-size: 44px;
+  text-align: left;
+  margin: auto 0;
+  letter-spacing: 2px;
+  color: var(--kv-color-accent);
+}
+
+/* ── quick links ─────────────────────────────────────── */
+
+.links-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.link-item {
+  color: var(--kv-color-accent-alt);
+  text-decoration: none;
+  text-transform: uppercase;
+  font-size: 13px;
+  padding: 4px 5px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-item:hover {
+  background-color: var(--kv-color-overlay);
+  padding-left: 10px;
+}
+
+.link-item:active {
+  background-color: var(--kv-color-accent);
+  color: var(--kv-color-base);
+  padding-left: 10px;
+}
+
+/* ── scratchpad ──────────────────────────────────────── */
+
+#scratchpad-area {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--kv-color-muted);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 4px 0;
+  scrollbar-width: none;
+  min-height: 0;
+}
+
+#scratchpad-area::placeholder {
+  color: var(--kv-color-muted);
+}
+
+#scratchpad-area::-webkit-scrollbar {
+  display: none;
+}
+
+#scratchpad-area:focus {
+  color: var(--kv-color-text);
+}

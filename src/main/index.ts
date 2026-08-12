@@ -2,6 +2,12 @@ import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
 import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
+import {
+  registerNewtabProtocol,
+  registerNewtabScheme,
+  updateNewtabConfig,
+  updateNewtabCss,
+} from "./newtab";
 import { createApi } from "./api";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { registerCommands } from "./commands";
@@ -12,6 +18,7 @@ import { TabManager } from "./tab-manager";
 import { Vim } from "./vim";
 
 applyXdgPaths();
+registerNewtabScheme();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -43,6 +50,11 @@ function createWindow(config: UserConfig): void {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
     void setAdblockEnabled(next.settings.adblock);
+    updateNewtabCss(next.css);
+    updateNewtabConfig({
+      links: next.settings.newtabLinks,
+      timezone: next.settings.newtabTimezone,
+    });
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 
@@ -129,6 +141,12 @@ void app.whenReady().then(async () => {
   // Attaches to the default session, so it has to be in place before the first
   // tab starts loading.
   await setAdblockEnabled(config.settings.adblock);
+  updateNewtabCss(config.css);
+  updateNewtabConfig({
+    links: config.settings.newtabLinks,
+    timezone: config.settings.newtabTimezone,
+  });
+  registerNewtabProtocol();
   createWindow(config);
 
   app.on("activate", () => {

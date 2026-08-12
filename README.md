@@ -167,6 +167,19 @@ adblock = true              # ad and tracker blocking
 [tabs]
 orientation = "horizontal"  # or "vertical"
 focus-page = true           # hand keyboard focus to the page after a tab switch
+
+# New tab page: quick links, and an optional clock timezone (IANA name or
+# "UTC±n"). Without it the clock shows your system timezone.
+[newtab]
+# timezone = "Europe/Stockholm"
+
+[[newtab.links]]
+name = "github"
+url = "https://github.com"
+
+[[newtab.links]]
+name = "youtube"
+url = "https://youtube.com"
 ```
 
 Anything missing or invalid falls back to the default. A broken file keeps
