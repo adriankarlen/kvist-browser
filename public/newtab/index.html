@@ -1,0 +1,56 @@
+<!-- based on https://github.com/ch4zex/localnoteboard -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kvist</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div id="dashboard-wrapper">
+      <div id="dashboard-container">
+        <!-- Clock -->
+        <div class="box clock-box">
+          <div class="header">
+            <span>SYSTEM: TIME</span>
+            <span id="clock-tz-label"></span>
+          </div>
+          <div class="clock-display" id="clock">00:00:00</div>
+          <input
+            type="text"
+            id="timezone-input"
+            class="timezone-input"
+            placeholder="Europe/Stockholm"
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Quick Links -->
+        <div class="box links-box">
+          <div class="header">
+            <span>SYSTEM: QUICK_ACCESS</span>
+            <span id="edit-links-toggle">+</span>
+          </div>
+          <div class="links-grid" id="links-grid"></div>
+        </div>
+
+        <!-- Scratchpad -->
+        <div class="box scratchpad-box">
+          <div class="header">
+            <span>SYSTEM: SCRATCHPAD</span>
+            <span>TEMP_STORAGE</span>
+          </div>
+          <textarea
+            id="scratchpad-area"
+            placeholder="> TEMPORARY_DATA_"
+            spellcheck="false"
+          ></textarea>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

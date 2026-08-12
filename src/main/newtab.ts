@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
 
 /**
  * Default kvist token values, mirroring src/renderer/styles/tokens.css but
  * without the @layer wrapper — the newtab page has no layer budget of its own.
- * User config.css is injected after these so any --kv-* override wins.
+ * Appended after the page's own style.css so user config.css overrides win by
+ * source order.
  */
 const TOKEN_DEFAULTS = `
 :root {
@@ -25,10 +26,16 @@ const TOKEN_DEFAULTS = `
   --kv-font-family: "JetBrainsMono Nerd Font", monospace;
   --kv-font-size: 14px;
   --kv-border-color: var(--kv-color-highlight-med);
+  --kv-border-width: 2px;
 }
 `;
 
-let htmlTemplate = "";
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+};
+
 let currentCss = "";
 
 /** Must be called before app.whenReady(). */
@@ -46,32 +53,43 @@ export function updateNewtabCss(css: string): void {
   currentCss = css;
 }
 
-function newtabHtmlPath(): string {
+function newtabDir(): string {
   // In dev the renderer build hasn't run, so read straight from source.
   // In prod Vite copies public/ → dist/renderer/.
   return process.env.VITE_DEV_SERVER_URL
-    ? join(app.getAppPath(), "public", "newtab.html")
-    : join(import.meta.dirname, "../renderer/newtab.html");
+    ? join(app.getAppPath(), "public", "newtab")
+    : join(import.meta.dirname, "../renderer/newtab");
 }
 
 /** Must be called after app.whenReady(). */
-export async function registerNewtabProtocol(): Promise<void> {
-  htmlTemplate = await readFile(newtabHtmlPath(), "utf8");
+export function registerNewtabProtocol(): void {
+  const root = newtabDir();
 
-  protocol.handle("kvist", (request) => {
-    const { hostname } = new URL(request.url);
-
-    if (hostname !== "newtab") {
+  protocol.handle("kvist", async (request) => {
+    const url = new URL(request.url);
+    if (url.hostname !== "newtab") {
       return new Response("Not found", { status: 404 });
     }
 
-    const injected = htmlTemplate.replace(
-      "</head>",
-      `<style>\n${TOKEN_DEFAULTS}\n${currentCss}\n</style>\n</head>`,
-    );
+    const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+    const file = normalize(join(root, pathname));
+    if (!file.startsWith(root + sep)) {
+      return new Response("Not found", { status: 404 });
+    }
 
-    return new Response(injected, {
-      headers: { "content-type": "text/html; charset=utf-8" },
+    let body: string;
+    try {
+      body = await readFile(file, "utf8");
+    } catch {
+      return new Response("Not found", { status: 404 });
+    }
+
+    if (file.endsWith(".css")) {
+      body += `\n${TOKEN_DEFAULTS}\n${currentCss}\n`;
+    }
+
+    return new Response(body, {
+      headers: { "content-type": MIME_TYPES[extname(file)] ?? "text/plain" },
     });
   });
 }

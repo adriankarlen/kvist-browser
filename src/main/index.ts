@@ -133,7 +133,7 @@ void app.whenReady().then(async () => {
   // tab starts loading.
   await setAdblockEnabled(config.settings.adblock);
   updateNewtabCss(config.css);
-  await registerNewtabProtocol();
+  registerNewtabProtocol();
   createWindow(config);
 
   app.on("activate", () => {
