@@ -60,7 +60,8 @@ body {
   transition: border-color 0.2s ease;
 }
 
-.box:hover {
+.box:hover,
+.box:focus-within {
   border-color: var(--kv-color-accent);
 }
 

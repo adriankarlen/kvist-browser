@@ -33,10 +33,13 @@ function asTable(value: unknown): Record<string, unknown> {
 
 function parseLinks(value: unknown): NewtabLink[] {
   if (!Array.isArray(value)) return DEFAULT_SETTINGS.newtabLinks;
-  return value.flatMap((entry) => {
+  const links = value.flatMap((entry) => {
     const { name, url } = asTable(entry);
     return typeof name === "string" && typeof url === "string" ? [{ name, url }] : [];
   });
+  // All-or-nothing, like the other fields: one malformed entry falls back to
+  // the defaults rather than silently dropping links.
+  return links.length === value.length ? links : DEFAULT_SETTINGS.newtabLinks;
 }
 
 // Intl only accepts IANA names; "UTC±n" is handled by the clock itself.

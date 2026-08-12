@@ -17,8 +17,14 @@ export function initScratchpad() {
   area.value = load();
 
   let timer;
+  const flush = () => {
+    clearTimeout(timer);
+    localStorage.setItem(SCRATCHPAD_KEY, area.value);
+  };
   area.addEventListener("input", () => {
     clearTimeout(timer);
-    timer = setTimeout(() => localStorage.setItem(SCRATCHPAD_KEY, area.value), DEBOUNCE_MS);
+    timer = setTimeout(flush, DEBOUNCE_MS);
   });
+  // The debounce would otherwise lose the last few keystrokes on teardown.
+  window.addEventListener("pagehide", flush);
 }
