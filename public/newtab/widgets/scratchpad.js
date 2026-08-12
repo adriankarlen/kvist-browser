@@ -1,12 +1,14 @@
 const SCRATCHPAD_KEY = "dash_scratchpad";
 const DEBOUNCE_MS = 300;
 
-// Older builds stored the text JSON-encoded; read both shapes.
+// Storage is always a JSON string; older builds stored the text bare, so a
+// parse that yields anything but a string is legacy data, returned as-is.
 function load() {
   const raw = localStorage.getItem(SCRATCHPAD_KEY);
   if (raw === null) return "";
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "string" ? parsed : raw;
   } catch {
     return raw;
   }
@@ -19,7 +21,7 @@ export function initScratchpad() {
   let timer;
   const flush = () => {
     clearTimeout(timer);
-    localStorage.setItem(SCRATCHPAD_KEY, area.value);
+    localStorage.setItem(SCRATCHPAD_KEY, JSON.stringify(area.value));
   };
   area.addEventListener("input", () => {
     clearTimeout(timer);
