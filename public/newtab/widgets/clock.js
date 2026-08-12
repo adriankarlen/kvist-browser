@@ -1,5 +1,4 @@
-import { loadConfig, saveConfig } from "../storage.js";
-
+// Intl only accepts IANA names, so "UTC±n" offsets are handled by hand.
 const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
 function formatTime(date, timezone) {
@@ -21,45 +20,23 @@ function formatTime(date, timezone) {
   });
 }
 
-function isValidTimezone(value) {
-  if (UTC_RX.test(value)) return true;
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function initClock() {
+/**
+ * System time, or the [newtab] timezone from config.toml when set. Main
+ * validates the configured value, so `timezone` is always safe to format.
+ */
+export async function initClock() {
   const clockEl = document.getElementById("clock");
-  const timezoneInput = document.getElementById("timezone-input");
-  const tzLabel = document.getElementById("clock-tz-label");
 
-  let timezone = loadConfig().dash_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (loadConfig().dash_timezone) {
-    timezoneInput.value = timezone;
-    tzLabel.textContent = timezone.toUpperCase();
+  let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    const config = await (await fetch("config.json")).json();
+    timezone = config.timezone ?? timezone;
+  } catch {
+    // No config is not worth breaking the clock over.
   }
-
-  timezoneInput.addEventListener("input", () => {
-    const val = timezoneInput.value.trim();
-    if (!isValidTimezone(val)) {
-      timezoneInput.style.color = "var(--kv-color-danger)";
-      return;
-    }
-    timezone = val;
-    timezoneInput.style.color = "var(--kv-color-text)";
-    tzLabel.textContent = val.toUpperCase();
-    saveConfig({ dash_timezone: timezone });
-  });
 
   const tick = () => {
-    try {
-      clockEl.textContent = formatTime(new Date(), timezone);
-    } catch {
-      clockEl.textContent = new Date().toLocaleTimeString("en-GB");
-    }
+    clockEl.textContent = formatTime(new Date(), timezone);
   };
   setInterval(tick, 1000);
   tick();

@@ -1,34 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
+import { DEFAULT_SETTINGS, type NewtabLink } from "../shared/config";
 
-/**
- * Default kvist token values, mirroring src/renderer/styles/tokens.css but
- * without the @layer wrapper — the newtab page has no layer budget of its own.
- * Appended after the page's own style.css so user config.css overrides win by
- * source order.
- */
-const TOKEN_DEFAULTS = `
-:root {
-  --kv-color-base: #191724;
-  --kv-color-surface: #1f1d2e;
-  --kv-color-overlay: #26233a;
-  --kv-color-muted: #6e6a86;
-  --kv-color-subtle: #908caa;
-  --kv-color-text: #e0def4;
-  --kv-color-accent: #c4a7e7;
-  --kv-color-accent-alt: #9ccfd8;
-  --kv-color-warning: #f6c177;
-  --kv-color-danger: #eb6f92;
-  --kv-color-highlight-low: #21202e;
-  --kv-color-highlight-med: #403d52;
-  --kv-color-highlight-high: #524f67;
-  --kv-font-family: "JetBrainsMono Nerd Font", monospace;
-  --kv-font-size: 14px;
-  --kv-border-color: var(--kv-color-highlight-med);
-  --kv-border-width: 2px;
+/** Config-driven data for the newtab page, served as config.json. */
+export interface NewtabConfig {
+  links: readonly NewtabLink[];
+  /** IANA name or "UTC±n"; undefined follows the system timezone. */
+  timezone: string | undefined;
 }
-`;
+// Served to the newtab page ahead of the user's config.css. The @layer
+// wrapper is fine there: user CSS is appended unlayered, and unlayered beats
+// layered regardless of source order.
+import tokensCss from "../renderer/styles/tokens.css?raw";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -37,13 +21,17 @@ const MIME_TYPES: Record<string, string> = {
 };
 
 let currentCss = "";
+let currentConfig: NewtabConfig = {
+  links: DEFAULT_SETTINGS.newtabLinks,
+  timezone: undefined,
+};
 
 /** Must be called before app.whenReady(). */
 export function registerNewtabScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
       scheme: "kvist",
-      privileges: { standard: true, secure: true, corsEnabled: true },
+      privileges: { standard: true, secure: true, corsEnabled: true, supportFetchAPI: true },
     },
   ]);
 }
@@ -51,6 +39,11 @@ export function registerNewtabScheme(): void {
 /** Called when config.css changes; picked up on the next newtab page load. */
 export function updateNewtabCss(css: string): void {
   currentCss = css;
+}
+
+/** Called when the [newtab] settings change; picked up on the next newtab page load. */
+export function updateNewtabConfig(config: NewtabConfig): void {
+  currentConfig = config;
 }
 
 function newtabDir(): string {
@@ -72,6 +65,14 @@ export function registerNewtabProtocol(): void {
     }
 
     const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
+
+    // Config-driven data, served rather than read from disk.
+    if (pathname === "/config.json") {
+      return new Response(JSON.stringify(currentConfig), {
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
+
     const file = normalize(join(root, pathname));
     if (!file.startsWith(root + sep)) {
       return new Response("Not found", { status: 404 });
@@ -84,8 +85,8 @@ export function registerNewtabProtocol(): void {
       return new Response("Not found", { status: 404 });
     }
 
-    if (file.endsWith(".css")) {
-      body += `\n${TOKEN_DEFAULTS}\n${currentCss}\n`;
+    if (pathname === "/style.css") {
+      body += `\n${tokensCss}\n${currentCss}\n`;
     }
 
     return new Response(body, {

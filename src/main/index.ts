@@ -2,7 +2,12 @@ import { join } from "node:path";
 import { app, BrowserWindow, ipcMain } from "electron";
 import type { UserConfig } from "../shared/config";
 import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
-import { registerNewtabProtocol, registerNewtabScheme, updateNewtabCss } from "./newtab";
+import {
+  registerNewtabProtocol,
+  registerNewtabScheme,
+  updateNewtabConfig,
+  updateNewtabCss,
+} from "./newtab";
 import { createApi } from "./api";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { registerCommands } from "./commands";
@@ -46,6 +51,10 @@ function createWindow(config: UserConfig): void {
     tabs.focusPage = next.settings.tabFocusPage;
     void setAdblockEnabled(next.settings.adblock);
     updateNewtabCss(next.css);
+    updateNewtabConfig({
+      links: next.settings.newtabLinks,
+      timezone: next.settings.newtabTimezone,
+    });
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 
@@ -133,6 +142,10 @@ void app.whenReady().then(async () => {
   // tab starts loading.
   await setAdblockEnabled(config.settings.adblock);
   updateNewtabCss(config.css);
+  updateNewtabConfig({
+    links: config.settings.newtabLinks,
+    timezone: config.settings.newtabTimezone,
+  });
   registerNewtabProtocol();
   createWindow(config);
 
