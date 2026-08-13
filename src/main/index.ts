@@ -11,6 +11,7 @@ import {
 import { createApi } from "./api";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { registerCommands } from "./commands";
+import { composeContextMenuCss } from "./context-menu";
 import { loadConfig, watchConfig } from "./config";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
@@ -49,6 +50,7 @@ function createWindow(config: UserConfig): void {
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
+    tabs.contextMenuCss = composeContextMenuCss(next.css);
     void setAdblockEnabled(next.settings.adblock);
     updateNewtabCss(next.css);
     updateNewtabConfig({
@@ -93,6 +95,12 @@ function createWindow(config: UserConfig): void {
 
   ipcMain.on(CHANNELS.hintsClick, (event, point: Point) => {
     if (tabs.ownsTab(event.sender)) tabs.clickActive(point);
+  });
+
+  // The sender is a tab, like the hint channels — a webContents that owns no
+  // tab gets no answer to its pick.
+  ipcMain.on(CHANNELS.contextMenuPick, (event, id: string | null) => {
+    if (tabs.ownsTab(event.sender)) tabs.pickContextMenu(id);
   });
 
   const runCommand = (line: string): void => {

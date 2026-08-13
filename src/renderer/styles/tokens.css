@@ -82,6 +82,20 @@
     --kv-find-prompt-fg: var(--kv-color-warning);
     --kv-find-count-fg: var(--kv-color-muted);
 
+    /* the context menu, rendered in the page but themed like the chrome */
+    --kv-menu-bg: var(--kv-panel-bg);
+    --kv-menu-fg: var(--kv-color-text);
+    --kv-menu-border: var(--kv-border-color);
+    /* same hairline the newtab page separates with */
+    --kv-menu-separator: var(--kv-color-overlay);
+    --kv-menu-hover-bg: var(--kv-color-surface);
+    --kv-menu-hover-fg: var(--kv-color-accent);
+    --kv-menu-disabled-fg: var(--kv-color-muted);
+    --kv-menu-hint-fg: var(--kv-color-muted);
+    --kv-menu-min-width: 24ch;
+    --kv-menu-item-height: 28px;
+    --kv-menu-padding: 4px;
+
     --kv-omnibox-fg: var(--kv-color-text);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
     --kv-omnibox-placeholder-fg: var(--kv-color-muted);

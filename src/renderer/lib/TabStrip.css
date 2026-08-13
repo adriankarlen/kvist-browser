@@ -75,8 +75,11 @@
   }
 
   .kv-tabstrip__new {
-    flex: none;
+    /* font-size: 1rem; */
+    display: flex;
     color: var(--kv-tab-fg);
+    align-items: center;
+    justify-content: center;
   }
 
   .kv-tabstrip.is-horizontal .kv-tabstrip__new {

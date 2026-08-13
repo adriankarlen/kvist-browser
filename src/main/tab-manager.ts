@@ -1,8 +1,15 @@
-import { type BaseWindow, type WebContents, WebContentsView } from "electron";
+import {
+  type BaseWindow,
+  clipboard,
+  type ContextMenuParams,
+  type WebContents,
+  WebContentsView,
+} from "electron";
 import { DEFAULT_SETTINGS } from "../shared/config";
 import {
   type BrowserState,
   CHANNELS,
+  type ContextMenuState,
   type FindResult,
   type Point,
   type Rect,
@@ -10,6 +17,7 @@ import {
   type TabId,
   type TabState,
 } from "../shared/ipc";
+import { buildContextMenuItems } from "./context-menu";
 import type { KeyInput, KeySource } from "./vim";
 
 interface CreateOptions {
@@ -47,8 +55,12 @@ export class TabManager {
   #activeId: TabId | null = null;
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #nextId = 1;
+  /** The menu that is up, if any — the params are needed again at pick time. */
+  #contextMenu: { tab: Tab; params: ContextMenuParams } | null = null;
   homepage = DEFAULT_SETTINGS.homepage;
   focusPage = DEFAULT_SETTINGS.tabFocusPage;
+  /** tokens + menu styles + the user's config.css, composed in index.ts. */
+  contextMenuCss = "";
 
   constructor(window: BaseWindow, pagePreload: string, emit: (state: BrowserState) => void) {
     this.#window = window;
@@ -203,6 +215,7 @@ export class TabManager {
     const tab = this.#tabs.get(id);
     if (!tab) return;
 
+    if (this.#contextMenu?.tab.id === id) this.#contextMenu = null;
     this.#window.contentView.removeChildView(tab.view);
     tab.view.webContents.close();
     this.#forget(id);
@@ -234,6 +247,7 @@ export class TabManager {
 
   activate(id: TabId): void {
     if (!this.#tabs.has(id)) return;
+    this.#hideContextMenu();
     this.#activeId = id;
 
     for (const tab of this.#tabs.values()) {
@@ -256,6 +270,66 @@ export class TabManager {
   setContentRect(rect: Rect): void {
     this.#contentRect = rect;
     this.#applyContentRect();
+  }
+
+  /**
+   * Answers the tab's pick — an item id, or null when the menu was dismissed
+   * without one. The stash is dropped either way; a late pick after the tab
+   * closed finds no tab and does nothing.
+   */
+  pickContextMenu(id: string | null): void {
+    const menu = this.#contextMenu;
+    this.#contextMenu = null;
+    if (menu === null || id === null || !this.#tabs.has(menu.tab.id)) return;
+
+    const { webContents } = menu.tab.view;
+    const { params } = menu;
+    const actions: Record<string, () => void> = {
+      "nav.back": () => webContents.navigationHistory.goBack(),
+      "nav.forward": () => webContents.navigationHistory.goForward(),
+      "nav.reload": () => webContents.reload(),
+      // Background, next to its opener — the same answer window.open gets.
+      "link.open-in-new-tab": () =>
+        this.create(params.linkURL, { after: menu.tab.id, background: true }),
+      "link.copy": () => clipboard.writeText(params.linkURL),
+      "image.copy": () => clipboard.writeText(params.srcURL),
+      "edit.cut": () => webContents.cut(),
+      "edit.copy": () => webContents.copy(),
+      "edit.paste": () => webContents.paste(),
+      "edit.select-all": () => webContents.selectAll(),
+      "selection.copy": () => webContents.copy(),
+      inspect: () => webContents.inspectElement(params.x, params.y),
+    };
+    actions[id]?.();
+  }
+
+  /**
+   * Opens the menu in the tab that was right-clicked. Only the visible tab
+   * can be, so this is always the active one. The menu renders in the page
+   * itself — the tab's view paints over the chrome, so chrome HTML could
+   * never overlap it — and the styling travels with the payload.
+   */
+  #openContextMenu(tab: Tab, params: ContextMenuParams): void {
+    this.#contextMenu = { tab, params };
+    const { navigationHistory } = tab.view.webContents;
+    const state: ContextMenuState = {
+      x: params.x,
+      y: params.y,
+      items: buildContextMenuItems(params, {
+        canGoBack: navigationHistory.canGoBack(),
+        canGoForward: navigationHistory.canGoForward(),
+      }),
+      css: this.contextMenuCss,
+    };
+    tab.view.webContents.send(CHANNELS.contextMenu, state);
+  }
+
+  /** Hides the menu in its tab and drops the stash; a no-op when none is up. */
+  #hideContextMenu(): void {
+    const menu = this.#contextMenu;
+    this.#contextMenu = null;
+    if (menu === null || !this.#tabs.has(menu.tab.id)) return;
+    menu.tab.view.webContents.send(CHANNELS.contextMenu, null);
   }
 
   navigate(url: string): void {
@@ -384,8 +458,13 @@ export class TabManager {
       });
     });
 
+    webContents.on("context-menu", (_event, params) => this.#openContextMenu(tab, params));
+
     const trackUrl = (): void => update({ url: webContents.getURL() });
     webContents.on("did-navigate", () => {
+      // The menu's document is gone, and with it the menu; only the stash
+      // needs forgetting. No hide is sent — the new page never showed one.
+      if (this.#contextMenu?.tab.id === tab.id) this.#contextMenu = null;
       // The matches belonged to a document that is gone. Chromium keeps the
       // session and re-runs it against the new one, so the search has to be
       // ended rather than merely forgotten.

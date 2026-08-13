@@ -30,6 +30,33 @@ export interface BrowserState {
   activeId: TabId | null;
 }
 
+/** One row of the context menu; a separator is a row of its own. */
+export type ContextMenuItem =
+  | { type: "separator" }
+  | {
+      type: "item";
+      id: string;
+      label: string;
+      enabled: boolean;
+      /** Right-aligned hint slot, reserved for e.g. keybinds; unset for now. */
+      hint?: string;
+    };
+
+/**
+ * Everything the page needs to render its context menu, in page coordinates.
+ * null hides the menu instead.
+ */
+export interface ContextMenuState {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+  /**
+   * tokens + menu styles + the user's config.css, injected into the menu's
+   * shadow root so it themes exactly like the chrome.
+   */
+  css: string;
+}
+
 export interface Rect {
   x: number;
   y: number;
@@ -69,6 +96,14 @@ export const CHANNELS = {
   findStop: "kvist:find-stop",
   /** Match counts back to the chrome; null once a find is over. */
   findResult: "kvist:find-result",
+  /**
+   * Context menu: main tells the tab what to show (or null to hide), the tab
+   * reports the picked item id back — or null when dismissed without one.
+   * Rendered in the page itself, because the tab's view paints over the
+   * chrome and chrome HTML can never overlap it.
+   */
+  contextMenu: "kvist:context-menu",
+  contextMenuPick: "kvist:context-menu-pick",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
