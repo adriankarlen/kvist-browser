@@ -7,6 +7,10 @@
  * `!important` away from being hidden — the same reason hint labels are
  * inline-styled), and main ships the tokens, the menu styles and the user's
  * config.css with the payload, so the menu still themes like the chrome.
+ *
+ * The root is closed and clicks must be trusted: the items run privileged
+ * actions, and an open root would let the page itself click Paste and read
+ * the clipboard out of whatever field it landed in.
  */
 
 import { ipcRenderer } from "electron";
@@ -43,10 +47,13 @@ function row(item: ContextMenuState["items"][number], pick: (id: string) => void
   const element = document.createElement("li");
   if (item.type === "separator") {
     element.className = "kv-menu__separator";
+    element.setAttribute("role", "separator");
     return element;
   }
 
   element.className = item.enabled ? "kv-menu__item" : "kv-menu__item is-disabled";
+  element.setAttribute("role", "menuitem");
+  element.setAttribute("aria-disabled", String(!item.enabled));
 
   const icon = document.createElement("span");
   icon.className = "kv-menu__icon";
@@ -58,7 +65,11 @@ function row(item: ContextMenuState["items"][number], pick: (id: string) => void
   hint.textContent = item.hint ?? "";
   element.append(icon, label, hint);
 
-  if (item.enabled) element.addEventListener("click", () => pick(item.id));
+  element.addEventListener("click", (event) => {
+    // A scripted click carries no trust; only a real mouse may pick.
+    if (!event.isTrusted || !item.enabled) return;
+    pick(item.id);
+  });
   return element;
 }
 
@@ -68,13 +79,15 @@ export function show(state: ContextMenuState): void {
   host = document.createElement("div");
   // all: initial, because the page's inheritance stops at the shadow host.
   host.style.cssText = "all: initial; position: fixed; left: 0; top: 0; z-index: 2147483647;";
-  const shadow = host.attachShadow({ mode: "open" });
+  // Closed, so the page cannot reach in and click a privileged item itself.
+  const shadow = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
   style.textContent = state.css;
 
   const list = document.createElement("ul");
   list.className = "kv-menu";
+  list.setAttribute("role", "menu");
   for (const item of state.items) {
     list.appendChild(row(item, (id) => close(id)));
   }
