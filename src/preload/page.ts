@@ -1,6 +1,7 @@
 import { ipcRenderer } from "electron";
-import { CHANNELS, type ScrollCommand } from "../shared/ipc";
+import { CHANNELS, type ContextMenuState, type ScrollCommand } from "../shared/ipc";
 import * as hints from "./hints";
+import * as menu from "./menu";
 
 /**
  * Runs in every tab, and deliberately exposes nothing over contextBridge — a
@@ -106,6 +107,11 @@ ipcRenderer.on(CHANNELS.hintsKey, (_event, input: string) => {
 });
 
 ipcRenderer.on(CHANNELS.hintsHide, () => hints.hide());
+
+ipcRenderer.on(CHANNELS.contextMenu, (_event, state: ContextMenuState | null) => {
+  if (state === null) menu.hide();
+  else menu.show(state);
+});
 
 // Hints are positioned against the document, so anything that moves the page
 // under them leaves them pointing at the wrong things.

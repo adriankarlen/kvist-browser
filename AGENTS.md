@@ -167,6 +167,38 @@ Testing this needs the window frontmost — find is one of the things Chromium
 does not run while the window is occluded, so the whole feature reads as broken
 from a background window.
 
+## Context menu
+
+Rendered in the page, not in the chrome and not native. A tab's
+`WebContentsView` is a native layer painted over the chrome, so chrome HTML
+can never overlap page content — the same reason hints live in the preload.
+A native `Menu` was considered and rejected: it cannot be themed, and
+themeability is the product.
+
+Main builds the item list from the `context-menu` params (`context-menu.ts`
+is pure and unit-tested), stashes the params for pick time, and ships the
+styling with the payload: tokens.css + `src/preload/menu.css` + the user's
+config.css, with `:root` rewritten to `:host` because the menu renders in a
+shadow root where `:root` matches nothing. User CSS stays unlayered and
+last, so a `--kv-menu-*` override in config.css wins exactly as it does in
+the chrome.
+
+Two traps the shadow root does not solve on its own:
+
+- **Mousedown inside the menu is preventDefaulted.** Otherwise clicking Cut
+  or Paste blurs the field before main runs the editing command, and
+  clicking Copy collapses the selection it was meant to copy.
+- **Dismissal needs both sides.** The preload hides on an outside mousedown
+  (checked with `composedPath`, because shadow retargeting makes the
+  listener see the host), and on scroll and resize, which would leave the
+  menu pointing at the wrong thing. Main hides it on tab switch and forgets
+  the stash on navigation and close — no hide is sent on navigation, because
+  the menu died with its document.
+
+Picks arrive on `kvist:context-menu-pick` with the same `ownsTab` sender
+check as the hint channels; only the visible tab can be right-clicked, so
+the stashed menu always belongs to the active tab.
+
 ## Extensions
 
 There is no extension support, deliberately. It was built and then removed in

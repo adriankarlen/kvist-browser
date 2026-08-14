@@ -1,0 +1,65 @@
+/*
+ * The context menu, nvzone-style: a flat bordered box of rows, hairline
+ * separators between sections, the hovered row in accent.
+ *
+ * This file is not bundled into a page — it is raw-imported by main and
+ * injected into the menu's shadow root together with tokens.css and the
+ * user's config.css, so it themes exactly like any chrome component. Every
+ * colour therefore comes from a --kv-menu-* token, never a literal.
+ */
+@layer kvist.components {
+  .kv-menu {
+    margin: 0;
+    padding: var(--kv-menu-padding) 0;
+    min-width: var(--kv-menu-min-width);
+    list-style: none;
+    background: var(--kv-menu-bg);
+    border: var(--kv-border-width) solid var(--kv-menu-border);
+    border-radius: var(--kv-radius);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+    color: var(--kv-menu-fg);
+    user-select: none;
+    cursor: default;
+  }
+
+  .kv-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    min-height: var(--kv-menu-item-height);
+    padding: 0 2ch;
+    white-space: nowrap;
+  }
+
+  .kv-menu__item:hover:not(.is-disabled) {
+    background: var(--kv-menu-hover-bg);
+    color: var(--kv-menu-hover-fg);
+  }
+
+  .kv-menu__item.is-disabled {
+    color: var(--kv-menu-disabled-fg);
+  }
+
+  /* Empty for now, but always reserved: icons land here without reflowing
+     the labels. */
+  .kv-menu__icon {
+    flex: none;
+    width: 1ch;
+  }
+
+  .kv-menu__label {
+    flex: 1;
+  }
+
+  .kv-menu__hint {
+    margin-left: 4ch;
+    color: var(--kv-menu-hint-fg);
+  }
+
+  .kv-menu__separator {
+    height: 1px;
+    margin: var(--kv-menu-padding) 0;
+    background: var(--kv-menu-separator);
+  }
+}
