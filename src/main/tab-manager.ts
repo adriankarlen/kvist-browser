@@ -489,6 +489,14 @@ export class TabManager {
       failLoad(code, description, url, isMainFrame);
     });
 
+    // A fresh main-frame navigation ends the previous failure's dedupe, so a
+    // retry of the same URL renders a new error page rather than a blank
+    // view. Our own error page load must not clear it: the second of the two
+    // fail events above may not have fired yet, and it must stay deduped.
+    webContents.on("did-start-navigation", (_event, url, _isInPlace, isMainFrame) => {
+      if (isMainFrame && errorPageTarget(url) === null) tab.failedUrl = null;
+    });
+
     // A dead renderer is not a destroyed webContents: the view survives, and
     // loading the error page revives it in a new process.
     webContents.on("render-process-gone", (_event, details) => {
@@ -528,9 +536,6 @@ export class TabManager {
         webContents.stopFindInPage("clearSelection");
         this.#reportFind(tab, null);
       }
-      // A committed navigation that is not the error page ends the failure:
-      // the same URL failing again later deserves a fresh error page.
-      if (errorPageTarget(webContents.getURL()) === null) tab.failedUrl = null;
       trackUrl();
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
