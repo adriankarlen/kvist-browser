@@ -1,7 +1,4 @@
 /*
- * The context menu, nvzone-style: a flat bordered box of rows, hairline
- * separators between sections, the hovered row in accent.
- *
  * This file is not bundled into a page — it is raw-imported by main and
  * injected into the menu's shadow root together with tokens.css and the
  * user's config.css, so it themes exactly like any chrome component. Every
