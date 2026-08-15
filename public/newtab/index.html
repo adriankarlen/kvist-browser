@@ -13,29 +13,30 @@
       <h1 id="title">kvist://newtab/</h1>
       <div id="dashboard-container">
         <!-- Clock -->
-        <div class="box clock-box">
-          <h2 class="header">SYSTEM: TIME</h2>
+        <section class="box clock-box" aria-labelledby="clock-header">
+          <h2 class="header" id="clock-header">SYSTEM: TIME</h2>
           <div class="clock-display" id="clock">00:00:00</div>
-        </div>
+        </section>
 
         <!-- Quick Links -->
-        <div class="box links-box">
-          <h2 class="header">SYSTEM: QUICK_ACCESS</h2>
+        <section class="box links-box" aria-labelledby="links-header">
+          <h2 class="header" id="links-header">SYSTEM: QUICK_ACCESS</h2>
           <div class="links-grid" id="links-grid"></div>
-        </div>
+        </section>
 
         <!-- Scratchpad -->
-        <div class="box scratchpad-box">
-          <h2 class="header">
+        <section class="box scratchpad-box" aria-labelledby="scratchpad-header">
+          <h2 class="header" id="scratchpad-header">
             <span>SYSTEM: SCRATCHPAD</span>
             <span>TEMP_STORAGE</span>
           </h2>
           <textarea
             id="scratchpad-area"
+            aria-label="Scratchpad"
             placeholder="> TEMPORARY_DATA_"
             spellcheck="false"
           ></textarea>
-        </div>
+        </section>
       </div>
     </div>
     <script type="module" src="main.js"></script>
