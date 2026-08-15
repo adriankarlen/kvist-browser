@@ -64,8 +64,8 @@ function createWindow(config: UserConfig): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
 
-  const api = createActions(tabs, win, () => app.quit());
-  const commands = registerCommands(api);
+  const actions = createActions(tabs, win, () => app.quit());
+  const commands = registerCommands(actions);
 
   const vim = new Vim(
     DEFAULT_KEYBINDS,
