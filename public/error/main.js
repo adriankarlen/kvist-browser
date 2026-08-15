@@ -22,5 +22,8 @@ if (headline !== null && headline !== "") {
 
 document.getElementById("code").textContent =
   code === null ? "render process gone" : `error ${code}`;
-document.getElementById("description").textContent = description;
+// An absent description would leave an empty paragraph on screen.
+const descEl = document.getElementById("description");
+if (description === "") descEl.remove();
+else descEl.textContent = description;
 document.title = `Failed to load ${url}`;
