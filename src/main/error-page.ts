@@ -62,9 +62,17 @@ export function errorPageTarget(raw: string): ErrorPageInfo | null {
   const target = url.searchParams.get("url");
   if (target === null || target === "") return null;
 
+  // Chromium's codes are negative integers, and formatErrorPageUrl only ever
+  // writes one — so anything else in the parameter is a hand-edited URL and
+  // the whole page is rejected rather than half-read. parseInt would accept
+  // "-105suffix", "-105.5" and padded whitespace; a strict match does not.
   const codeParam = url.searchParams.get("code");
-  const code = codeParam === null ? null : Number.parseInt(codeParam, 10);
-  if (code !== null && Number.isNaN(code)) return null;
+  let code: number | null = null;
+  if (codeParam !== null) {
+    if (!/^-\d+$/.test(codeParam)) return null;
+    code = Number(codeParam);
+    if (!Number.isSafeInteger(code)) return null;
+  }
 
   return { code, description: url.searchParams.get("desc") ?? "", url: target };
 }

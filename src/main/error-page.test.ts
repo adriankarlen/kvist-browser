@@ -36,6 +36,15 @@ test("a malformed error-page URL is rejected rather than half-read", () => {
   expect(errorPageTarget("kvist://error/?code=-3&url=")).toBeNull();
 });
 
+test("only complete negative integers pass as codes", () => {
+  expect(errorPageTarget("kvist://error/?code=-105suffix&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=-105.5&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=%20-105%20&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=105&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=-99999999999999999&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=-105&url=https://a.b/")?.code).toBe(-105);
+});
+
 test("known codes get a headline; the rest stay numeric", () => {
   expect(describeError(-105)).toBe("name not resolved");
   expect(describeError(-102)).toBe("connection refused");
