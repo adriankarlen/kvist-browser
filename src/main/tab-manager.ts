@@ -18,6 +18,7 @@ import {
   type TabState,
 } from "../shared/ipc";
 import { buildContextMenuItems } from "./context-menu";
+import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { KeyInput, KeySource } from "./vim";
 
 interface CreateOptions {
@@ -40,6 +41,8 @@ interface Tab {
   findResult: FindResult | null;
   /** The request id of the in-flight search, so a stale result can be told apart from the current one. */
   findRequestId: number | null;
+  /** The URL whose failure an error page is already showing, so a duplicate report is not rendered twice. */
+  failedUrl: string | null;
 }
 
 export class TabManager {
@@ -370,6 +373,7 @@ export class TabManager {
       find: "",
       findResult: null,
       findRequestId: null,
+      failedUrl: null,
     };
 
     this.#tabs.set(id, tab);
@@ -460,7 +464,57 @@ export class TabManager {
 
     webContents.on("context-menu", (_event, params) => this.#openContextMenu(tab, params));
 
-    const trackUrl = (): void => update({ url: webContents.getURL() });
+    const failLoad = (
+      code: number,
+      description: string,
+      url: string,
+      isMainFrame: boolean,
+    ): void => {
+      // Aborted loads are ordinary navigation, and a sub-frame's failure is
+      // the page's own problem — neither is the tab's to explain.
+      if (code === ERR_ABORTED || !isMainFrame) return;
+      // An error page failing must not stack another error page on top.
+      if (errorPageTarget(url) !== null) return;
+      // did-fail-load and did-fail-provisional-load can both fire for one
+      // failure; only the first may render the page.
+      if (tab.failedUrl === url) return;
+
+      tab.failedUrl = url;
+      void webContents.loadURL(formatErrorPageUrl({ code, description, url }));
+    };
+    webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
+      failLoad(code, description, url, isMainFrame);
+    });
+    webContents.on("did-fail-provisional-load", (_event, code, description, url, isMainFrame) => {
+      failLoad(code, description, url, isMainFrame);
+    });
+
+    // A dead renderer is not a destroyed webContents: the view survives, and
+    // loading the error page revives it in a new process.
+    webContents.on("render-process-gone", (_event, details) => {
+      if (details.reason === "clean-exit") return;
+      // A crashed error page must not stack another error page on top, same
+      // as in failLoad above.
+      if (errorPageTarget(webContents.getURL()) !== null) return;
+      tab.failedUrl = tab.url;
+      void webContents.loadURL(
+        formatErrorPageUrl({ code: null, description: details.reason, url: tab.url }),
+      );
+    });
+
+    // A hung page cannot load its own error page — the event may also repeat
+    // while the renderer stays stuck — so it is crashed from outside and the
+    // render-process-gone path above renders the failure.
+    webContents.on("unresponsive", () => {
+      if (!webContents.isDestroyed()) webContents.forcefullyCrashRenderer();
+    });
+
+    // The tab strip shows the URL that failed, not the error page's own
+    // address — the failure is what the user was navigating to.
+    const trackUrl = (): void => {
+      const current = webContents.getURL();
+      update({ url: errorPageTarget(current)?.url ?? current });
+    };
     webContents.on("did-navigate", () => {
       // The menu's document is gone, and with it the menu; only the stash
       // needs forgetting. No hide is sent — the new page never showed one.
@@ -474,6 +528,9 @@ export class TabManager {
         webContents.stopFindInPage("clearSelection");
         this.#reportFind(tab, null);
       }
+      // A committed navigation that is not the error page ends the failure:
+      // the same URL failing again later deserves a fresh error page.
+      if (errorPageTarget(webContents.getURL()) === null) tab.failedUrl = null;
       trackUrl();
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
