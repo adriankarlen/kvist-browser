@@ -63,8 +63,12 @@ export function errorPageTarget(raw: string): ErrorPageInfo | null {
   if (target === null || target === "") return null;
 
   const codeParam = url.searchParams.get("code");
-  const code = codeParam === null ? null : Number.parseInt(codeParam, 10);
-  if (code !== null && Number.isNaN(code)) return null;
+  let code: number | null = null;
+  if (codeParam !== null) {
+    if (!/^-?\d+$/.test(codeParam)) return null;
+    code = Number(codeParam);
+    if (!Number.isSafeInteger(code) || code >= 0) return null;
+  }
 
   return { code, description: url.searchParams.get("desc") ?? "", url: target };
 }

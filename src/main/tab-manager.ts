@@ -493,6 +493,7 @@ export class TabManager {
     // loading the error page revives it in a new process.
     webContents.on("render-process-gone", (_event, details) => {
       if (details.reason === "clean-exit") return;
+      if (errorPageTarget(webContents.getURL()) !== null) return;
       tab.failedUrl = tab.url;
       void webContents.loadURL(
         formatErrorPageUrl({ code: null, description: details.reason, url: tab.url }),

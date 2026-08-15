@@ -33,6 +33,9 @@ test("ordinary URLs are not error pages", () => {
 test("a malformed error-page URL is rejected rather than half-read", () => {
   expect(errorPageTarget("kvist://error/?desc=oops")).toBeNull();
   expect(errorPageTarget("kvist://error/?code=x&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=-105suffix&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=-105.5&url=https://a.b/")).toBeNull();
+  expect(errorPageTarget("kvist://error/?code=%20-105%20&url=https://a.b/")).toBeNull();
   expect(errorPageTarget("kvist://error/?code=-3&url=")).toBeNull();
 });
 
