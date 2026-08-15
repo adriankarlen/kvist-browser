@@ -1,0 +1,33 @@
+/*
+ * Shared between the chrome and the local pages (kvist://newtab,
+ * kvist://error), which get it served ahead of their own style.css. Kept
+ * generic on purpose: anything that only suits the chrome — like
+ * user-select: none — lives in the renderer, not here.
+ */
+@layer kvist.reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--kv-color-base);
+    color: var(--kv-color-text);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+  }
+
+  button {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+}

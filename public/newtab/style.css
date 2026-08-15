@@ -2,20 +2,13 @@
   --gap: 20px;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* Reset and theme tokens are served appended to this file — see
+ * src/main/local-pages.ts. Only layout lives here. */
 body {
-  background-color: var(--kv-color-base);
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  font-family: var(--kv-font-family, monospace);
-  color: var(--kv-color-text);
   overflow: hidden;
 }
 

@@ -8,7 +8,7 @@ import {
   updateLocalPageCss,
   updateNewtabConfig,
 } from "./local-pages";
-import { createApi } from "./api";
+import { createActions } from "./actions";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { registerCommands } from "./commands";
 import { composeContextMenuCss } from "./context-menu";
@@ -64,8 +64,8 @@ function createWindow(config: UserConfig): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
 
-  const api = createApi(tabs, win, () => app.quit());
-  const commands = registerCommands(api);
+  const actions = createActions(tabs, win, () => app.quit());
+  const commands = registerCommands(actions);
 
   const vim = new Vim(
     DEFAULT_KEYBINDS,

@@ -9,10 +9,12 @@ export interface NewtabConfig {
   /** IANA name or "UTC±n"; undefined follows the system timezone. */
   timezone: string | undefined;
 }
-// Served to the local pages ahead of the user's config.css. The @layer
-// wrapper is fine there: user CSS is appended unlayered, and unlayered beats
-// layered regardless of source order.
-import tokensCss from "../renderer/styles/tokens.css?raw";
+// Served to the local pages ahead of the user's config.css, so the pages
+// share the chrome's reset and tokens rather than duplicating them. The
+// @layer wrapper is fine there: user CSS is appended unlayered, and
+// unlayered beats layered regardless of source order.
+import resetCss from "../shared/styles/reset.css?raw";
+import tokensCss from "../shared/styles/tokens.css?raw";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -23,8 +25,9 @@ const MIME_TYPES: Record<string, string> = {
 /**
  * The local pages the `kvist://` scheme serves: kvist://newtab/ is the
  * homepage, kvist://error/ the failure page. Each is a directory of static
- * files under public/, and each gets the tokens and the user's config.css
- * appended to its style.css so it is themed like the chrome.
+ * files under public/, and each gets the shared reset and tokens plus the
+ * user's config.css appended to its style.css, so it is reset and themed
+ * like the chrome.
  */
 const PAGES = ["newtab", "error"] as const;
 type LocalPage = (typeof PAGES)[number];
@@ -98,7 +101,7 @@ export function registerKvistProtocol(): void {
     }
 
     if (pathname === "/style.css") {
-      body += `\n${tokensCss}\n${currentCss}\n`;
+      body += `\n${resetCss}\n${tokensCss}\n${currentCss}\n`;
     }
 
     return new Response(body, {

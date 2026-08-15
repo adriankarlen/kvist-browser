@@ -5,7 +5,15 @@
  */
 @layer kvist.reset, kvist.tokens, kvist.components;
 
-@import "./reset.css";
-@import "./tokens.css";
+@import "../../shared/styles/reset.css";
+@import "../../shared/styles/tokens.css";
 @import "./panel.css";
 @import "./line.css";
+
+@layer kvist.reset {
+  /* Chrome text is UI, not content — selecting it is never useful. Local
+   * pages share the reset but keep selection, so this lives here. */
+  body {
+    user-select: none;
+  }
+}

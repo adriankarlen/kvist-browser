@@ -3,7 +3,7 @@ import type { ScrollCommand } from "../shared/ipc";
 import { CHANNELS } from "../shared/ipc";
 import type { TabManager } from "./tab-manager";
 
-export interface Api {
+export interface Actions {
   tabs: {
     create(url?: string): void;
     close(): void;
@@ -41,7 +41,7 @@ export interface Api {
   };
 }
 
-export function createApi(tabs: TabManager, win: BrowserWindow, quit: () => void): Api {
+export function createActions(tabs: TabManager, win: BrowserWindow, quit: () => void): Actions {
   const send = (channel: string, payload?: unknown): void => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
