@@ -1,14 +1,6 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
+/* Reset and theme tokens are served appended to this file — see
+ * src/main/local-pages.ts. Only layout lives here. */
 body {
-  background-color: var(--kv-color-base);
-  color: var(--kv-color-text);
-  font-family: var(--kv-font-family, monospace);
-  font-size: var(--kv-font-size, 14px);
   display: flex;
   justify-content: center;
   align-items: center;

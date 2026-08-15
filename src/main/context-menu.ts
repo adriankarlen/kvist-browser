@@ -10,8 +10,8 @@ import type { ContextMenuItem } from "../shared/ipc";
 // Served to the tab alongside the items: the menu renders in a shadow root
 // inside the page, where the chrome's stylesheets cannot reach — so the
 // tokens, the menu's own styles and the user's overrides travel with it.
-import menuCss from "../preload/menu.css?raw";
-import tokensCss from "../renderer/styles/tokens.css?raw";
+import menuCss from "../shared/styles/menu.css?raw";
+import tokensCss from "../shared/styles/tokens.css?raw";
 
 const item = (id: string, label: string, enabled = true): ContextMenuItem => ({
   type: "item",

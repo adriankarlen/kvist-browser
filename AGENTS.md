@@ -177,7 +177,7 @@ themeability is the product.
 
 Main builds the item list from the `context-menu` params (`context-menu.ts`
 is pure and unit-tested), stashes the params for pick time, and ships the
-styling with the payload: tokens.css + `src/preload/menu.css` + the user's
+styling with the payload: tokens.css + `src/shared/styles/menu.css` + the user's
 config.css, with `:root` rewritten to `:host` because the menu renders in a
 shadow root where `:root` matches nothing. User CSS stays unlayered and
 last, so a `--kv-menu-*` override in config.css wins exactly as it does in
@@ -251,7 +251,9 @@ point: users retheme the chrome from `~/.config/kvist/config.css`.
 - **No Tailwind or utility classes.** Atomic classes leave nothing semantic to
   override.
 - Plain `.css` files colocated with their component, imported from the
-  component. Reset and tokens live in `src/renderer/styles/`.
+  component. Reset and tokens live in `src/shared/styles/` — the local pages
+  and the context menu are themed from them too, so they are shared, not
+  renderer-owned.
 - Everything Kvist ships goes inside `@layer kvist.reset | tokens | components`.
   User CSS is injected unlayered, which beats every layer regardless of
   specificity — so never rely on specificity to win, and never use
