@@ -1,5 +1,5 @@
 import { resolveUrl } from "../shared/url";
-import type { Api } from "./api";
+import type { Actions } from "./actions";
 
 export interface CommandDef {
   name: string;
@@ -36,7 +36,7 @@ export class CommandRegistry {
 }
 
 /** Populates a registry with every built-in command. */
-export function registerCommands(api: Api): CommandRegistry {
+export function registerCommands(api: Actions): CommandRegistry {
   const registry = new CommandRegistry();
 
   const r = (name: string, execute: (arg?: string) => void, aliases?: string[]): void => {
