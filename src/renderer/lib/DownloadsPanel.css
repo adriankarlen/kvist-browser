@@ -28,25 +28,97 @@
     white-space: nowrap;
   }
 
+  /* Fixed columns, so a digit appearing cannot shove the row sideways. */
+  .kv-downloads__percent,
+  .kv-downloads__size,
+  .kv-downloads__rate,
+  .kv-downloads__eta,
   .kv-downloads__status {
     flex: none;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     color: var(--kv-downloads-muted-fg);
+  }
+
+  .kv-downloads__percent {
+    width: var(--kv-downloads-percent-width);
+  }
+
+  .kv-downloads__size {
+    width: var(--kv-downloads-size-width);
+  }
+
+  .kv-downloads__rate {
+    width: var(--kv-downloads-rate-width);
+  }
+
+  .kv-downloads__eta {
+    width: var(--kv-downloads-eta-width);
+  }
+
+  /* A bar rather than block characters, but sized in ch and em so it still
+     occupies whole cells of the same grid the text sits on. */
+  .kv-downloads__bar {
+    flex: none;
+    width: var(--kv-downloads-bar-width);
+    height: var(--kv-downloads-bar-height);
+    border-radius: var(--kv-downloads-bar-radius);
+    background: var(--kv-downloads-bar-track);
+    overflow: hidden;
+  }
+
+  /* Filled with currentColor, which is what lets the row's state colour the
+     bar without a rule per state. --kv-progress is the only inline style: it
+     is the datum, not the styling. */
+  .kv-downloads__bar::before {
+    content: "";
+    display: block;
+    width: var(--kv-progress, 0%);
+    height: 100%;
+    background: currentColor;
+  }
+
+  .kv-downloads__cancel {
+    flex: none;
+    color: var(--kv-downloads-cancel-fg);
+  }
+
+  .kv-downloads__cancel:hover {
+    color: var(--kv-downloads-cancel-hover-fg);
   }
 
   .kv-downloads__empty {
     color: var(--kv-downloads-muted-fg);
   }
 
-  .kv-downloads__item.is-active .kv-downloads__marker {
+  /* One colour per state, on the marker, the bar and whatever the row's last
+     word is — a state has to be legible from across the room, not from one
+     small glyph. */
+  .kv-downloads__item.is-active {
     color: var(--kv-downloads-active-fg);
   }
 
-  .kv-downloads__item.is-done .kv-downloads__marker {
+  .kv-downloads__item.is-paused {
+    color: var(--kv-downloads-paused-fg);
+  }
+
+  .kv-downloads__item.is-done {
     color: var(--kv-downloads-done-fg);
   }
 
-  .kv-downloads__item.is-failed .kv-downloads__marker,
-  .kv-downloads__item.is-failed .kv-downloads__status {
+  .kv-downloads__item.is-failed {
     color: var(--kv-downloads-failed-fg);
+  }
+
+  /* The filename stays readable text; only the state parts take the colour. */
+  .kv-downloads__item .kv-downloads__name {
+    color: var(--kv-downloads-fg);
+  }
+
+  .kv-downloads__item.is-active .kv-downloads__eta,
+  .kv-downloads__item.is-paused .kv-downloads__eta,
+  .kv-downloads__item.is-done .kv-downloads__size,
+  .kv-downloads__item.is-failed .kv-downloads__status {
+    color: inherit;
   }
 }
