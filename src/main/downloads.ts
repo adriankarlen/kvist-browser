@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import { app, type DownloadItem, type Session, type WebContents } from "electron";
 import type { DownloadState, DownloadStatus } from "../shared/ipc";
+import { type RateState, sampleRate, startRate } from "./download-rate";
 import { resolveDownloadDir, uniqueSavePath } from "./downloads-path";
 
 /**
@@ -25,6 +26,12 @@ export class Downloads {
   #emit: (downloads: DownloadState[]) => void = () => {};
   #onTabDownload: (contents: WebContents) => void = () => {};
   #items: DownloadState[] = [];
+  /**
+   * The transfers that can still be stopped. Entries are dropped in `done`:
+   * a finished `DownloadItem` is of no further use, and holding one only
+   * invites a call into something Chromium has torn down.
+   */
+  #live = new Map<number, DownloadItem>();
   /** Save paths claimed by transfers that have not landed on disk yet. */
   #reserved = new Set<string>();
   #timer: NodeJS.Timeout | undefined;
@@ -66,6 +73,26 @@ export class Downloads {
   clear(): void {
     this.#items = this.#items.filter((entry) => !isFinished(entry.status));
     this.#flush();
+  }
+
+  /**
+   * Stops one transfer. Unknown ids and anything that has already stopped are
+   * no-ops rather than errors — the chrome's list is a snapshot, and a download
+   * can finish between the row being drawn and the button being clicked.
+   */
+  cancel(id: number): void {
+    this.#live.get(id)?.cancel();
+  }
+
+  /**
+   * `:downloads.cancel [n]` — the nth row as the panel shows it, 1-based, or
+   * the newest transfer still moving when no row is named. The panel shows no
+   * ids, so a position is the only thing a user can actually point at.
+   */
+  cancelNth(n?: number): void {
+    const entry =
+      n === undefined ? this.#items.find((row) => !isFinished(row.status)) : this.#items[n - 1];
+    if (entry !== undefined) this.cancel(entry.id);
   }
 
   #directory(): string {
@@ -110,14 +137,25 @@ export class Downloads {
       status: "progressing",
       receivedBytes: item.getReceivedBytes(),
       totalBytes: item.getTotalBytes(),
+      bytesPerSecond: 0,
     };
     this.#items = [entry, ...this.#items];
+    this.#live.set(entry.id, item);
     this.#flush();
 
+    let rate: RateState = startRate(entry.receivedBytes, Date.now());
+
     item.on("updated", (_event, state) => {
-      entry.status = state;
+      // Chromium reports a pause as `isPaused`, not as a state of its own, so
+      // the list's `paused` is ours to derive.
+      const status: DownloadStatus = state === "progressing" && item.isPaused() ? "paused" : state;
+      entry.status = status;
       entry.receivedBytes = item.getReceivedBytes();
       entry.totalBytes = item.getTotalBytes();
+      rate = sampleRate(rate, entry.receivedBytes, Date.now());
+      // A paused transfer is not a slow one; leave the average alone, but do
+      // not claim it is still moving.
+      entry.bytesPerSecond = status === "paused" ? 0 : rate.rate;
       this.#schedule();
     });
 
@@ -125,9 +163,11 @@ export class Downloads {
       // Only now is the filesystem the authority on this name: a completed
       // download has become the file, and a failed one has left it free.
       this.#reserved.delete(savePath);
+      this.#live.delete(entry.id);
       entry.status = state;
       entry.receivedBytes = item.getReceivedBytes();
       entry.totalBytes = item.getTotalBytes();
+      entry.bytesPerSecond = 0;
       this.#flush();
     });
   }

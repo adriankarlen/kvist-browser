@@ -89,6 +89,7 @@ export function registerCommands(api: Actions): CommandRegistry {
   // Downloads
   r("downloads.toggle", () => api.downloads.toggle(), ["downloads"]);
   r("downloads.clear", () => api.downloads.clear());
+  r("downloads.cancel", (row) => api.downloads.cancel(row));
 
   // Mode support — compound actions the mode machine needs
   r("insert.leave", () => {

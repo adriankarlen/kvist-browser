@@ -43,6 +43,12 @@ export interface DownloadState {
   receivedBytes: number;
   /** 0 when the server sent no length, which is what makes progress unknowable. */
   totalBytes: number;
+  /**
+   * Smoothed throughput, and 0 once a transfer stops. Measured in main: the
+   * chrome only sees throttled snapshots, and none at all while a transfer
+   * stalls, so it has no stream of samples to average.
+   */
+  bytesPerSecond: number;
 }
 
 /** One row of the context menu; a separator is a row of its own. */
@@ -126,6 +132,12 @@ export const CHANNELS = {
    */
   downloads: "kvist:downloads",
   downloadsToggle: "kvist:downloads-toggle",
+  /**
+   * Cancels one transfer by id. A channel of its own rather than a command,
+   * because main's `runCommand` drops back to normal mode afterwards and
+   * clicking a button in the chrome must not do that to a user who is typing.
+   */
+  downloadCancel: "kvist:download-cancel",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
@@ -148,6 +160,8 @@ export interface KvistApi {
   onDownloads: (listener: (downloads: DownloadState[]) => void) => () => void;
   /** `:downloads` asking the chrome to pin its panel open, or let it go again. */
   onToggleDownloads: (listener: () => void) => () => void;
+  /** Stops one transfer; anything that has already stopped is left alone. */
+  cancelDownload: (id: number) => void;
   /** Restarts the search from the top; an empty query stops it. */
   find: (query: string) => void;
   stopFind: () => void;

@@ -39,6 +39,8 @@ export interface Actions {
   downloads: {
     toggle(): void;
     clear(): void;
+    /** The nth row as the panel shows it, or the newest live transfer. */
+    cancel(target?: string): void;
   };
   app: {
     quit(): void;
@@ -97,6 +99,18 @@ export function createActions(
       // The panel's pinned flag is the chrome's, so this can only ask.
       toggle: () => send(CHANNELS.downloadsToggle),
       clear: () => downloads.clear(),
+      cancel: (target) => {
+        // A command argument is a string; anything that is not a row number is
+        // no row at all, and cancelling the newest transfer instead would be a
+        // surprising answer to a typo.
+        if (target === undefined) return downloads.cancelNth();
+        const n = Number(target);
+        if (!Number.isInteger(n) || n < 1) {
+          console.error(`kvist: not a download row: ${target}`);
+          return;
+        }
+        downloads.cancelNth(n);
+      },
     },
     app: {
       quit,
