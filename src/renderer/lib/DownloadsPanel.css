@@ -1,0 +1,52 @@
+@layer kvist.components {
+  .kv-downloads {
+    color: var(--kv-downloads-fg);
+  }
+
+  /* The panel itself must stay overflow: visible — its label lives outside the
+     box — so the rows are what scroll once there are more than a few. */
+  .kv-downloads__list {
+    max-height: var(--kv-downloads-max-height);
+    overflow-y: auto;
+  }
+
+  .kv-downloads__item {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+  }
+
+  .kv-downloads__marker {
+    flex: none;
+  }
+
+  .kv-downloads__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kv-downloads__status {
+    flex: none;
+    color: var(--kv-downloads-muted-fg);
+  }
+
+  .kv-downloads__empty {
+    color: var(--kv-downloads-muted-fg);
+  }
+
+  .kv-downloads__item.is-active .kv-downloads__marker {
+    color: var(--kv-downloads-active-fg);
+  }
+
+  .kv-downloads__item.is-done .kv-downloads__marker {
+    color: var(--kv-downloads-done-fg);
+  }
+
+  .kv-downloads__item.is-failed .kv-downloads__marker,
+  .kv-downloads__item.is-failed .kv-downloads__status {
+    color: var(--kv-downloads-failed-fg);
+  }
+}

@@ -195,6 +195,22 @@ export class TabManager {
     return [...this.#tabs.values()].some((tab) => tab.view.webContents === sender);
   }
 
+  /**
+   * Closes a tab that never committed a navigation. A download reached through
+   * `target="_blank"` leaves one behind: the window-open handler cannot tell a
+   * download URL from a page, so a tab is built for it and then nothing ever
+   * loads. A download started from a loaded page has a committed entry, and
+   * that tab is left alone.
+   */
+  closeIfUncommitted(sender: WebContents): void {
+    const tab = [...this.#tabs.values()].find((candidate) => candidate.view.webContents === sender);
+    // An empty URL is what "nothing committed" looks like. The history length
+    // is no help: Chromium counts the initial empty document as an entry, so a
+    // tab that has never loaded anything still reports one.
+    // Safe to touch: the view is alive, since it is what asked for the download.
+    if (tab && tab.view.webContents.getURL() === "") this.close(tab.id);
+  }
+
   closeActive(): void {
     if (this.#activeId !== null) this.close(this.#activeId);
   }

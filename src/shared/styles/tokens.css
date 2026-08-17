@@ -82,6 +82,14 @@
     --kv-find-prompt-fg: var(--kv-color-warning);
     --kv-find-count-fg: var(--kv-color-muted);
 
+    --kv-downloads-fg: var(--kv-color-text);
+    --kv-downloads-muted-fg: var(--kv-color-muted);
+    --kv-downloads-active-fg: var(--kv-color-accent-alt);
+    --kv-downloads-done-fg: var(--kv-color-accent);
+    --kv-downloads-failed-fg: var(--kv-color-danger);
+    /* Rows scroll past this; the panel is a strip, not a page. */
+    --kv-downloads-max-height: 8lh;
+
     /* the context menu, rendered in the page but themed like the chrome */
     --kv-menu-bg: var(--kv-panel-bg);
     --kv-menu-fg: var(--kv-color-text);

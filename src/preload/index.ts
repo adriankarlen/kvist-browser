@@ -3,6 +3,7 @@ import type { UserConfig } from "../shared/config";
 import {
   type BrowserState,
   CHANNELS,
+  type DownloadState,
   type FindResult,
   type KvistApi,
   type Mode,
@@ -33,6 +34,16 @@ const api: KvistApi = {
     const handler = (_event: unknown, result: FindResult | null): void => listener(result);
     ipcRenderer.on(CHANNELS.findResult, handler);
     return () => void ipcRenderer.off(CHANNELS.findResult, handler);
+  },
+  onDownloads(listener) {
+    const handler = (_event: unknown, downloads: DownloadState[]): void => listener(downloads);
+    ipcRenderer.on(CHANNELS.downloads, handler);
+    return () => void ipcRenderer.off(CHANNELS.downloads, handler);
+  },
+  onToggleDownloads(listener) {
+    const handler = (): void => listener();
+    ipcRenderer.on(CHANNELS.downloadsToggle, handler);
+    return () => void ipcRenderer.off(CHANNELS.downloadsToggle, handler);
   },
   setMode: (mode) => ipcRenderer.send(CHANNELS.setMode, mode),
   find: (query) => ipcRenderer.send(CHANNELS.find, query),
