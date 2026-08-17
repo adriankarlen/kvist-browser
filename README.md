@@ -129,6 +129,8 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `:tabnew <url>`           | Open a new tab; homepage if no URL is given |
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
+| `:downloads`              | Keep the downloads panel open, or let it go |
+| `:downloads.clear`        | Forget the downloads that have finished     |
 | `:qa`                     | Quit Kvist                                  |
 
 ### Hint mode
@@ -168,6 +170,11 @@ adblock = true              # ad and tracker blocking
 orientation = "horizontal"  # or "vertical"
 focus-page = true           # hand keyboard focus to the page after a tab switch
 
+# Where downloads are saved. Without it Kvist follows $XDG_DOWNLOAD_DIR, and
+# falls back to ~/Downloads.
+[downloads]
+# dir = "~/downloads"
+
 # New tab page: quick links, and an optional clock timezone (IANA name or
 # "UTC±n"). Without it the clock shows your system timezone.
 [newtab]
@@ -185,6 +192,21 @@ url = "https://youtube.com"
 Anything missing or invalid falls back to the default. A broken file keeps
 the last config that parsed instead of reverting to defaults out from under
 you.
+
+### Downloads
+
+Downloads save without a dialog, to `$XDG_DOWNLOAD_DIR` or `~/Downloads`
+unless `[downloads] dir` says otherwise, and an existing file is never
+overwritten — a second copy lands as `name-1.ext`.
+
+A `downloads` panel appears in the chrome while anything is transferring and
+lingers a few seconds after the last one stops, so a fast download still
+reports where it went.
+
+`:downloads` pins the panel open on top of that, to look over the finished and
+interrupted ones, and unpins it again — it does not hide a panel that a live
+transfer or the linger is holding up. `:downloads.clear` forgets the downloads
+that have stopped, leaving anything still transferring in the list.
 
 ### Ad blocking
 

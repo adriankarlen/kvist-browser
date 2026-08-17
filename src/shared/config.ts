@@ -23,6 +23,11 @@ export interface Settings {
   tabFocusPage: boolean;
   /** Network and cosmetic filtering, from the prebuilt ads + tracking lists. */
   adblock: boolean;
+  /**
+   * Where downloads are saved, from `[downloads] dir`. Undefined works it out
+   * from the XDG download directory instead.
+   */
+  downloadDir: string | undefined;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -35,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabOrientation: "horizontal",
   tabFocusPage: true,
   adblock: true,
+  downloadDir: undefined,
 };
 
 export interface UserConfig {

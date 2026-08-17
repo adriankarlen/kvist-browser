@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import type { UserConfig } from "../shared/config";
 import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
 import {
@@ -13,6 +13,7 @@ import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../share
 import { registerCommands } from "./commands";
 import { composeContextMenuCss } from "./context-menu";
 import { loadConfig, watchConfig } from "./config";
+import { Downloads } from "./downloads";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
 import { TabManager } from "./tab-manager";
@@ -26,7 +27,7 @@ const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
-function createWindow(config: UserConfig): void {
+function createWindow(config: UserConfig, downloads: Downloads): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -52,6 +53,7 @@ function createWindow(config: UserConfig): void {
   const applyConfig = (next: UserConfig): void => {
     tabs.homepage = next.settings.homepage;
     tabs.focusPage = next.settings.tabFocusPage;
+    downloads.configuredDir = next.settings.downloadDir;
     tabs.contextMenuCss = composeContextMenuCss(next.css);
     void setAdblockEnabled(next.settings.adblock);
     updateLocalPageCss(next.css);
@@ -66,7 +68,10 @@ function createWindow(config: UserConfig): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
 
-  const actions = createActions(tabs, win, () => app.quit());
+  downloads.observe((list) => send(CHANNELS.downloads, list));
+  downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
+
+  const actions = createActions(tabs, downloads, win, () => app.quit());
   const commands = registerCommands(actions);
 
   const vim = new Vim(
@@ -117,6 +122,9 @@ function createWindow(config: UserConfig): void {
   win.webContents.once("did-finish-load", () => {
     applyConfig(config);
     send(CHANNELS.mode, vim.mode);
+    // A transfer can outlive the window it started in, so the chrome is told
+    // what is already going rather than only what starts from now on.
+    send(CHANNELS.downloads, downloads.list);
     tabs.create();
   });
 
@@ -157,10 +165,17 @@ void app.whenReady().then(async () => {
     timezone: config.settings.newtabTimezone,
   });
   registerKvistProtocol();
-  createWindow(config);
+
+  // Session-scoped, so it is attached once and outlives the window; the window
+  // only subscribes. Must be in place before the first tab can start a transfer.
+  const downloads = new Downloads();
+  downloads.configuredDir = config.settings.downloadDir;
+  downloads.attach(session.defaultSession);
+
+  createWindow(config, downloads);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(config);
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(config, downloads);
   });
 });
 

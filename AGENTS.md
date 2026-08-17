@@ -199,6 +199,44 @@ Picks arrive on `kvist:context-menu-pick` with the same `ownsTab` sender
 check as the hint channels; only the visible tab can be right-clicked, so
 the stashed menu always belongs to the active tab.
 
+## Downloads
+
+`src/main/downloads.ts` owns the one `will-download` handler, attached to
+`session.defaultSession` in `app.whenReady()`. Transfers belong to the session,
+not to a tab — a tab can close mid-download and the download carries on — so
+`Downloads` is created outside `createWindow` and the window merely subscribes
+through `observe`/`observeTabDownload`, the same shape `TabManager` uses.
+Attaching per window would double-handle every download on macOS re-activate.
+
+Setting a save path is what suppresses Chromium's save dialog, and with it the
+collision handling that dialog would have done — so `downloads-path.ts` does it
+instead (pure and unit-tested, like `context-menu.ts`), counting up to
+`name-1.ext`.
+
+Three things found by running it:
+
+- **`app.getPath("downloads")` is `$HOME`** when `user-dirs.dirs` names no
+  download directory, which is common. Files must not land loose in the home
+  directory, so that one answer is corrected to `$HOME/Downloads`.
+- **The target directory is created if missing.** A configured directory that
+  does not exist surfaces as an interrupted download with nothing saying why.
+- **A tab opened for a download never commits, and `navigationHistory.length()`
+  is still 1** — Chromium counts the initial empty document. `getURL() === ""`
+  is what "nothing committed" actually looks like, and it is how
+  `TabManager.closeIfUncommitted` recognises the tab `target="_blank"` left
+  behind: the window-open handler cannot tell a download URL from a page.
+
+The panel is display-only and takes no typing, so it needs none of the
+insert-mode dance the omnibox does. It shows itself while anything is
+transferring and **lingers five seconds** after the last one stops: a local
+download finishes between two frames, and without the linger the only
+completion signal is a panel that flickers and is gone. `:downloads` pins it
+open on top of that, which is chrome state — so the command can only arrive as
+a nudge on `kvist:downloads-toggle`, like `focusOmnibox`.
+
+`updated` fires per chunk, so snapshots are throttled to 100 ms, but every
+terminal transition flushes immediately or the last row the user reads is stale.
+
 ## Extensions
 
 There is no extension support, deliberately. It was built and then removed in

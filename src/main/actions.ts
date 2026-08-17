@@ -1,6 +1,7 @@
 import type { BrowserWindow } from "electron";
 import type { ScrollCommand } from "../shared/ipc";
 import { CHANNELS } from "../shared/ipc";
+import type { Downloads } from "./downloads";
 import type { TabManager } from "./tab-manager";
 
 export interface Actions {
@@ -35,13 +36,22 @@ export interface Actions {
     omnibox(): void;
     blurPage(): void;
   };
+  downloads: {
+    toggle(): void;
+    clear(): void;
+  };
   app: {
     quit(): void;
     devtools(): void;
   };
 }
 
-export function createActions(tabs: TabManager, win: BrowserWindow, quit: () => void): Actions {
+export function createActions(
+  tabs: TabManager,
+  downloads: Downloads,
+  win: BrowserWindow,
+  quit: () => void,
+): Actions {
   const send = (channel: string, payload?: unknown): void => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
@@ -82,6 +92,11 @@ export function createActions(tabs: TabManager, win: BrowserWindow, quit: () => 
         send(CHANNELS.focusOmnibox, null);
       },
       blurPage: () => tabs.blurActive(),
+    },
+    downloads: {
+      // The panel's pinned flag is the chrome's, so this can only ask.
+      toggle: () => send(CHANNELS.downloadsToggle),
+      clear: () => downloads.clear(),
     },
     app: {
       quit,

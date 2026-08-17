@@ -62,6 +62,16 @@ function parseTimezone(value: unknown): string | undefined {
   }
 }
 
+/** Undefined falls back to the XDG download directory; `downloads.ts` resolves it. */
+function parseDownloadDir(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    console.error("kvist: ignoring non-string downloads dir");
+    return undefined;
+  }
+  return value;
+}
+
 // A save mid-edit shouldn't throw away the user's whole layout, so a syntax
 // error keeps the last settings that parsed rather than reverting to defaults.
 let lastGood = DEFAULT_SETTINGS;
@@ -83,6 +93,7 @@ function parseSettings(source: string): Settings {
   const root = asTable(parsed);
   const tabs = asTable(root.tabs);
   const newtab = asTable(root.newtab);
+  const downloads = asTable(root.downloads);
   const { adblock, homepage } = root;
   const { orientation } = tabs;
   const focusPage = tabs["focus-page"];
@@ -97,6 +108,7 @@ function parseSettings(source: string): Settings {
         ? orientation
         : DEFAULT_SETTINGS.tabOrientation,
     tabFocusPage: typeof focusPage === "boolean" ? focusPage : DEFAULT_SETTINGS.tabFocusPage,
+    downloadDir: parseDownloadDir(downloads.dir),
   };
   return lastGood;
 }

@@ -30,6 +30,21 @@ export interface BrowserState {
   activeId: TabId | null;
 }
 
+/** Where a download has got to, as Chromium's `DownloadItem` reports it. */
+export type DownloadStatus = "progressing" | "paused" | "completed" | "cancelled" | "interrupted";
+
+export interface DownloadState {
+  /** Ours, not Chromium's — a `DownloadItem` carries no stable identifier. */
+  id: number;
+  /** Basename of the path we chose, which is not always what the server suggested. */
+  filename: string;
+  url: string;
+  status: DownloadStatus;
+  receivedBytes: number;
+  /** 0 when the server sent no length, which is what makes progress unknowable. */
+  totalBytes: number;
+}
+
 /** One row of the context menu; a separator is a row of its own. */
 export type ContextMenuItem =
   | { type: "separator" }
@@ -104,6 +119,13 @@ export const CHANNELS = {
    */
   contextMenu: "kvist:context-menu",
   contextMenuPick: "kvist:context-menu-pick",
+  /**
+   * Downloads: full-snapshot list to the chrome, plus a nudge for `:downloads`.
+   * The panel's pinned flag is the chrome's own state, so the command can only
+   * ask it to toggle — the same shape as `focusOmnibox`.
+   */
+  downloads: "kvist:downloads",
+  downloadsToggle: "kvist:downloads-toggle",
   runCommand: "kvist:run-command",
   contentRect: "kvist:content-rect",
   createTab: "kvist:create-tab",
@@ -123,6 +145,9 @@ export interface KvistApi {
   onMode: (listener: (mode: Mode) => void) => () => void;
   setMode: (mode: Mode) => void;
   onFindResult: (listener: (result: FindResult | null) => void) => () => void;
+  onDownloads: (listener: (downloads: DownloadState[]) => void) => () => void;
+  /** `:downloads` asking the chrome to pin its panel open, or let it go again. */
+  onToggleDownloads: (listener: () => void) => () => void;
   /** Restarts the search from the top; an empty query stops it. */
   find: (query: string) => void;
   stopFind: () => void;

@@ -195,6 +195,18 @@ export class TabManager {
     return [...this.#tabs.values()].some((tab) => tab.view.webContents === sender);
   }
 
+  /**
+   * Closes a tab that never committed a navigation. A download reached through
+   * `target="_blank"` leaves one behind: the window-open handler cannot tell a
+   * download URL from a page, so a tab is built for it and then nothing ever
+   * loads. A download started from a loaded page has a committed entry, and
+   * that tab is left alone.
+   */
+  closeIfUncommitted(sender: WebContents): void {
+    const tab = [...this.#tabs.values()].find((candidate) => candidate.view.webContents === sender);
+    if (tab && tab.view.webContents.getURL() === "") this.close(tab.id);
+  }
+
   closeActive(): void {
     if (this.#activeId !== null) this.close(this.#activeId);
   }

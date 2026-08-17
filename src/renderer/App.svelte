@@ -2,6 +2,8 @@
   import "./App.css";
   import { browser, contentRect } from "./lib/browser.svelte";
   import CommandLine from "./lib/CommandLine.svelte";
+  import { downloads } from "./lib/downloads.svelte";
+  import DownloadsPanel from "./lib/DownloadsPanel.svelte";
   import { find } from "./lib/find.svelte";
   import FindLine from "./lib/FindLine.svelte";
   import Omnibox from "./lib/Omnibox.svelte";
@@ -16,6 +18,11 @@
     <Omnibox />
     <div class="kv-panel kv-content" data-label={browser.active?.title ?? "page"} use:contentRect>
     </div>
+    <!-- Shows itself while something is transferring, and stays up while
+         `:downloads` keeps it pinned. -->
+    {#if downloads.visible}
+      <DownloadsPanel />
+    {/if}
     {#if vim.mode === "command"}
       <CommandLine />
     {/if}

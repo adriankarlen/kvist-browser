@@ -86,6 +86,10 @@ export function registerCommands(api: Actions): CommandRegistry {
   r("focus.chrome", () => api.focus.chrome());
   r("focus.omnibox", () => api.focus.omnibox());
 
+  // Downloads
+  r("downloads.toggle", () => api.downloads.toggle(), ["downloads"]);
+  r("downloads.clear", () => api.downloads.clear());
+
   // Mode support — compound actions the mode machine needs
   r("insert.leave", () => {
     api.focus.blurPage();
