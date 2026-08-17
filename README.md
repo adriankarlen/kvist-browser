@@ -129,8 +129,8 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `:tabnew <url>`           | Open a new tab; homepage if no URL is given |
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
-| `:downloads`              | Show or hide the downloads panel            |
-| `:downloads.clear`        | Forget every download that has finished     |
+| `:downloads`              | Keep the downloads panel open, or let it go |
+| `:downloads.clear`        | Forget the downloads that have finished     |
 | `:qa`                     | Quit Kvist                                  |
 
 ### Hint mode
@@ -201,8 +201,12 @@ overwritten — a second copy lands as `name-1.ext`.
 
 A `downloads` panel appears in the chrome while anything is transferring and
 lingers a few seconds after the last one stops, so a fast download still
-reports where it went. `:downloads` pins it open to see finished and
-interrupted ones; `:downloads.clear` empties the list.
+reports where it went.
+
+`:downloads` pins the panel open on top of that, to look over the finished and
+interrupted ones, and unpins it again — it does not hide a panel that a live
+transfer or the linger is holding up. `:downloads.clear` forgets the downloads
+that have stopped, leaving anything still transferring in the list.
 
 ### Ad blocking
 

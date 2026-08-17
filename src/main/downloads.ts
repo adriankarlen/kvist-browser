@@ -25,6 +25,8 @@ export class Downloads {
   #emit: (downloads: DownloadState[]) => void = () => {};
   #onTabDownload: (contents: WebContents) => void = () => {};
   #items: DownloadState[] = [];
+  /** Save paths claimed by transfers that have not landed on disk yet. */
+  #reserved = new Set<string>();
   #timer: NodeJS.Timeout | undefined;
   /** Reassigned from the config, like `TabManager.homepage`. */
   configuredDir: string | undefined;
@@ -86,7 +88,16 @@ export class Downloads {
   }
 
   #adopt(item: DownloadItem): void {
-    const savePath = uniqueSavePath(this.#directory(), item.getFilename(), existsSync);
+    // A transfer in flight occupies `<savePath>.crdownload`, not `savePath`, so
+    // disk alone cannot tell that a name is taken — two concurrent downloads of
+    // one filename would both pick it and the second would clobber the first.
+    // The reservation stands in until the file itself does.
+    const savePath = uniqueSavePath(
+      this.#directory(),
+      item.getFilename(),
+      (path) => this.#reserved.has(path) || existsSync(path),
+    );
+    this.#reserved.add(savePath);
     // Setting the path is what suppresses Chromium's save dialog; there is no
     // themeable dialog to show instead, and a TUI browser should not sprout a
     // native one.
@@ -111,6 +122,9 @@ export class Downloads {
     });
 
     item.on("done", (_event, state) => {
+      // Only now is the filesystem the authority on this name: a completed
+      // download has become the file, and a failed one has left it free.
+      this.#reserved.delete(savePath);
       entry.status = state;
       entry.receivedBytes = item.getReceivedBytes();
       entry.totalBytes = item.getTotalBytes();

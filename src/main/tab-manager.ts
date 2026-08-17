@@ -204,10 +204,6 @@ export class TabManager {
    */
   closeIfUncommitted(sender: WebContents): void {
     const tab = [...this.#tabs.values()].find((candidate) => candidate.view.webContents === sender);
-    // An empty URL is what "nothing committed" looks like. The history length
-    // is no help: Chromium counts the initial empty document as an entry, so a
-    // tab that has never loaded anything still reports one.
-    // Safe to touch: the view is alive, since it is what asked for the download.
     if (tab && tab.view.webContents.getURL() === "") this.close(tab.id);
   }
 

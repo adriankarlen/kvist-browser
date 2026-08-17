@@ -19,12 +19,17 @@ function isFinished(entry: DownloadState): boolean {
 }
 
 let seen = new Map<number, DownloadState["status"]>();
+let first = true;
 let timer: number | undefined;
 
 window.kvist.onDownloads((list) => {
   // Any row that has just stopped moving restarts the linger, so a burst of
   // downloads leaves the panel up until the last of them has been readable.
-  const settled = list.some((entry) => isFinished(entry) && seen.get(entry.id) !== entry.status);
+  // The first snapshot is history, not news — main sends what is already in the
+  // list when the chrome loads, and none of it settled while anyone was looking.
+  const settled =
+    !first && list.some((entry) => isFinished(entry) && seen.get(entry.id) !== entry.status);
+  first = false;
   seen = new Map(list.map((entry) => [entry.id, entry.status]));
   state.list = list;
 
