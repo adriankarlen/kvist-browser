@@ -24,6 +24,7 @@ registerKvistScheme();
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
+const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 function createWindow(config: UserConfig): void {
   const win = new BrowserWindow({
@@ -31,6 +32,7 @@ function createWindow(config: UserConfig): void {
     height: 800,
     frame: false,
     backgroundColor: "#1d1d1d",
+    icon: iconPath,
     webPreferences: { preload },
   });
 

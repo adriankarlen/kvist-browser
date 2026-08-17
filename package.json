@@ -36,8 +36,10 @@
   "build": {
     "appId": "dev.kvist.browser",
     "productName": "Kvist",
+    "icon": "images/kvist-logo.png",
     "files": [
-      "dist/**/*"
+      "dist/**/*",
+      "images/kvist-logo.png"
     ],
     "directories": {
       "output": "release"
