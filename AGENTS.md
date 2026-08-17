@@ -237,6 +237,26 @@ a nudge on `kvist:downloads-toggle`, like `focusOmnibox`.
 `updated` fires per chunk, so snapshots are throttled to 100 ms, but every
 terminal transition flushes immediately or the last row the user reads is stale.
 
+Three things that are not obvious from the code:
+
+- **The rate is measured in main, not in the chrome.** The chrome only ever
+  sees throttled snapshots, and none at all while a transfer stalls, so it has
+  no stream of samples to average. `download-rate.ts` is the pure EMA — samples
+  under 250 ms are held rather than measured, because per-chunk deltas measure
+  scheduling noise, not throughput.
+- **Chromium reports a pause as `isPaused`, not as a state.** The list's
+  `paused` status is derived, and a paused transfer shows 0 B/s without the
+  average being touched.
+- **Cancelling needs the live-item map, and `done` must clear it.** A finished
+  `DownloadItem` is of no further use, and holding one only invites a call into
+  something Chromium has torn down. Cancel travels on its own channel rather
+  than through `runCommand`, whose handler drops back to normal mode — clicking
+  a button in the chrome must not do that to a user who is typing.
+
+The bar is a styled element, not block characters, but it is sized in `ch` and
+`em` so it keeps to the character grid; `--kv-progress` is the only inline
+style, because it is the datum rather than the styling.
+
 ## Extensions
 
 There is no extension support, deliberately. It was built and then removed in

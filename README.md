@@ -131,6 +131,7 @@ Escape always returns to normal mode and blurs whatever had focus.
 | `:q`, `:quit`             | Close the active tab                        |
 | `:downloads`              | Keep the downloads panel open, or let it go |
 | `:downloads.clear`        | Forget the downloads that have finished     |
+| `:downloads.cancel [n]`   | Stop row `n`, or the newest live transfer   |
 | `:qa`                     | Quit Kvist                                  |
 
 ### Hint mode
@@ -201,12 +202,18 @@ overwritten — a second copy lands as `name-1.ext`.
 
 A `downloads` panel appears in the chrome while anything is transferring and
 lingers a few seconds after the last one stops, so a fast download still
-reports where it went.
+reports where it went. A transfer in flight shows a bar, percentage, received
+of total, rate and ETA — a state colour tells them apart at a glance: warning
+while moving, accent-alt once done, danger when cancelled or interrupted.
+Each live row carries an `x` button that cancels it.
 
 `:downloads` pins the panel open on top of that, to look over the finished and
 interrupted ones, and unpins it again — it does not hide a panel that a live
 transfer or the linger is holding up. `:downloads.clear` forgets the downloads
 that have stopped, leaving anything still transferring in the list.
+`:downloads.cancel` stops the newest transfer still moving, and
+`:downloads.cancel 2` stops the second row as the panel shows it — the panel
+displays no ids, so a row position is the only thing there is to point at.
 
 ### Ad blocking
 

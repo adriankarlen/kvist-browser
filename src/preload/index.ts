@@ -45,6 +45,7 @@ const api: KvistApi = {
     ipcRenderer.on(CHANNELS.downloadsToggle, handler);
     return () => void ipcRenderer.off(CHANNELS.downloadsToggle, handler);
   },
+  cancelDownload: (id) => ipcRenderer.send(CHANNELS.downloadCancel, id),
   setMode: (mode) => ipcRenderer.send(CHANNELS.setMode, mode),
   find: (query) => ipcRenderer.send(CHANNELS.find, query),
   stopFind: () => ipcRenderer.send(CHANNELS.findStop),

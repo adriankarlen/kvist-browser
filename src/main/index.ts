@@ -148,6 +148,7 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
   on(CHANNELS.find, (query: string) => tabs.find(query));
   on(CHANNELS.findStop, () => tabs.stopFind());
   on(CHANNELS.setMode, (mode: Mode) => vim.requestMode(mode));
+  on(CHANNELS.downloadCancel, (id: number) => downloads.cancel(id));
   on(CHANNELS.runCommand, (line: string) => {
     runCommand(line);
     vim.requestMode("normal");

@@ -85,9 +85,23 @@
 
     --kv-downloads-fg: var(--kv-color-text);
     --kv-downloads-muted-fg: var(--kv-color-muted);
-    --kv-downloads-active-fg: var(--kv-color-accent-alt);
-    --kv-downloads-done-fg: var(--kv-color-accent);
+    /* One colour per state, shared by the marker, the meta text and the bar. */
+    --kv-downloads-active-fg: var(--kv-color-warning);
+    --kv-downloads-paused-fg: var(--kv-color-subtle);
+    --kv-downloads-done-fg: var(--kv-color-accent-alt);
     --kv-downloads-failed-fg: var(--kv-color-danger);
+    /* Sized in ch and em so the bar keeps to the character grid. */
+    --kv-downloads-bar-width: 14ch;
+    --kv-downloads-bar-height: 1em;
+    --kv-downloads-bar-radius: var(--kv-radius);
+    --kv-downloads-bar-track: var(--kv-color-highlight-med);
+    /* Column widths for the numbers, so digits changing cannot shift the row. */
+    --kv-downloads-percent-width: 5ch;
+    --kv-downloads-size-width: 18ch;
+    --kv-downloads-rate-width: 11ch;
+    --kv-downloads-eta-width: 8ch;
+    --kv-downloads-cancel-fg: var(--kv-color-muted);
+    --kv-downloads-cancel-hover-fg: var(--kv-color-danger);
     /* Rows scroll past this; the panel is a strip, not a page. */
     --kv-downloads-max-height: 8lh;
 
