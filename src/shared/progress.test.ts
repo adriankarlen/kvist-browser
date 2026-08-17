@@ -35,4 +35,5 @@ test("there is no eta without a length, a rate, or anything left", () => {
   expect(formatEta(500, 0, 1000)).toBe("");
   expect(formatEta(500, 1000, 0)).toBe("");
   expect(formatEta(1000, 1000, 1000)).toBe("");
+  expect(formatEta(Number.NaN, 1000, 1000)).toBe("");
 });

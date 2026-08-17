@@ -34,6 +34,7 @@ export function formatRate(bytesPerSecond: number): string {
  * rather than a placeholder that means the same thing but takes up more space.
  */
 export function formatEta(received: number, total: number, bytesPerSecond: number): string {
+  if (!Number.isFinite(received)) return "";
   if (!Number.isFinite(total) || total <= 0) return "";
   if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "";
 
