@@ -128,15 +128,14 @@ body {
   text-overflow: ellipsis;
 }
 
-.link-item:hover {
+.link-item:hover,
+.link-item:focus-visible {
   background-color: var(--kv-color-overlay);
-  padding-left: 10px;
 }
 
 .link-item:active {
   background-color: var(--kv-color-accent);
   color: var(--kv-color-base);
-  padding-left: 10px;
 }
 
 /* ── scratchpad ──────────────────────────────────────── */

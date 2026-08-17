@@ -15,6 +15,7 @@
   }
 
   .kv-panel[data-label]::before {
+    display: var(--kv-panel-label-display);
     content: attr(data-label);
     max-width: var(--kv-panel-label-max-width);
     overflow: hidden;

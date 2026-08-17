@@ -54,6 +54,11 @@ body {
 
 .kv-error__retry:hover,
 .kv-error__retry:focus-visible {
-  border-color: var(--kv-color-accent);
-  color: var(--kv-color-accent);
+  border-color: var(--kv-color-accent-alt);
+}
+
+.kv-error__retry:active {
+  border-color: var(--kv-color-accent-alt);
+  background-color: var(--kv-color-accent-alt);
+  color: var(--kv-color-surface);
 }
