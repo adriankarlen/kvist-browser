@@ -9,3 +9,4 @@ release/
 .mcp.json
 .claude/
 .pi/
+/.DS_Store
