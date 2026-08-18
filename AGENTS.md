@@ -6,295 +6,60 @@ interaction model.
 
 ## Environment
 
-Requires Node >= 24.11 (`vite-plus`) and pnpm. Neither is on the default PATH —
-and the repo pins Node via `.node-version`:
-
-```sh
-eval "$(fnm env --use-on-cwd)"   # or `fnm use` inside the repo
-```
+Node version is pinned in `.node-version`; `pnpm` is the package manager.
 
 ## Commands
 
 The toolchain is [Vite+](https://npmjs.com/package/vite-plus); `vp` is the entry
-point for everything.
+point for everything. The `pnpm` scripts in `package.json` map directly to `vp`
+subcommands. Two footguns:
 
-```sh
-pnpm dev       # vite dev server + electron, with hot restart/reload
-pnpm build
-pnpm check     # format + lint + typecheck in one pass; --fix to autofix
-pnpm test      # vitest, via vp
-pnpm package   # package the application as an executable
-```
+- Import test helpers from `vite-plus/test`, not `vitest` — Vite+ bundles
+  vitest rather than exposing it as a resolvable dependency.
+- `defineConfig` must be imported from `vite-plus`, not `vite`, because the
+  `fmt` and `lint` config lives there.
 
-Import test helpers from `vite-plus/test`, not `vitest` — Vite+ bundles vitest
-rather than exposing it as a resolvable dependency, so a bare `vitest` import
-runs but fails typecheck.
+## Architecture
 
-Config for `fmt` and `lint` lives in `vite.config.ts`, so `defineConfig` must be
-imported from `vite-plus`, not `vite`. oxfmt has no style options — double
-quotes and semicolons are not a choice.
+The shape of the project, with the _why_ living next to the code it
+constrains.
 
-## Layout
-
-```
-src/main/       Electron main: window, tab manager, config loading, XDG paths
-src/preload/    contextBridge only; exposes window.kvist
-src/renderer/   Svelte chrome (tab strip, omnibox). Components in lib/
-src/shared/     Types and channel names imported by all three
-```
-
-There are two preloads. `index.ts` is the chrome's bridge and exposes
-`window.kvist`; `page.ts` runs in every tab and deliberately exposes nothing,
-since a web page must never reach that API. Each needs its own entry in
-`vite.config.ts` — the plugin bundles a preload to a single file, so one build
-cannot serve several entries.
-
-Tabs are one `WebContentsView` per tab, owned by `TabManager` and hidden with
-`setVisible(false)` rather than being detached.
-
-`window.open` and `target="_blank"` are denied and answered with a tab of our
-own, so everything a page opens stays inside the tab model. Two hard limits
-make it that shape, both verified against Electron 43:
-
-- **`createWindow` cannot return a `WebContentsView`'s webContents.** It is the
-  documented way to keep the opener relationship — `window.opener`, a live
-  handle, `window.close()` — but Chromium hangs the whole process adopting one.
-  Denying is why `window.open` returns null, and why a `target="_blank"` POST
-  loses its `postBody`.
-- **Never call back into Chromium from inside its own window creation or
-  teardown.** Building the tab in the open handler deadlocks; so does
-  unwinding one in `destroyed`. Both defer with `setImmediate`.
-
-**A destroyed view is toxic — even reading `view.webContents` hangs.** A page
-can close itself, and the tab is then left holding a dead view, so `#forget`
-drops the tab without touching it. `close` is the only path that may touch a
-view, because it runs while the view is still alive.
-
-**The renderer owns layout.** Main does not know the chrome's height — the
-renderer measures its own content area and pushes the rectangle over IPC, and
-main just applies it. Keep it that way; it is what makes tab orientation a pure
-CSS concern.
-
-IPC is fire-and-forget `send` one way, plus full-snapshot `kvist:state` and
-`kvist:config` broadcasts back. Full snapshots, not diffs.
-
-## Modes
-
-The mode machine (`src/main/vim.ts`) lives in main, because `before-input-event`
-must decide synchronously whether to swallow a key and cannot wait for an IPC
-round trip.
-
-`before-input-event` is per webContents, so keys must be intercepted on **both**
-the page and the chrome — `TabManager.interceptKeys` covers every tab,
-`interceptChromeKeys` covers the window. Hooking only the page leaves vim dead
-whenever focus sits on the chrome, which on macOS is where it lands whenever the
-window is activated.
-
-Chrome keys are gated on mode: normal drives vim, while insert, command and
-find pass everything through so the omnibox, command line and find prompt can
-type — including their own `Escape`, which they report back via
-`kvist:set-mode`. **Any chrome control
-that accepts typing must therefore put vim into insert while it holds focus**,
-or normal mode will eat every character. `Omnibox.svelte` does this on
-focus/blur.
-
-Mode has two entry points — keys and `kvist:set-mode` — but commands only have
-keys. A mode indicator that moves is therefore no evidence that key
-interception works.
-
-`activate()` hands keyboard focus back to the page, since hiding the previously
-focused view drops focus on the chrome. `[tabs] focus-page = false` in
-`config.toml` turns that off for anyone who wants focus to stay put.
-
-Pages report focus landing on a text field over `kvist:page-editable`, and vim
-enters insert so normal mode stops eating the user's typing — the same courtesy
-the omnibox gets. That report is asynchronous, unlike keys; it is safe only
-because main caches it, leaving `handleKey` synchronous. Escape blurs the field
-as well as leaving insert, otherwise focus stays in the input and the next key
-goes straight back into it.
-
-`TabManager` keeps the flag per tab, so mode follows the tab you land on rather
-than the one you left, and ignores reports from a webContents that owns no tab
-— which doubles as the sender check on that channel.
+- **Two preloads.** `src/preload/index.ts` exposes `window.kvist`;
+  `src/preload/page.ts` runs in every tab and exposes nothing. Each needs its
+  own entry in `vite.config.ts` — the plugin bundles a preload to one file.
+- **Tabs are `WebContentsView`s** owned by `TabManager` and hidden with
+  `setVisible(false)` rather than detached. `TabManager.ownsTab` is the
+  sender check for every tab→main channel (hints, context menu, page-editable).
+- **Renderer owns layout.** The renderer measures its own content area with a
+  `ResizeObserver` and pushes a `Rect` over `kvist:content-rect`; main just
+  applies it via `view.setBounds`. Tab orientation is a pure CSS concern.
+- **IPC is full-snapshot**, not diffs: fire-and-forget `send` one way, plus
+  `kvist:state` and `kvist:config` broadcasts back.
+- **Mode machine lives in main.** `before-input-event` is synchronous and
+  per-webContents, so keys are intercepted on both the page and the chrome.
+  Mode changes have two entry points — keys (intercepted) and `kvist:set-mode`
+  (called by the chrome). Any chrome control that accepts typing must call
+  `setMode("insert")` on focus, or normal mode eats every character.
+- **Downloads are session-scoped.** A transfer outlives the tab it started
+  in, so `Downloads` is owned by the app and `TabManager` only subscribes
+  through `observe` / `observeTabDownload`.
 
 ## In-page vim
 
-Scrolling and hints need the DOM, so they live in `src/preload/page.ts` and
-`src/preload/hints.ts` while the mode machine stays in main. Main names the
-movement (`ScrollCommand`) rather than sending pixels, and hint matching runs
-in the page so a keystroke never costs a round trip.
-
-Hint mode swallows **every** key and forwards it, so nothing leaks to the page
-mid-selection. The page decides when a label matched and reports back on
-`kvist:hints-done`; `Vim.endHints` only unwinds hint mode, because hinting a
-text field focuses it and puts us in insert _before_ that report arrives.
-Returning to normal unconditionally would throw that focus away.
-
-**Hint activation must be a real click from main.** Chromium marks history
-entries created without user activation as skippable, and a scripted
-`element.click()` has none — following a hint left `canGoBack()` false and the
-back button dead. The page sends a point on `kvist:hints-click` and
-`TabManager.clickActive` injects the click with `sendInputEvent`, which does
-carry activation. The scripted click survives only as the fallback for when
-the point does not hit the element.
-
-Hint labels are inline-styled rather than classed: the page's own stylesheet is
-hostile territory, and a class is one `!important` away from being hidden.
-
-## Find in page
-
-`/` opens a prompt in the chrome, `n` and `N` cycle, and Escape in normal mode
-clears the highlighting. Chromium owns the search, so main only drives
-`findInPage` and forwards `found-in-page` counts to the chrome on
-`kvist:find-result`; the chrome keeps no query of its own, since the matches
-live on the tab and switching tabs has to change what is on screen.
-
-Find is a mode, not a widget. Like `command`, it swallows nothing and lets the
-chrome type — `Vim.#prompting` is the pair of them — and the bar outlives the
-mode, because `n` needs somewhere to report to once the prompt is gone.
-
-Two Electron 43 traps, both found the hard way:
-
-- **`findInPage(text, { findNext: false })` never emits `found-in-page`**, even
-  though `false` is the documented default. Passing `{ forward: true }` and
-  leaving `findNext` out searches identically and does report. A new search is
-  therefore spelled as the _absence_ of the option.
-- **A find session survives navigation.** Chromium re-runs it against the new
-  document and reports matches for a page the user never searched, so
-  `did-navigate` has to call `stopFindInPage` rather than merely forgetting the
-  query.
-
-Testing this needs the window frontmost — find is one of the things Chromium
-does not run while the window is occluded, so the whole feature reads as broken
-from a background window.
+Hints live in the preload, mode stays in main. Hint labels are inline-styled
+rather than classed: the page's own stylesheet is hostile territory, and a
+class is one `!important` away from being hidden.
 
 ## Context menu
 
-Rendered in the page, not in the chrome and not native. A tab's
-`WebContentsView` is a native layer painted over the chrome, so chrome HTML
-can never overlap page content — the same reason hints live in the preload.
-A native `Menu` was considered and rejected: it cannot be themed, and
-themeability is the product.
-
-Main builds the item list from the `context-menu` params (`context-menu.ts`
-is pure and unit-tested), stashes the params for pick time, and ships the
-styling with the payload: tokens.css + `src/shared/styles/menu.css` + the user's
-config.css, with `:root` rewritten to `:host` because the menu renders in a
-shadow root where `:root` matches nothing. User CSS stays unlayered and
-last, so a `--kv-menu-*` override in config.css wins exactly as it does in
-the chrome.
-
-Two traps the shadow root does not solve on its own:
-
-- **Mousedown inside the menu is preventDefaulted.** Otherwise clicking Cut
-  or Paste blurs the field before main runs the editing command, and
-  clicking Copy collapses the selection it was meant to copy.
-- **Dismissal needs both sides.** The preload hides on an outside mousedown
-  (checked with `composedPath`, because shadow retargeting makes the
-  listener see the host), and on scroll and resize, which would leave the
-  menu pointing at the wrong thing. Main hides it on tab switch and forgets
-  the stash on navigation and close — no hide is sent on navigation, because
-  the menu died with its document.
-
-Picks arrive on `kvist:context-menu-pick` with the same `ownsTab` sender
-check as the hint channels; only the visible tab can be right-clicked, so
-the stashed menu always belongs to the active tab.
-
-## Downloads
-
-`src/main/downloads.ts` owns the one `will-download` handler, attached to
-`session.defaultSession` in `app.whenReady()`. Transfers belong to the session,
-not to a tab — a tab can close mid-download and the download carries on — so
-`Downloads` is created outside `createWindow` and the window merely subscribes
-through `observe`/`observeTabDownload`, the same shape `TabManager` uses.
-Attaching per window would double-handle every download on macOS re-activate.
-
-Setting a save path is what suppresses Chromium's save dialog, and with it the
-collision handling that dialog would have done — so `downloads-path.ts` does it
-instead (pure and unit-tested, like `context-menu.ts`), counting up to
-`name-1.ext`.
-
-Three things found by running it:
-
-- **`app.getPath("downloads")` is `$HOME`** when `user-dirs.dirs` names no
-  download directory, which is common. Files must not land loose in the home
-  directory, so that one answer is corrected to `$HOME/Downloads`.
-- **The target directory is created if missing.** A configured directory that
-  does not exist surfaces as an interrupted download with nothing saying why.
-- **A tab opened for a download never commits, and `navigationHistory.length()`
-  is still 1** — Chromium counts the initial empty document. `getURL() === ""`
-  is what "nothing committed" actually looks like, and it is how
-  `TabManager.closeIfUncommitted` recognises the tab `target="_blank"` left
-  behind: the window-open handler cannot tell a download URL from a page.
-
-The panel is display-only and takes no typing, so it needs none of the
-insert-mode dance the omnibox does. It shows itself while anything is
-transferring and **lingers five seconds** after the last one stops: a local
-download finishes between two frames, and without the linger the only
-completion signal is a panel that flickers and is gone. `:downloads` pins it
-open on top of that, which is chrome state — so the command can only arrive as
-a nudge on `kvist:downloads-toggle`, like `focusOmnibox`.
-
-`updated` fires per chunk, so snapshots are throttled to 100 ms, but every
-terminal transition flushes immediately or the last row the user reads is stale.
-
-Three things that are not obvious from the code:
-
-- **The rate is measured in main, not in the chrome.** The chrome only ever
-  sees throttled snapshots, and none at all while a transfer stalls, so it has
-  no stream of samples to average. `download-rate.ts` is the pure EMA — samples
-  under 250 ms are held rather than measured, because per-chunk deltas measure
-  scheduling noise, not throughput.
-- **Chromium reports a pause as `isPaused`, not as a state.** The list's
-  `paused` status is derived, and a paused transfer shows 0 B/s without the
-  average being touched.
-- **Cancelling needs the live-item map, and `done` must clear it.** A finished
-  `DownloadItem` is of no further use, and holding one only invites a call into
-  something Chromium has torn down. Cancel travels on its own channel rather
-  than through `runCommand`, whose handler drops back to normal mode — clicking
-  a button in the chrome must not do that to a user who is typing.
-
-The bar is a styled element, not block characters, but it is sized in `ch` and
-`em` so it keeps to the character grid; `--kv-progress` is the only inline
-style, because it is the datum rather than the styling.
-
-## Extensions
-
-There is no extension support, deliberately. It was built and then removed in
-`767b55b`..`HEAD` — the loader worked, but Electron 43 implements too little
-of the extension API for the two extensions worth having. uBlock Origin and
-Bitwarden both die on a missing `chrome.webRequest` implementation, and
-Bitwarden also needs `webNavigation`, `contextMenus`, `notifications` and
-`sidePanel`, none of which exist. Details are on KVI-19 and KVI-20.
-
-Go back to `git show 767b55b` before rebuilding this; the loader itself was
-fine, and only ever needed `session.extensions.loadExtension` against
-`session.defaultSession`.
+Rendered in the page, not native. A native `Menu` was considered and rejected
+because it cannot be themed, and themeability is the product.
 
 ## Ad blocking
 
-`@ghostery/adblocker-electron`, wired up in `src/main/adblock.ts` against
-`session.defaultSession`. Not uBlock: the classic build needs a
-`chrome.webRequest` implementation Electron does not ship, and uBlock Origin
-Lite's rulesets register but are never enforced. Same filter lists, different
-engine.
-
-**`session.webRequest` allows exactly one listener per event.** The blocker
-claims `onBeforeRequest` and `onHeadersReceived`, so anything else in main
-that wants them will silently displace it, or be displaced. Disabling works by
-removing the listeners outright, for the same reason.
-
-**The package must stay external in the main build.** It resolves its own
-cosmetic-filtering preload with `require.resolve` at runtime; bundling moves
-that call to `dist/main`, where pnpm's non-hoisted layout cannot see the
-transitive dependency, and the app dies on boot. Marked external in
-`vite.config.ts`. This will need revisiting for packaging, since
-electron-builder currently ships `dist/**/*` only.
-
-The engine is fetched on first run and cached under `userData`, which
-`paths.ts` has already pointed at `XDG_DATA_HOME`. A failed fetch is logged
-and skipped rather than thrown — a browser that starts without blocking beats
-one that does not start.
+`@ghostery/adblocker-electron` against `session.defaultSession`, not uBlock —
+Electron 43's `chrome.webRequest` is incomplete, so the classic build dies
+and uBlock Origin Lite's rulesets register but are never enforced.
 
 Generic cosmetic filters are keyed on real domains, so a page served from a
 bare IP gets none of them. Test cosmetic filtering against an actual site;
@@ -377,34 +142,22 @@ Outbound network is often blocked; serve a local test site instead of relying on
 public URLs. Beware `pkill -f` with a pattern matching the repo path — it
 matches its own shell command line.
 
+## Extensions
+
+No extension support: Electron implements too little of the `chrome.*` API
+for extensions to be viable. See KVI-19, KVI-20.
+
 ## Gotchas
 
-- **Preload must be emitted as `.cjs`.** `vite-plugin-electron` names it `.mjs`
-  under `"type": "module"` but still emits CommonJS; Electron then parses it as
-  ESM and the preload fails _silently_ — `window.kvist` is simply undefined with
-  nothing in any log. Overridden in `vite.config.ts`.
-- **`BrowserWindow`'s `resize` event reports stale bounds** on Wayland, and
-  carries no bounds payload. Use `win.contentView.on("bounds-changed")`.
-- **`~/.config/kvist` is the user's**, for hand-edited config only. Electron
-  defaults `userData` there on Linux; `src/main/paths.ts` redirects profile
-  state to `XDG_DATA_HOME`. Never write to the config dir.
-- Config watching watches the _directory_, not the files — editors rename over
-  files, which swaps the inode and kills a file watch.
-- **`.kv-panel` must keep `overflow: visible`.** Its label is a pseudo-element
-  positioned outside the box to straddle the top border, so any other overflow
-  value clips the label away. A panel that needs to scroll has to scroll an
-  inner element instead of itself.
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
-- Keep `@types/node` pinned to 24.x. Electron and electron-builder pull in
-  different majors, and ambiguous resolution breaks `fs` typings.
 
 ## Tracking
 
-Work is tracked in Linear: team `KVI`, project "Kvist Browser", with the plan's
-phases modelled as **project milestones**. Close issues as work lands, and leave
-a comment when something non-obvious came up — those comments are the main
-record of why things are the way they are.
+Work is tracked in Linear: team `KVI`, project "Kvist Browser", with the
+plan's phases modelled as project milestones. Close issues as work lands, and
+leave a comment when something non-obvious came up — those comments are the
+main record of why things are the way they are.
 
 Phases are not strictly sequential. Agreed order: 0 → 1 → 2 → 3 (chrome-level
 vim only) → 4 (uBlock only) → 3 (in-page vim) → 3.5 → 5 → 6 → 7, with 4

@@ -4,6 +4,10 @@
  *
  * The label is a pseudo-element fed by data-label, so panels stay one element
  * and users can restyle or blank the labels entirely from config.css.
+ *
+ * `overflow` must stay its default (`visible`): the label is positioned
+ * outside the box to straddle the top border, and any other value clips it
+ * away. Panels that need to scroll do so on an inner element.
  */
 @layer kvist.components {
   .kv-panel {

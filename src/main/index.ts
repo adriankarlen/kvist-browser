@@ -151,6 +151,10 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
   on(CHANNELS.downloadCancel, (id: number) => downloads.cancel(id));
   on(CHANNELS.runCommand, (line: string) => {
     runCommand(line);
+    // Commands come from a typed `:foo` and end in normal mode. UI-driven
+    // chrome→main channels (`downloadCancel` etc.) must not call this path,
+    // or clicking a button would drop mode out from under a user who is
+    // typing.
     vim.requestMode("normal");
   });
 }

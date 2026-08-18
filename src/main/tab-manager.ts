@@ -49,9 +49,9 @@ export class TabManager {
   #window: BaseWindow;
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
-  #onEditable: (editable: boolean) => void = () => { };
-  #onFind: (result: FindResult | null) => void = () => { };
-  #onInPageNavigation: (contents: WebContents, url: string) => void = () => { };
+  #onEditable: (editable: boolean) => void = () => {};
+  #onFind: (result: FindResult | null) => void = () => {};
+  #onInPageNavigation: (contents: WebContents, url: string) => void = () => {};
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
@@ -142,6 +142,10 @@ export class TabManager {
     }
 
     tab.find = query;
+    // `findNext: false` is the documented default but never emits
+    // `found-in-page`; passing `forward: true` and leaving `findNext` off
+    // searches the same way and does report. A new search is therefore the
+    // absence of the option.
     tab.findRequestId = tab.view.webContents.findInPage(query, { forward: true });
   }
 
@@ -434,7 +438,9 @@ export class TabManager {
 
     // `window.open` and `target="_blank"`, answered with a tab of our own.
     // Handing Chromium a `WebContentsView`'s webContents through `createWindow`
-    // would keep the opener relationship, but it deadlocks the process
+    // would keep the opener relationship, but it deadlocks the process — so
+    // we deny, which is also why a `target="_blank"` POST loses its
+    // `postBody`: the request never reaches the new tab.
     webContents.setWindowOpenHandler((details) => {
       // Denying is answered synchronously; the tab is not built until Chromium
       // has left window creation.
