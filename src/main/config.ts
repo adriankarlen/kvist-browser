@@ -1,14 +1,9 @@
 import { watch } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse } from "smol-toml";
-import {
-  DEFAULT_SETTINGS,
-  type NewtabLink,
-  type Settings,
-  type UserConfig,
-} from "../shared/config";
+import { DEFAULT_SETTINGS, type Problem, type Settings, type UserConfig } from "../shared/config";
 import { configDir } from "./paths";
+import { parseSettings } from "./settings";
 
 const CSS_FILE = "config.css";
 const TOML_FILE = "config.toml";
@@ -16,6 +11,13 @@ const TOML_FILE = "config.toml";
 // Editors rename over the file rather than writing in place, so a single save
 // can surface as several directory events.
 const DEBOUNCE_MS = 50;
+
+/**
+ * The last settings that parsed. Session state belonging to the file, not to
+ * parsing — `parseSettings` takes it as an argument so that a syntax error
+ * mid-edit keeps the user's layout without anything hidden holding it.
+ */
+let lastGood: Settings = DEFAULT_SETTINGS;
 
 async function read(file: string): Promise<string> {
   try {
@@ -27,95 +29,22 @@ async function read(file: string): Promise<string> {
   }
 }
 
-function asTable(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
-function parseLinks(value: unknown): NewtabLink[] {
-  if (!Array.isArray(value)) return DEFAULT_SETTINGS.newtabLinks;
-  const links = value.flatMap((entry) => {
-    const { name, url } = asTable(entry);
-    return typeof name === "string" && typeof url === "string" ? [{ name, url }] : [];
-  });
-  // All-or-nothing, like the other fields: one malformed entry falls back to
-  // the defaults rather than silently dropping links.
-  return links.length === value.length ? links : DEFAULT_SETTINGS.newtabLinks;
-}
-
-// Intl only accepts IANA names; "UTC±n" is handled by the clock itself.
-const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
-
-function parseTimezone(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") {
-    console.error("kvist: ignoring non-string newtab timezone");
-    return undefined;
+// Until the message line lands, a problem still has nowhere to go but stderr.
+function report(problems: Problem[]): void {
+  for (const { field, reason } of problems) {
+    // A problem with the file itself names the file as its field; saying so
+    // twice reads as a bug.
+    const where = field === TOML_FILE ? TOML_FILE : `${TOML_FILE}: ${field}`;
+    console.error(`kvist: ${where}: ${reason}`);
   }
-  const timezone = value.trim();
-  if (UTC_RX.test(timezone)) return timezone;
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: timezone });
-    return timezone;
-  } catch {
-    console.error(`kvist: ignoring invalid newtab timezone "${timezone}"`);
-    return undefined;
-  }
-}
-
-/** Undefined falls back to the XDG download directory; `downloads.ts` resolves it. */
-function parseDownloadDir(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") {
-    console.error("kvist: ignoring non-string downloads dir");
-    return undefined;
-  }
-  return value;
-}
-
-// A save mid-edit shouldn't throw away the user's whole layout, so a syntax
-// error keeps the last settings that parsed rather than reverting to defaults.
-let lastGood = DEFAULT_SETTINGS;
-
-function parseSettings(source: string): Settings {
-  if (source.trim() === "") {
-    lastGood = DEFAULT_SETTINGS;
-    return lastGood;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = parse(source);
-  } catch (error) {
-    console.error(`kvist: keeping previous settings, ${TOML_FILE} is invalid:`, error);
-    return lastGood;
-  }
-
-  const root = asTable(parsed);
-  const tabs = asTable(root.tabs);
-  const newtab = asTable(root.newtab);
-  const downloads = asTable(root.downloads);
-  const { adblock, homepage } = root;
-  const { orientation } = tabs;
-  const focusPage = tabs["focus-page"];
-
-  lastGood = {
-    homepage: typeof homepage === "string" ? homepage : DEFAULT_SETTINGS.homepage,
-    newtabLinks: parseLinks(newtab.links),
-    newtabTimezone: parseTimezone(newtab.timezone),
-    adblock: typeof adblock === "boolean" ? adblock : DEFAULT_SETTINGS.adblock,
-    tabOrientation:
-      orientation === "horizontal" || orientation === "vertical"
-        ? orientation
-        : DEFAULT_SETTINGS.tabOrientation,
-    tabFocusPage: typeof focusPage === "boolean" ? focusPage : DEFAULT_SETTINGS.tabFocusPage,
-    downloadDir: parseDownloadDir(downloads.dir),
-  };
-  return lastGood;
 }
 
 export async function loadConfig(): Promise<UserConfig> {
   const [css, toml] = await Promise.all([read(CSS_FILE), read(TOML_FILE)]);
-  return { css, settings: parseSettings(toml) };
+  const { settings, problems } = parseSettings(toml, lastGood);
+  lastGood = settings;
+  report(problems);
+  return { css, settings };
 }
 
 /** Watches the directory rather than the files, so saves that replace the inode still register. */
