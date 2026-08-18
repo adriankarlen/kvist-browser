@@ -49,9 +49,9 @@ export class TabManager {
   #window: BaseWindow;
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
-  #onEditable: (editable: boolean) => void = () => {};
-  #onFind: (result: FindResult | null) => void = () => {};
-  #onInPageNavigation: (contents: WebContents, url: string) => void = () => {};
+  #onEditable: (editable: boolean) => void = () => { };
+  #onFind: (result: FindResult | null) => void = () => { };
+  #onInPageNavigation: (contents: WebContents, url: string) => void = () => { };
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
   #order: TabId[] = [];
@@ -142,9 +142,6 @@ export class TabManager {
     }
 
     tab.find = query;
-    // `findNext: false` is the documented default, but passing it explicitly
-    // makes Electron 43 run the search and never emit `found-in-page` — so a
-    // new search has to be spelled as the absence of the option.
     tab.findRequestId = tab.view.webContents.findInPage(query, { forward: true });
   }
 
@@ -437,9 +434,7 @@ export class TabManager {
 
     // `window.open` and `target="_blank"`, answered with a tab of our own.
     // Handing Chromium a `WebContentsView`'s webContents through `createWindow`
-    // would keep the opener relationship, but it deadlocks the process in
-    // Electron 43 — so the request is denied and the tab opened separately,
-    // which is why the page gets null back from `window.open`.
+    // would keep the opener relationship, but it deadlocks the process
     webContents.setWindowOpenHandler((details) => {
       // Denying is answered synchronously; the tab is not built until Chromium
       // has left window creation.

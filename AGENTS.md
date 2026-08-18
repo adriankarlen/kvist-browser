@@ -7,7 +7,7 @@ interaction model.
 ## Environment
 
 Requires Node >= 24.11 (`vite-plus`) and pnpm. Neither is on the default PATH —
-fnm manages them, and the repo pins Node via `.node-version`:
+and the repo pins Node via `.node-version`:
 
 ```sh
 eval "$(fnm env --use-on-cwd)"   # or `fnm use` inside the repo
@@ -23,6 +23,7 @@ pnpm dev       # vite dev server + electron, with hot restart/reload
 pnpm build
 pnpm check     # format + lint + typecheck in one pass; --fix to autofix
 pnpm test      # vitest, via vp
+pnpm package   # package the application as an executable
 ```
 
 Import test helpers from `vite-plus/test`, not `vitest` — Vite+ bundles vitest
