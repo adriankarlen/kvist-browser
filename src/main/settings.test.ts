@@ -108,6 +108,17 @@ test("a timezone that is neither is dropped and reported", () => {
   expect(problemsOf("[newtab]\ntimezone = 7")).toEqual(["newtab.timezone"]);
 });
 
+test("a section written as something other than a table is reported once", () => {
+  expect(problemsOf("tabs = 5")).toEqual(["tabs"]);
+  expect(problemsOf("newtab = 'links'")).toEqual(["newtab"]);
+  expect(problemsOf("downloads = ['~/dl']")).toEqual(["downloads"]);
+  // Its fields are gone with it, so the rest of the file still applies.
+  expect(settingsOf("homepage = 'https://a.b'\ntabs = 5")).toEqual({
+    ...DEFAULT_SETTINGS,
+    homepage: "https://a.b",
+  });
+});
+
 test("nothing is carried between calls", () => {
   const first: Settings = { ...DEFAULT_SETTINGS, homepage: "https://first.example" };
   parseSettings("homepage = 'unterminated", first);

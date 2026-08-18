@@ -50,6 +50,20 @@ function asTable(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+/**
+ * A `[section]` of the file. Written as anything but a table it has no fields
+ * to read, so it is reported once rather than as every child of it quietly
+ * defaulting.
+ */
+function section(value: unknown, field: string, problems: Problem[]): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  problems.push({ field, reason: "not a table" });
+  return {};
+}
+
 function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
   if (value === undefined) return DEFAULT_SETTINGS.newtabLinks;
   if (!Array.isArray(value)) {
@@ -116,9 +130,9 @@ export function parseSettings(
 
   const problems: Problem[] = [];
   const root = asTable(parsed);
-  const tabs = asTable(root.tabs);
-  const newtab = asTable(root.newtab);
-  const downloads = asTable(root.downloads);
+  const tabs = section(root.tabs, "tabs", problems);
+  const newtab = section(root.newtab, "newtab", problems);
+  const downloads = section(root.downloads, "downloads", problems);
 
   const settings: Settings = {
     homepage: coerce(
