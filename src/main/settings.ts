@@ -7,6 +7,8 @@ import {
   type TabOrientation,
 } from "../shared/config";
 
+const ORIENTATIONS: readonly TabOrientation[] = ["horizontal", "vertical"];
+
 /**
  * What one parse produced: the settings to use, and everything wrong with the
  * file. Parsing never logs and never throws — a config is hand-edited and
@@ -22,28 +24,41 @@ export interface ParsedSettings {
  * default. Only a value the user actually wrote and we could not use is worth
  * telling them about.
  */
-function coerce<T>(
+function readString<T extends string | undefined>(
   value: unknown,
-  is: (candidate: unknown) => candidate is T,
-  spec: { field: string; fallback: T; reason: string },
+  field: string,
+  fallback: T,
+  problems: Problem[],
+): string | T {
+  if (value === undefined) return fallback;
+  if (typeof value === "string") return value;
+  problems.push({ field, reason: "not a string" });
+  return fallback;
+}
+
+function readBoolean(
+  value: unknown,
+  field: string,
+  fallback: boolean,
+  problems: Problem[],
+): boolean {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  problems.push({ field, reason: "not true or false" });
+  return fallback;
+}
+
+function readOption<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly T[],
+  fallback: T,
   problems: Problem[],
 ): T {
-  if (value === undefined) return spec.fallback;
-  if (is(value)) return value;
-  problems.push({ field: spec.field, reason: spec.reason });
-  return spec.fallback;
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === "string";
-}
-
-function isBoolean(value: unknown): value is boolean {
-  return typeof value === "boolean";
-}
-
-function isOrientation(value: unknown): value is TabOrientation {
-  return value === "horizontal" || value === "vertical";
+  if (value === undefined) return fallback;
+  if (allowed.includes(value as T)) return value as T;
+  problems.push({ field, reason: `not ${allowed.map((option) => `"${option}"`).join(" or ")}` });
+  return fallback;
 }
 
 function asTable(value: unknown): Record<string, unknown> {
@@ -73,7 +88,7 @@ function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
 
   const links = value.flatMap((entry) => {
     const { name, url } = asTable(entry);
-    return isString(name) && isString(url) ? [{ name, url }] : [];
+    return typeof name === "string" && typeof url === "string" ? [{ name, url }] : [];
   });
   // All-or-nothing: one malformed entry falls back to the defaults rather than
   // silently dropping a link the user can still see in their file.
@@ -88,12 +103,7 @@ function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
 const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
 function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
-  const named = coerce<string | undefined>(
-    value,
-    isString,
-    { field: "newtab.timezone", fallback: undefined, reason: "not a string" },
-    problems,
-  );
+  const named = readString(value, "newtab.timezone", undefined, problems);
   if (named === undefined) return undefined;
 
   const timezone = named.trim();
@@ -135,47 +145,25 @@ export function parseSettings(
   const downloads = section(root.downloads, "downloads", problems);
 
   const settings: Settings = {
-    homepage: coerce(
-      root.homepage,
-      isString,
-      { field: "homepage", fallback: DEFAULT_SETTINGS.homepage, reason: "not a string" },
-      problems,
-    ),
+    homepage: readString(root.homepage, "homepage", DEFAULT_SETTINGS.homepage, problems),
     newtabLinks: parseLinks(newtab.links, problems),
     newtabTimezone: parseTimezone(newtab.timezone, problems),
-    adblock: coerce(
-      root.adblock,
-      isBoolean,
-      { field: "adblock", fallback: DEFAULT_SETTINGS.adblock, reason: "not true or false" },
-      problems,
-    ),
-    tabOrientation: coerce(
+    adblock: readBoolean(root.adblock, "adblock", DEFAULT_SETTINGS.adblock, problems),
+    tabOrientation: readOption(
       tabs.orientation,
-      isOrientation,
-      {
-        field: "tabs.orientation",
-        fallback: DEFAULT_SETTINGS.tabOrientation,
-        reason: 'not "horizontal" or "vertical"',
-      },
+      "tabs.orientation",
+      ORIENTATIONS,
+      DEFAULT_SETTINGS.tabOrientation,
       problems,
     ),
-    tabFocusPage: coerce(
+    tabFocusPage: readBoolean(
       tabs["focus-page"],
-      isBoolean,
-      {
-        field: "tabs.focus-page",
-        fallback: DEFAULT_SETTINGS.tabFocusPage,
-        reason: "not true or false",
-      },
+      "tabs.focus-page",
+      DEFAULT_SETTINGS.tabFocusPage,
       problems,
     ),
     // Undefined falls back to the XDG download directory; `downloads.ts` resolves it.
-    downloadDir: coerce<string | undefined>(
-      downloads.dir,
-      isString,
-      { field: "downloads.dir", fallback: undefined, reason: "not a string" },
-      problems,
-    ),
+    downloadDir: readString(downloads.dir, "downloads.dir", undefined, problems),
   };
 
   return { settings, problems };
