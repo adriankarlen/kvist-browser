@@ -16,6 +16,7 @@ import { loadConfig, watchConfig } from "./config";
 import { Downloads } from "./downloads";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
+import { interceptKeys } from "./keys";
 import { TabManager } from "./tab-manager";
 import { Vim } from "./vim";
 
@@ -85,7 +86,10 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
   );
 
   tabs.interceptKeys((input, source) => vim.handleKey(input, source));
-  tabs.interceptChromeKeys(win.webContents);
+  // The chrome needs the same treatment as a page: it is a separate
+  // webContents, so without this every key pressed while the chrome holds
+  // focus is invisible to the mode machine.
+  interceptKeys(win.webContents, "chrome", (input, source) => vim.handleKey(input, source));
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => send(CHANNELS.findResult, result));
   tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
@@ -101,13 +105,13 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
   });
 
   ipcMain.on(CHANNELS.hintsClick, (event, point: Point) => {
-    if (tabs.ownsTab(event.sender)) tabs.clickActive(point);
+    tabs.tabFor(event.sender)?.click(point);
   });
 
   // The sender is a tab, like the hint channels — a webContents that owns no
   // tab gets no answer to its pick.
   ipcMain.on(CHANNELS.contextMenuPick, (event, id: string | null) => {
-    if (tabs.ownsTab(event.sender)) tabs.pickContextMenu(id);
+    tabs.tabFor(event.sender)?.pickContextMenu(id);
   });
 
   const runCommand = (line: string): void => {
@@ -140,13 +144,13 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
   on(CHANNELS.createTab, (url?: string) => tabs.create(url));
   on(CHANNELS.closeTab, (id: TabId) => tabs.close(id));
   on(CHANNELS.activateTab, (id: TabId) => tabs.activate(id));
-  on(CHANNELS.navigate, (url: string) => tabs.navigate(url));
-  on(CHANNELS.goBack, () => tabs.goBack());
-  on(CHANNELS.goForward, () => tabs.goForward());
-  on(CHANNELS.reload, () => tabs.reload());
-  on(CHANNELS.toggleDevTools, () => tabs.toggleDevTools());
-  on(CHANNELS.find, (query: string) => tabs.find(query));
-  on(CHANNELS.findStop, () => tabs.stopFind());
+  on(CHANNELS.navigate, (url: string) => tabs.active?.navigate(url));
+  on(CHANNELS.goBack, () => tabs.active?.goBack());
+  on(CHANNELS.goForward, () => tabs.active?.goForward());
+  on(CHANNELS.reload, () => tabs.active?.reload());
+  on(CHANNELS.toggleDevTools, () => tabs.active?.toggleDevTools());
+  on(CHANNELS.find, (query: string) => tabs.active?.find(query));
+  on(CHANNELS.findStop, () => tabs.active?.stopFind());
   on(CHANNELS.setMode, (mode: Mode) => vim.requestMode(mode));
   on(CHANNELS.downloadCancel, (id: number) => downloads.cancel(id));
   on(CHANNELS.runCommand, (line: string) => {
