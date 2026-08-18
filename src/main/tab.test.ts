@@ -14,7 +14,13 @@ function createHost() {
   const loaded: string[] = [];
   const sent: { channel: string; payload?: unknown }[] = [];
   const finds: { query: string; options?: unknown }[] = [];
-  const state = { url: "", canGoBack: false, canGoForward: false, requestId: 0 };
+  const state = {
+    url: "",
+    canGoBack: false,
+    canGoForward: false,
+    requestId: 0,
+    webContentsReads: 0,
+  };
   const calls = { stopFind: 0, focus: 0, crash: 0, close: 0 };
   let openHandler: ((details: { url: string; disposition: string }) => unknown) | undefined;
 
@@ -61,7 +67,10 @@ function createHost() {
   };
 
   const host = {
-    webContents,
+    get webContents() {
+      state.webContentsReads++;
+      return webContents;
+    },
     setVisible: () => {},
     setBounds: () => {},
   } as unknown as PageHost;
@@ -298,6 +307,21 @@ test("a tab closed by us does not report a death", async () => {
 
   expect(host.calls.close).toBe(1);
   expect(died).not.toHaveBeenCalled();
+});
+
+test("a closed tab does not reach through the view for its page", () => {
+  const { tab, host } = createTab();
+  host.state.canGoBack = true;
+  tab.close();
+
+  const before = host.state.webContentsReads;
+  expect(tab.snapshot()).toMatchObject({ canGoBack: false, canGoForward: false });
+  expect(tab.committed).toBe(false);
+  expect(tab.isFocused()).toBe(false);
+  void tab.contents;
+  // Reaching through a view for a destroyed webContents hangs the process, so
+  // the reference taken at construction is the only one there ever is.
+  expect(host.state.webContentsReads).toBe(before);
 });
 
 test("a closed tab reaches through to nothing", () => {

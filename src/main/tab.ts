@@ -48,6 +48,12 @@ export interface TabCallbacks {
 export class Tab {
   readonly id: TabId;
   #host: PageHost;
+  /**
+   * Captured while the page is alive. Reaching through the view for a
+   * destroyed webContents hangs the process, so the reference is taken once
+   * and every use of it is guarded by `#closed` instead.
+   */
+  #page: PageContents;
   #on: TabCallbacks;
   #closed = false;
 
@@ -70,6 +76,7 @@ export class Tab {
   constructor(id: TabId, host: PageHost, callbacks: TabCallbacks, url: string) {
     this.id = id;
     this.#host = host;
+    this.#page = host.webContents;
     this.#on = callbacks;
     this.#title = url;
     this.#url = url;
@@ -78,7 +85,7 @@ export class Tab {
 
   /** Identity for the sender checks; a webContents is its own answer. */
   get contents(): PageContents {
-    return this.#host.webContents;
+    return this.#page;
   }
 
   get editable(): boolean {
@@ -91,20 +98,25 @@ export class Tab {
 
   /** True once a navigation has committed; an untouched tab has no URL at all. */
   get committed(): boolean {
-    return !this.#closed && this.#host.webContents.getURL() !== "";
+    return !this.#closed && this.#page.getURL() !== "";
   }
 
   snapshot(): TabState {
-    const { navigationHistory } = this.#host.webContents;
-    return {
+    const strip = {
       id: this.id,
       title: this.#title,
       url: this.#url,
       favicon: this.#favicon,
       loading: this.#loading,
-      // Read live rather than tracked: history depth changes without an event.
-      canGoBack: this.#closed ? false : navigationHistory.canGoBack(),
-      canGoForward: this.#closed ? false : navigationHistory.canGoForward(),
+    };
+    // Read live rather than tracked: history depth changes without an event.
+    // A closed page has no history left to ask.
+    if (this.#closed) return { ...strip, canGoBack: false, canGoForward: false };
+    const { navigationHistory } = this.#page;
+    return {
+      ...strip,
+      canGoBack: navigationHistory.canGoBack(),
+      canGoForward: navigationHistory.canGoForward(),
     };
   }
 
@@ -117,12 +129,12 @@ export class Tab {
   }
 
   focus(): void {
-    if (!this.#closed) this.#host.webContents.focus();
+    if (!this.#closed) this.#page.focus();
   }
 
   /** Whether the keyboard is on this page rather than on the chrome. */
   isFocused(): boolean {
-    return !this.#closed && this.#host.webContents.isFocused();
+    return !this.#closed && this.#page.isFocused();
   }
 
   blur(): void {
@@ -153,29 +165,29 @@ export class Tab {
   click({ x, y }: Point): void {
     if (this.#closed) return;
     const event = { x, y, button: "left", clickCount: 1 } as const;
-    this.#host.webContents.sendInputEvent({ ...event, type: "mouseDown" });
-    this.#host.webContents.sendInputEvent({ ...event, type: "mouseUp" });
+    this.#page.sendInputEvent({ ...event, type: "mouseDown" });
+    this.#page.sendInputEvent({ ...event, type: "mouseUp" });
   }
 
   navigate(url: string): void {
-    if (!this.#closed) void this.#host.webContents.loadURL(url);
+    if (!this.#closed) void this.#page.loadURL(url);
   }
 
   goBack(): void {
-    if (!this.#closed) this.#host.webContents.navigationHistory.goBack();
+    if (!this.#closed) this.#page.navigationHistory.goBack();
   }
 
   goForward(): void {
-    if (!this.#closed) this.#host.webContents.navigationHistory.goForward();
+    if (!this.#closed) this.#page.navigationHistory.goForward();
   }
 
   reload(): void {
-    if (!this.#closed) this.#host.webContents.reload();
+    if (!this.#closed) this.#page.reload();
   }
 
   toggleDevTools(): void {
     if (this.#closed) return;
-    const { webContents } = this.#host;
+    const webContents = this.#page;
     if (webContents.isDevToolsOpened()) webContents.closeDevTools();
     else webContents.openDevTools({ mode: "bottom" });
   }
@@ -202,13 +214,13 @@ export class Tab {
     // `found-in-page`; passing `forward: true` and leaving `findNext` off
     // searches the same way and does report. A new search is therefore the
     // absence of the option.
-    this.#findRequestId = this.#host.webContents.findInPage(query, { forward: true });
+    this.#findRequestId = this.#page.findInPage(query, { forward: true });
   }
 
   /** `n` / `N`, which continue the query the prompt left behind. */
   findNext(forward: boolean): void {
     if (this.#closed || this.#find === "") return;
-    this.#findRequestId = this.#host.webContents.findInPage(this.#find, {
+    this.#findRequestId = this.#page.findInPage(this.#find, {
       forward,
       findNext: true,
     });
@@ -229,7 +241,7 @@ export class Tab {
     this.#menu = null;
     if (params === null || id === null || this.#closed) return;
 
-    const { webContents } = this.#host;
+    const webContents = this.#page;
     const actions: Record<string, () => void> = {
       "nav.back": () => webContents.navigationHistory.goBack(),
       "nav.forward": () => webContents.navigationHistory.goForward(),
@@ -263,7 +275,7 @@ export class Tab {
     if (this.#closed) return;
     this.#closed = true;
     this.#menu = null;
-    this.#host.webContents.close();
+    this.#page.close();
   }
 
   /** Marks a Tab whose page died on its own as inert, without touching it. */
@@ -273,7 +285,7 @@ export class Tab {
   }
 
   #send(channel: string, payload?: unknown): void {
-    if (!this.#closed) this.#host.webContents.send(channel, payload);
+    if (!this.#closed) this.#page.send(channel, payload);
   }
 
   #update(patch: {
@@ -298,11 +310,11 @@ export class Tab {
   #endFind(): void {
     this.#find = "";
     this.#findRequestId = null;
-    this.#host.webContents.stopFindInPage("clearSelection");
+    this.#page.stopFindInPage("clearSelection");
   }
 
   #track(): void {
-    const { webContents } = this.#host;
+    const webContents = this.#page;
 
     webContents.on("page-title-updated", (_event, title) => this.#update({ title }));
     webContents.on("did-start-loading", () => this.#update({ loading: true }));
@@ -436,7 +448,7 @@ export class Tab {
   #openContextMenu(params: ContextMenuParams): void {
     if (this.#closed) return;
     this.#menu = params;
-    const { navigationHistory } = this.#host.webContents;
+    const { navigationHistory } = this.#page;
     const state: ContextMenuState = {
       x: params.x,
       y: params.y,
