@@ -43,6 +43,17 @@ export const DEFAULT_SETTINGS: Settings = {
   downloadDir: undefined,
 };
 
+/**
+ * One thing wrong with the user's config: which field, and why it could not be
+ * used. Invalid values are ignored rather than fatal, so a problem is the only
+ * trace left of something the user meant.
+ */
+export interface Problem {
+  /** Dotted path as the file spells it, e.g. "newtab.timezone". */
+  field: string;
+  reason: string;
+}
+
 export interface UserConfig {
   /** Contents of config.css, injected unlayered so it outranks everything Kvist ships. */
   css: string;
