@@ -78,6 +78,15 @@ export interface ContextMenuState {
   css: string;
 }
 
+/**
+ * A line of feedback for the echo area. `error` is for something the user
+ * did or wrote that could not be used; `info` for everything else.
+ */
+export interface Message {
+  text: string;
+  level: "info" | "error";
+}
+
 export interface Rect {
   x: number;
   y: number;
@@ -181,6 +190,8 @@ export const toChrome = table({
   downloads: channel<DownloadState[]>(),
   /** `:downloads` asking the chrome to pin its panel open, or let it go again. */
   downloadsToggle: channel<void>(),
+  /** The echo area: what to show, or null to clear it. */
+  message: channel<Message | null>(),
 });
 
 /**
