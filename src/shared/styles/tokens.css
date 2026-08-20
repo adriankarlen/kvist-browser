@@ -35,7 +35,7 @@
     --kv-space: 8px;
     --kv-radius: 0;
     --kv-border-width: 2px;
-    --kv-border-color: var(--kv-color-highlight-med);
+    --kv-border-color: var(--kv-color-overlay);
 
     /* Gap around and between the chrome panels; 0 sits everything flush. */
     --kv-chrome-inset: var(--kv-space);
