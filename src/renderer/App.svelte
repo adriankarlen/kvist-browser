@@ -1,17 +1,12 @@
 <script lang="ts">
   import "./App.css";
-  import { browser, contentRect } from "./lib/browser.svelte";
+  import { browser, contentRect, downloads, find, messages, ui, vim } from "./lib/stores.svelte";
   import CommandLine from "./lib/CommandLine.svelte";
-  import { downloads } from "./lib/downloads.svelte";
   import DownloadsPanel from "./lib/DownloadsPanel.svelte";
-  import { find } from "./lib/find.svelte";
   import FindLine from "./lib/FindLine.svelte";
-  import { messages } from "./lib/messages.svelte";
   import MessageLine from "./lib/MessageLine.svelte";
   import Omnibox from "./lib/Omnibox.svelte";
-  import { ui } from "./lib/settings.svelte";
   import TabStrip from "./lib/TabStrip.svelte";
-  import { vim } from "./lib/vim.svelte";
 </script>
 
 <div class="kv-shell" class:is-sidebar={ui.tabOrientation === "vertical"}>

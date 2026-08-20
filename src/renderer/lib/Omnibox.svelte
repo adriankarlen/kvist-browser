@@ -1,9 +1,7 @@
 <script lang="ts">
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
-  import { browser } from "./browser.svelte";
-  import { ui } from "./settings.svelte";
-  import { vim } from "./vim.svelte";
+  import { browser, ui, vim } from "./stores.svelte";
 
   let input = $state<HTMLInputElement>();
   let draft = $state("");

@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./MessageLine.css";
-  import { messages } from "./messages.svelte";
+  import { messages } from "./stores.svelte";
 
   const message = $derived(messages.current);
 </script>
