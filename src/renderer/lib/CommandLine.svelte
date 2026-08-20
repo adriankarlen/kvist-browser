@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./CommandLine.css";
-  import { vim } from "./vim.svelte";
+  import { vim } from "./stores.svelte";
 
   let input = $state<HTMLInputElement>();
   let line = $state("");

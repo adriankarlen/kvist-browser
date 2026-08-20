@@ -3,7 +3,7 @@
   import { formatBytes } from "../../shared/bytes";
   import type { DownloadState } from "../../shared/ipc";
   import { formatEta, formatRate, percent } from "../../shared/progress";
-  import { downloads } from "./downloads.svelte";
+  import { downloads } from "./stores.svelte";
 
   const MARKERS: Record<DownloadState["status"], string> = {
     progressing: ">",
@@ -75,7 +75,7 @@
             class="kv-downloads__cancel"
             type="button"
             title="Cancel download"
-            onclick={() => window.kvist.cancelDownload(entry.id)}
+            onclick={() => downloads.cancel(entry.id)}
           >
             x
           </button>

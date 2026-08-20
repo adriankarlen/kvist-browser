@@ -1,7 +1,6 @@
 <script lang="ts">
   import "./FindLine.css";
-  import { find } from "./find.svelte";
-  import { vim } from "./vim.svelte";
+  import { find, vim } from "./stores.svelte";
 
   let input = $state<HTMLInputElement>();
   // Bound rather than read from the store: the store's query is already ""
