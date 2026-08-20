@@ -1,6 +1,7 @@
 import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "electron";
-import { DEFAULT_SETTINGS } from "../shared/config";
+import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
+import { composeContextMenuCss } from "./context-menu";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { KeyInput, KeySource } from "./vim";
@@ -31,15 +32,28 @@ export class TabManager {
   #activeId: TabId | null = null;
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
   #nextId = 1;
-  homepage = DEFAULT_SETTINGS.homepage;
-  focusPage = DEFAULT_SETTINGS.tabFocusPage;
-  /** tokens + menu styles + the user's config.css, composed in index.ts. */
-  contextMenuCss = "";
+  #homepage = DEFAULT_SETTINGS.homepage;
+  #focusPage = DEFAULT_SETTINGS.tabFocusPage;
+  /** tokens + menu styles + the user's config.css, composed for the page's menu. */
+  #menuCss = "";
 
   constructor(window: BaseWindow, pagePreload: string, emit: (state: BrowserState) => void) {
     this.#window = window;
     this.#pagePreload = pagePreload;
     this.#emit = emit;
+  }
+
+  /**
+   * Where a new tab starts, whether a tab action hands the keyboard back to
+   * the page, and how the page's context menu is themed.
+   */
+  applySettings(config: {
+    css: string;
+    settings: Pick<Settings, "homepage" | "tabFocusPage">;
+  }): void {
+    this.#homepage = config.settings.homepage;
+    this.#focusPage = config.settings.tabFocusPage;
+    this.#menuCss = composeContextMenuCss(config.css);
   }
 
   /** The tab every "do this to the page" verb belongs to, if there is one. */
@@ -112,7 +126,7 @@ export class TabManager {
     this.activate(this.#order[next]!);
   }
 
-  create(url: string = this.homepage, options: CreateOptions = {}): void {
+  create(url: string = this.#homepage, options: CreateOptions = {}): void {
     const tab = this.#adopt(url, options.after);
     this.#window.contentView.addChildView(this.#viewOf(tab));
     tab.setVisible(false);
@@ -143,7 +157,7 @@ export class TabManager {
     target.setBounds(this.#contentRect);
     // Hiding the view that had focus drops it back on the chrome, so without
     // this the page stops receiving keys after the first tab switch.
-    if (this.focusPage) {
+    if (this.#focusPage) {
       target.focus();
       // Mode follows the tab you land on, not the one you left.
       this.#onEditable(target.editable);
@@ -199,7 +213,7 @@ export class TabManager {
       inPageNavigation: (page, url) => this.#onInPageNavigation(page, url),
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
-      menuCss: () => this.contextMenuCss,
+      menuCss: () => this.#menuCss,
     };
   }
 

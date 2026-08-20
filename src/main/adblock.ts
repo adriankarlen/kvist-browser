@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { ElectronBlocker } from "@ghostery/adblocker-electron";
 import { app, session, type WebContents } from "electron";
 import { parse } from "tldts-experimental";
+import type { Settings } from "../shared/config";
 
 let blocker: ElectronBlocker | undefined;
 let enabled = false;
@@ -195,7 +196,10 @@ async function engine(): Promise<ElectronBlocker> {
  * Failure here is not fatal: the first run needs the network to fetch lists,
  * and a browser that starts without blocking beats one that does not start.
  */
-export async function setAdblockEnabled(next: boolean): Promise<void> {
+export async function applySettings(config: {
+  settings: Pick<Settings, "adblock">;
+}): Promise<void> {
+  const next = config.settings.adblock;
   if (next === enabled) return;
 
   try {

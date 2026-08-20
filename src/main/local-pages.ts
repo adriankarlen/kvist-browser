@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
-import { DEFAULT_SETTINGS, type NewtabLink } from "../shared/config";
+import { DEFAULT_SETTINGS, type NewtabLink, type Settings } from "../shared/config";
 
 /** Config-driven data for the newtab page, served as config.json. */
 export interface NewtabConfig {
@@ -48,14 +48,19 @@ export function registerKvistScheme(): void {
   ]);
 }
 
-/** Called when config.css changes; picked up on the next local page load. */
-export function updateLocalPageCss(css: string): void {
-  currentCss = css;
-}
-
-/** Called when the [newtab] settings change; picked up on the next newtab page load. */
-export function updateNewtabConfig(config: NewtabConfig): void {
-  currentConfig = config;
+/**
+ * What the local pages take from the config: the user's stylesheet, and the
+ * clock and links the new tab page shows. Picked up on the next page load.
+ */
+export function applySettings(config: {
+  css: string;
+  settings: Pick<Settings, "newtabLinks" | "newtabTimezone">;
+}): void {
+  currentCss = config.css;
+  currentConfig = {
+    links: config.settings.newtabLinks,
+    timezone: config.settings.newtabTimezone,
+  };
 }
 
 function pageDir(page: LocalPage): string {

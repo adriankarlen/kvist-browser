@@ -1,17 +1,15 @@
 import { join } from "node:path";
 import { app, BrowserWindow, ipcMain, session } from "electron";
 import type { UserConfig } from "../shared/config";
-import { refreshCosmeticStyles, setAdblockEnabled } from "./adblock";
+import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
+  applySettings as applyLocalPageSettings,
   registerKvistProtocol,
   registerKvistScheme,
-  updateLocalPageCss,
-  updateNewtabConfig,
 } from "./local-pages";
 import { createActions } from "./actions";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
 import { registerCommands } from "./commands";
-import { composeContextMenuCss } from "./context-menu";
 import { loadConfig, watchConfig } from "./config";
 import { Downloads } from "./downloads";
 import { DEFAULT_KEYBINDS } from "./keybinds";
@@ -28,7 +26,54 @@ const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
-function createWindow(config: UserConfig, downloads: Downloads): void {
+/**
+ * Session-scoped, so it is attached once and outlives every window; a window
+ * only subscribes. Must be in place before the first tab can start a transfer.
+ */
+const downloads = new Downloads();
+
+/**
+ * The windows' own share of a config change. A window subscribes once it has
+ * loaded and drops out when it closes, so a second window neither misses a
+ * change nor keeps answering after it is gone.
+ */
+const windows = new Set<(config: UserConfig) => void>();
+
+/** The config as it stands, for a window opened after the last change. */
+let current: UserConfig;
+
+/**
+ * Applies run one at a time. Blocking has to fetch its lists, which can take
+ * seconds, and two saves during that would otherwise race — leaving whichever
+ * config finished last in charge rather than whichever the user wrote last.
+ */
+let applying: Promise<void> = Promise.resolve();
+
+/**
+ * Fans a config change out to everything that cares. The order is
+ * load-bearing: blocking attaches to the session before the first tab can
+ * load, and the local pages are configured before one can be served. Startup
+ * and reload are the same call.
+ */
+function applyConfig(config: UserConfig): Promise<void> {
+  applying = applying
+    .then(async () => {
+      await applyAdblockSettings(config);
+      applyLocalPageSettings(config);
+      downloads.applySettings(config);
+      // Published only once everything process-wide has taken it, so a window
+      // opened mid-apply cannot configure itself from a config the local pages
+      // and the blocker have not seen yet.
+      current = config;
+      for (const apply of windows) apply(config);
+    })
+    // A failure must not poison the queue: the next save has to be applied
+    // even if this one could not be.
+    .catch((error: unknown) => console.error("kvist: could not apply the config:", error));
+  return applying;
+}
+
+function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -48,20 +93,10 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
     void win.loadFile(rendererHtml);
   }
 
-  tabs.homepage = config.settings.homepage;
-  tabs.focusPage = config.settings.tabFocusPage;
+  tabs.applySettings(current);
 
-  const applyConfig = (next: UserConfig): void => {
-    tabs.homepage = next.settings.homepage;
-    tabs.focusPage = next.settings.tabFocusPage;
-    downloads.configuredDir = next.settings.downloadDir;
-    tabs.contextMenuCss = composeContextMenuCss(next.css);
-    void setAdblockEnabled(next.settings.adblock);
-    updateLocalPageCss(next.css);
-    updateNewtabConfig({
-      links: next.settings.newtabLinks,
-      timezone: next.settings.newtabTimezone,
-    });
+  const applyToWindow = (next: UserConfig): void => {
+    tabs.applySettings(next);
     if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
   };
 
@@ -123,16 +158,17 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
     }
   };
 
+  win.on("closed", () => windows.delete(applyToWindow));
+
   win.webContents.once("did-finish-load", () => {
-    applyConfig(config);
+    windows.add(applyToWindow);
+    applyToWindow(current);
     send(CHANNELS.mode, vim.mode);
     // A transfer can outlive the window it started in, so the chrome is told
     // what is already going rather than only what starts from now on.
     send(CHANNELS.downloads, downloads.list);
     tabs.create();
   });
-
-  void watchConfig(applyConfig);
 
   const on = (channel: string, handler: (...args: never[]) => void): void => {
     ipcMain.on(channel, (event, ...args) => {
@@ -164,27 +200,15 @@ function createWindow(config: UserConfig, downloads: Downloads): void {
 }
 
 void app.whenReady().then(async () => {
-  const config = await loadConfig();
-  // Attaches to the default session, so it has to be in place before the first
-  // tab starts loading.
-  await setAdblockEnabled(config.settings.adblock);
-  updateLocalPageCss(config.css);
-  updateNewtabConfig({
-    links: config.settings.newtabLinks,
-    timezone: config.settings.newtabTimezone,
-  });
+  downloads.attach(session.defaultSession);
+  await applyConfig(await loadConfig());
   registerKvistProtocol();
 
-  // Session-scoped, so it is attached once and outlives the window; the window
-  // only subscribes. Must be in place before the first tab can start a transfer.
-  const downloads = new Downloads();
-  downloads.configuredDir = config.settings.downloadDir;
-  downloads.attach(session.defaultSession);
-
-  createWindow(config, downloads);
+  createWindow();
+  void watchConfig((next) => void applyConfig(next));
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(config, downloads);
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
