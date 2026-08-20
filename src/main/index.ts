@@ -43,17 +43,27 @@ const windows = new Set<(config: UserConfig) => void>();
 let current: UserConfig;
 
 /**
+ * Applies run one at a time. Blocking has to fetch its lists, which can take
+ * seconds, and two saves during that would otherwise race — leaving whichever
+ * config finished last in charge rather than whichever the user wrote last.
+ */
+let applying: Promise<void> = Promise.resolve();
+
+/**
  * Fans a config change out to everything that cares. The order is
  * load-bearing: blocking attaches to the session before the first tab can
  * load, and the local pages are configured before one can be served. Startup
  * and reload are the same call.
  */
-async function applyConfig(config: UserConfig): Promise<void> {
-  current = config;
-  await applyAdblockSettings(config);
-  applyLocalPageSettings(config);
-  downloads.applySettings(config);
-  for (const apply of windows) apply(config);
+function applyConfig(config: UserConfig): Promise<void> {
+  applying = applying.then(async () => {
+    current = config;
+    await applyAdblockSettings(config);
+    applyLocalPageSettings(config);
+    downloads.applySettings(config);
+    for (const apply of windows) apply(config);
+  });
+  return applying;
 }
 
 function createWindow(): void {
