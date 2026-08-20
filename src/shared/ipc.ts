@@ -90,92 +90,161 @@ export interface Point {
   y: number;
 }
 
-export const CHANNELS = {
-  state: "kvist:state",
-  config: "kvist:config",
-  mode: "kvist:mode",
-  setMode: "kvist:set-mode",
+/**
+ * A channel and what it carries. `payload` is a phantom: it never exists at
+ * runtime, it is only how the type travels from the table to both sides.
+ */
+export interface Channel<T> {
+  readonly payload: T;
+}
+
+export type AnyTable = Record<string, Channel<unknown>>;
+export type PayloadOf<C> = C extends Channel<infer T> ? T : never;
+
+/**
+ * The method a channel becomes. A channel that carries nothing takes no
+ * argument, and one that may carry nothing takes an optional one.
+ */
+type Send<P> = [P] extends [void]
+  ? () => void
+  : undefined extends P
+    ? (payload?: P) => void
+    : (payload: P) => void;
+
+/** Sending half of a table: one method per channel, named as the channel is. */
+export type Senders<T extends AnyTable> = {
+  [K in keyof T]: Send<PayloadOf<T[K]>>;
+};
+
+/** Receiving half: `on` + the channel name, returning an unsubscribe. */
+export type Listeners<T extends AnyTable> = {
+  [K in keyof T & string as `on${Capitalize<K>}`]: (
+    listener: (payload: PayloadOf<T[K]>) => void,
+  ) => () => void;
+};
+
+/**
+ * The wire name, derived rather than written: a channel is declared once, and
+ * `kvist:cancel-download` is nobody's business but this file's.
+ */
+export function wire(key: string): string {
+  return `kvist:${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+}
+
+const claimed = new Set<string>();
+
+/**
+ * Channels share one wire namespace, so two tables must not claim one name —
+ * a collision would deliver each table's payload to the other's handler.
+ */
+export function table<T extends AnyTable>(channels: T): T {
+  for (const key of Object.keys(channels)) {
+    const name = wire(key);
+    if (claimed.has(name)) throw new Error(`kvist: duplicate channel ${name}`);
+    claimed.add(name);
+  }
+  return channels;
+}
+
+function channel<T>(): Channel<T> {
+  return {} as Channel<T>;
+}
+
+/** Chrome → main. Accepted only from the window's own webContents. */
+export const toMain = table({
+  setContentRect: channel<Rect>(),
+  runCommand: channel<string>(),
+  setMode: channel<Mode>(),
+  createTab: channel<string | undefined>(),
+  closeTab: channel<TabId>(),
+  activateTab: channel<TabId>(),
+  navigate: channel<string>(),
+  goBack: channel<void>(),
+  goForward: channel<void>(),
+  reload: channel<void>(),
+  toggleDevTools: channel<void>(),
+  /** Restarts the search from the top; an empty query stops it. */
+  find: channel<string>(),
+  stopFind: channel<void>(),
+  /** Stops one transfer; anything that has already stopped is left alone. */
+  cancelDownload: channel<number>(),
+});
+
+/** Main → chrome. Full snapshots, never diffs. */
+export const toChrome = table({
+  state: channel<BrowserState>(),
+  config: channel<UserConfig>(),
+  mode: channel<Mode>(),
+  /** Chrome focuses its own omnibox input; main only moves window focus. */
+  focusOmnibox: channel<void>(),
+  findResult: channel<FindResult | null>(),
+  downloads: channel<DownloadState[]>(),
+  /** `:downloads` asking the chrome to pin its panel open, or let it go again. */
+  downloadsToggle: channel<void>(),
+});
+
+/**
+ * A tab → main. Accepted only from a webContents that owns a Tab, which is
+ * why these are a table of their own rather than a flag on the one above.
+ */
+export const fromPage = table({
   /** A tab reporting whether its focused element accepts typing. */
-  pageEditable: "kvist:page-editable",
-  /** Asks a tab to blur whatever it has focused, so normal mode regains the keyboard. */
-  pageBlur: "kvist:page-blur",
-  pageScroll: "kvist:page-scroll",
-  /** Hint mode: main drives, the page renders the labels and does the matching. */
-  hintsShow: "kvist:hints-show",
-  hintsKey: "kvist:hints-key",
-  hintsHide: "kvist:hints-hide",
+  pageEditable: channel<boolean>(),
   /**
    * Where the page wants a real click. Chromium marks history entries created
    * without user activation as skippable, and a scripted `.click()` has none —
    * so back would silently stop working after following a hint.
    */
-  hintsClick: "kvist:hints-click",
+  hintsClick: channel<Point>(),
   /** The page reporting that hinting ended, so main can leave hint mode. */
-  hintsDone: "kvist:hints-done",
-  /** Find-in-page: the chrome types the query, main drives `findInPage`. */
-  find: "kvist:find",
-  findStop: "kvist:find-stop",
-  /** Match counts back to the chrome; null once a find is over. */
-  findResult: "kvist:find-result",
-  /**
-   * Context menu: main tells the tab what to show (or null to hide), the tab
-   * reports the picked item id back — or null when dismissed without one.
-   * Rendered in the page itself, because the tab's view paints over the
-   * chrome and chrome HTML can never overlap it.
-   */
-  contextMenu: "kvist:context-menu",
-  contextMenuPick: "kvist:context-menu-pick",
-  /**
-   * Downloads: full-snapshot list to the chrome, plus a nudge for `:downloads`.
-   * The panel's pinned flag is the chrome's own state, so the command can only
-   * ask it to toggle — the same shape as `focusOmnibox`.
-   */
-  downloads: "kvist:downloads",
-  downloadsToggle: "kvist:downloads-toggle",
-  /**
-   * Cancels one transfer by id. A channel of its own rather than a command,
-   * because main's `runCommand` drops back to normal mode afterwards and
-   * clicking a button in the chrome must not do that to a user who is typing.
-   */
-  downloadCancel: "kvist:download-cancel",
-  runCommand: "kvist:run-command",
-  contentRect: "kvist:content-rect",
-  createTab: "kvist:create-tab",
-  focusOmnibox: "kvist:focus-omnibox",
-  closeTab: "kvist:close-tab",
-  activateTab: "kvist:activate-tab",
-  navigate: "kvist:navigate",
-  goBack: "kvist:go-back",
-  goForward: "kvist:go-forward",
-  reload: "kvist:reload",
-  toggleDevTools: "kvist:toggle-devtools",
-} as const;
+  hintsDone: channel<void>(),
+  /** The picked item id, or null when the menu was dismissed without one. */
+  contextMenuPick: channel<string | null>(),
+});
 
-export interface KvistApi {
-  onState: (listener: (state: BrowserState) => void) => () => void;
-  onConfig: (listener: (config: UserConfig) => void) => () => void;
-  onMode: (listener: (mode: Mode) => void) => () => void;
-  setMode: (mode: Mode) => void;
-  onFindResult: (listener: (result: FindResult | null) => void) => () => void;
-  onDownloads: (listener: (downloads: DownloadState[]) => void) => () => void;
-  /** `:downloads` asking the chrome to pin its panel open, or let it go again. */
-  onToggleDownloads: (listener: () => void) => () => void;
-  /** Stops one transfer; anything that has already stopped is left alone. */
-  cancelDownload: (id: number) => void;
-  /** Restarts the search from the top; an empty query stops it. */
-  find: (query: string) => void;
-  stopFind: () => void;
-  runCommand: (line: string) => void;
-  /** Chrome asks main to focus the omnibox input; main only moves window focus. */
-  onFocusOmnibox: (listener: () => void) => () => void;
-  /** Reports the chrome's content rectangle so the active tab can be positioned under it. */
-  setContentRect: (rect: Rect) => void;
-  createTab: (url?: string) => void;
-  closeTab: (id: TabId) => void;
-  activateTab: (id: TabId) => void;
-  navigate: (url: string) => void;
-  goBack: () => void;
-  goForward: () => void;
-  reload: () => void;
-  toggleDevTools: () => void;
+/** Main → a tab. Hint mode, scrolling and the context menu all live in the page. */
+export const toPage = table({
+  /** Asks a tab to blur whatever it has focused, so normal mode regains the keyboard. */
+  pageBlur: channel<void>(),
+  pageScroll: channel<ScrollCommand>(),
+  hintsShow: channel<void>(),
+  hintsKey: channel<string>(),
+  hintsHide: channel<void>(),
+  /**
+   * What to show, or null to hide. Rendered in the page itself, because the
+   * tab's view paints over the chrome and chrome HTML can never overlap it.
+   */
+  contextMenu: channel<ContextMenuState | null>(),
+});
+
+/**
+ * Binds a table's sending half to a transport. Pure, so the tables can be
+ * bound to `ipcRenderer`, to a `webContents`, or to nothing in a test.
+ */
+export function senders<T extends AnyTable>(
+  channels: T,
+  send: (channel: string, payload?: unknown) => void,
+): Senders<T> {
+  const api: Record<string, (payload?: unknown) => void> = {};
+  for (const key of Object.keys(channels)) {
+    const name = wire(key);
+    api[key] = (payload) => send(name, payload);
+  }
+  return api as Senders<T>;
 }
+
+/** Binds a table's receiving half; `subscribe` answers with an unsubscribe. */
+export function listeners<T extends AnyTable>(
+  channels: T,
+  subscribe: (channel: string, listener: (payload: unknown) => void) => () => void,
+): Listeners<T> {
+  const api: Record<string, (listener: (payload: unknown) => void) => () => void> = {};
+  for (const key of Object.keys(channels)) {
+    const name = wire(key);
+    api[`on${key[0]!.toUpperCase()}${key.slice(1)}`] = (listener) => subscribe(name, listener);
+  }
+  return api as unknown as Listeners<T>;
+}
+
+/** What the preload exposes as `window.kvist`, derived from the two tables. */
+export type KvistApi = Senders<typeof toMain> & Listeners<typeof toChrome>;

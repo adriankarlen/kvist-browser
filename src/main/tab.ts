@@ -1,13 +1,15 @@
 import type { ContextMenuParams } from "electron";
 import {
-  CHANNELS,
   type ContextMenuState,
   type FindResult,
   type Point,
   type Rect,
   type ScrollCommand,
+  senders,
+  type Senders,
   type TabId,
   type TabState,
+  toPage,
 } from "../shared/ipc";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
@@ -54,6 +56,8 @@ export class Tab {
    * and every use of it is guarded by `#closed` instead.
    */
   #page: PageContents;
+  /** The page's half of the channel tables, bound to this tab's webContents. */
+  #toPage: Senders<typeof toPage>;
   #on: TabCallbacks;
   #closed = false;
 
@@ -77,6 +81,9 @@ export class Tab {
     this.id = id;
     this.#host = host;
     this.#page = host.webContents;
+    this.#toPage = senders(toPage, (channel, payload) => {
+      if (!this.#closed) this.#page.send(channel, payload);
+    });
     this.#on = callbacks;
     this.#title = url;
     this.#url = url;
@@ -138,23 +145,23 @@ export class Tab {
   }
 
   blur(): void {
-    this.#send(CHANNELS.pageBlur);
+    this.#toPage.pageBlur();
   }
 
   scroll(command: ScrollCommand): void {
-    this.#send(CHANNELS.pageScroll, command);
+    this.#toPage.pageScroll(command);
   }
 
   showHints(): void {
-    this.#send(CHANNELS.hintsShow);
+    this.#toPage.hintsShow();
   }
 
   hintKey(key: string): void {
-    this.#send(CHANNELS.hintsKey, key);
+    this.#toPage.hintsKey(key);
   }
 
   hideHints(): void {
-    this.#send(CHANNELS.hintsHide);
+    this.#toPage.hintsHide();
   }
 
   /**
@@ -264,7 +271,7 @@ export class Tab {
   hideContextMenu(): void {
     if (this.#menu === null) return;
     this.#menu = null;
-    this.#send(CHANNELS.contextMenu, null);
+    this.#toPage.contextMenu(null);
   }
 
   /**
@@ -282,10 +289,6 @@ export class Tab {
   markDead(): void {
     this.#closed = true;
     this.#menu = null;
-  }
-
-  #send(channel: string, payload?: unknown): void {
-    if (!this.#closed) this.#page.send(channel, payload);
   }
 
   #update(patch: {
@@ -458,6 +461,6 @@ export class Tab {
       }),
       css: this.#on.menuCss(),
     };
-    this.#send(CHANNELS.contextMenu, state);
+    this.#toPage.contextMenu(state);
   }
 }

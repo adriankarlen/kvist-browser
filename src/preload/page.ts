@@ -1,7 +1,14 @@
 import { ipcRenderer } from "electron";
-import { CHANNELS, type ContextMenuState, type ScrollCommand } from "../shared/ipc";
+import { fromPage, listeners, senders, toPage } from "../shared/ipc";
 import * as hints from "./hints";
 import * as menu from "./menu";
+
+const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+const fromMain = listeners(toPage, (channel, listener) => {
+  const handler = (_event: unknown, payload: unknown): void => listener(payload);
+  ipcRenderer.on(channel, handler);
+  return () => void ipcRenderer.off(channel, handler);
+});
 
 /**
  * Runs in every tab, and deliberately exposes nothing over contextBridge — a
@@ -52,7 +59,7 @@ function report(): void {
   const editable = isEditable(document.activeElement);
   if (editable === last) return;
   last = editable;
-  ipcRenderer.send(CHANNELS.pageEditable, editable);
+  pageToMain.pageEditable(editable);
 }
 
 // focusout fires before the next element takes focus, so let focus settle
@@ -60,7 +67,7 @@ function report(): void {
 document.addEventListener("focusin", report, true);
 document.addEventListener("focusout", () => setTimeout(report, 0), true);
 
-ipcRenderer.on(CHANNELS.pageBlur, () => {
+fromMain.onPageBlur(() => {
   (document.activeElement as HTMLElement | null)?.blur();
   report();
 });
@@ -73,7 +80,7 @@ if (document.readyState === "loading") {
 
 const LINE = 60;
 
-ipcRenderer.on(CHANNELS.pageScroll, (_event, command: ScrollCommand) => {
+fromMain.onPageScroll((command) => {
   switch (command) {
     case "down":
       scrollBy(0, LINE);
@@ -96,19 +103,19 @@ ipcRenderer.on(CHANNELS.pageScroll, (_event, command: ScrollCommand) => {
   }
 });
 
-ipcRenderer.on(CHANNELS.hintsShow, () => {
-  if (!hints.show()) ipcRenderer.send(CHANNELS.hintsDone);
+fromMain.onHintsShow(() => {
+  if (!hints.show()) pageToMain.hintsDone();
 });
 
-ipcRenderer.on(CHANNELS.hintsKey, (_event, input: string) => {
+fromMain.onHintsKey((input) => {
   const { done, click } = hints.key(input);
-  if (click) ipcRenderer.send(CHANNELS.hintsClick, click);
-  if (done) ipcRenderer.send(CHANNELS.hintsDone);
+  if (click) pageToMain.hintsClick(click);
+  if (done) pageToMain.hintsDone();
 });
 
-ipcRenderer.on(CHANNELS.hintsHide, () => hints.hide());
+fromMain.onHintsHide(() => hints.hide());
 
-ipcRenderer.on(CHANNELS.contextMenu, (_event, state: ContextMenuState | null) => {
+fromMain.onContextMenu((state) => {
   if (state === null) menu.hide();
   else menu.show(state);
 });
@@ -118,7 +125,7 @@ ipcRenderer.on(CHANNELS.contextMenu, (_event, state: ContextMenuState | null) =>
 document.addEventListener(
   "scroll",
   () => {
-    if (hints.hide()) ipcRenderer.send(CHANNELS.hintsDone);
+    if (hints.hide()) pageToMain.hintsDone();
   },
   true,
 );

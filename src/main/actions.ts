@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import { CHANNELS } from "../shared/ipc";
+import { senders, toChrome } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
 import type { TabManager } from "./tab-manager";
@@ -76,9 +76,9 @@ export function createActions(
   win: BrowserWindow,
   quit: () => void,
 ): Actions {
-  const send = (channel: string, payload?: unknown): void => {
+  const chrome = senders(toChrome, (channel, payload) => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
-  };
+  });
 
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
@@ -124,7 +124,7 @@ export function createActions(
       chrome: focusChrome,
       omnibox: () => {
         focusChrome();
-        send(CHANNELS.focusOmnibox, null);
+        chrome.focusOmnibox();
       },
     },
     insert: {
@@ -137,7 +137,7 @@ export function createActions(
     },
     downloads: {
       // The panel's pinned flag is the chrome's, so this can only ask.
-      toggle: () => send(CHANNELS.downloadsToggle),
+      toggle: () => chrome.downloadsToggle(),
       clear: () => downloads.clear(),
       cancel: (arg) => {
         if (arg === undefined) {

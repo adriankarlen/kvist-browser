@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow, ipcMain, session } from "electron";
+import { app, BrowserWindow, session } from "electron";
 import type { UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
@@ -8,7 +8,8 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
-import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
+import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
+import { handle } from "./ipc";
 import { createCommands } from "./commands";
 import { loadConfig, watchConfig } from "./config";
 import { Downloads } from "./downloads";
@@ -73,6 +74,17 @@ function applyConfig(config: UserConfig): Promise<void> {
   return applying;
 }
 
+/**
+ * The one payload that is destructured the moment it lands. Everything on
+ * these channels comes from our own preload, but a click point that is not a
+ * point would take the main process down with it rather than being ignored.
+ */
+function isPoint(value: unknown): value is Point {
+  if (typeof value !== "object" || value === null) return false;
+  const { x, y } = value as Point;
+  return Number.isFinite(x) && Number.isFinite(y);
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -83,9 +95,11 @@ function createWindow(): void {
     webPreferences: { preload },
   });
 
-  const tabs = new TabManager(win, pagePreload, (state) => {
-    if (!win.isDestroyed()) win.webContents.send(CHANNELS.state, state);
+  const chrome = senders(toChrome, (channel, payload) => {
+    if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
+
+  const tabs = new TabManager(win, pagePreload, (state) => chrome.state(state));
 
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -97,14 +111,10 @@ function createWindow(): void {
 
   const applyToWindow = (next: UserConfig): void => {
     tabs.applySettings(next);
-    if (!win.isDestroyed()) win.webContents.send(CHANNELS.config, next);
+    chrome.config(next);
   };
 
-  const send = (channel: string, payload: unknown): void => {
-    if (!win.isDestroyed()) win.webContents.send(channel, payload);
-  };
-
-  downloads.observe((list) => send(CHANNELS.downloads, list));
+  downloads.observe((list) => chrome.downloads(list));
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
   const actions = createActions(tabs, downloads, win, () => app.quit());
@@ -117,7 +127,7 @@ function createWindow(): void {
         console.error(`kvist: unknown command ${name}`);
       }
     },
-    (mode) => send(CHANNELS.mode, mode),
+    (mode) => chrome.mode(mode),
   );
 
   tabs.interceptKeys((input, source) => vim.handleKey(input, source));
@@ -126,28 +136,23 @@ function createWindow(): void {
   // focus is invisible to the mode machine.
   interceptKeys(win.webContents, "chrome", (input, source) => vim.handleKey(input, source));
   tabs.observeEditable((editable) => vim.setEditable(editable));
-  tabs.observeFind((result) => send(CHANNELS.findResult, result));
+  tabs.observeFind((result) => chrome.findResult(result));
   tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
 
-  // Not routed through `on`: the sender is a tab, not the chrome. TabManager
-  // rejects any webContents that does not own a tab.
-  ipcMain.on(CHANNELS.pageEditable, (event, editable: boolean) => {
-    tabs.setEditable(event.sender, editable);
-  });
-
-  ipcMain.on(CHANNELS.hintsDone, (event) => {
-    if (tabs.ownsTab(event.sender)) vim.endHints();
-  });
-
-  ipcMain.on(CHANNELS.hintsClick, (event, point: Point) => {
-    tabs.tabFor(event.sender)?.click(point);
-  });
-
-  // The sender is a tab, like the hint channels — a webContents that owns no
-  // tab gets no answer to its pick.
-  ipcMain.on(CHANNELS.contextMenuPick, (event, id: string | null) => {
-    tabs.tabFor(event.sender)?.pickContextMenu(id);
-  });
+  // A tab's own channels, accepted from a webContents that owns one and from
+  // nothing else.
+  const releasePage = handle(
+    fromPage,
+    {
+      pageEditable: (editable, sender) => tabs.setEditable(sender, editable),
+      hintsDone: () => vim.endHints(),
+      hintsClick: (point, sender) => {
+        if (isPoint(point)) tabs.tabFor(sender)?.click(point);
+      },
+      contextMenuPick: (id, sender) => tabs.tabFor(sender)?.pickContextMenu(id),
+    },
+    (sender) => tabs.ownsTab(sender),
+  );
 
   const runCommand = (line: string): void => {
     const [name = "", ...rest] = line.trim().split(/\s+/);
@@ -163,39 +168,45 @@ function createWindow(): void {
   win.webContents.once("did-finish-load", () => {
     windows.add(applyToWindow);
     applyToWindow(current);
-    send(CHANNELS.mode, vim.mode);
+    chrome.mode(vim.mode);
     // A transfer can outlive the window it started in, so the chrome is told
     // what is already going rather than only what starts from now on.
-    send(CHANNELS.downloads, downloads.list);
+    chrome.downloads(downloads.list);
     tabs.create();
   });
 
-  const on = (channel: string, handler: (...args: never[]) => void): void => {
-    ipcMain.on(channel, (event, ...args) => {
-      if (event.sender === win.webContents) handler(...(args as never[]));
-    });
-  };
+  const releaseChrome = handle(
+    toMain,
+    {
+      setContentRect: (rect) => tabs.setContentRect(rect),
+      createTab: (url) => tabs.create(url),
+      closeTab: (id) => tabs.close(id),
+      activateTab: (id) => tabs.activate(id),
+      navigate: (url) => tabs.active?.navigate(url),
+      goBack: () => tabs.active?.goBack(),
+      goForward: () => tabs.active?.goForward(),
+      reload: () => tabs.active?.reload(),
+      toggleDevTools: () => tabs.active?.toggleDevTools(),
+      find: (query) => tabs.active?.find(query),
+      stopFind: () => tabs.active?.stopFind(),
+      setMode: (mode) => vim.requestMode(mode),
+      cancelDownload: (id) => downloads.cancel(id),
+      runCommand: (line) => {
+        runCommand(line);
+        // Commands come from a typed `:foo` and end in normal mode. UI-driven
+        // chrome→main channels (`cancelDownload` etc.) must not call this path,
+        // or clicking a button would drop mode out from under a user who is
+        // typing.
+        vim.requestMode("normal");
+      },
+    },
+    (sender) => sender === win.webContents,
+  );
 
-  on(CHANNELS.contentRect, (rect: Rect) => tabs.setContentRect(rect));
-  on(CHANNELS.createTab, (url?: string) => tabs.create(url));
-  on(CHANNELS.closeTab, (id: TabId) => tabs.close(id));
-  on(CHANNELS.activateTab, (id: TabId) => tabs.activate(id));
-  on(CHANNELS.navigate, (url: string) => tabs.active?.navigate(url));
-  on(CHANNELS.goBack, () => tabs.active?.goBack());
-  on(CHANNELS.goForward, () => tabs.active?.goForward());
-  on(CHANNELS.reload, () => tabs.active?.reload());
-  on(CHANNELS.toggleDevTools, () => tabs.active?.toggleDevTools());
-  on(CHANNELS.find, (query: string) => tabs.active?.find(query));
-  on(CHANNELS.findStop, () => tabs.active?.stopFind());
-  on(CHANNELS.setMode, (mode: Mode) => vim.requestMode(mode));
-  on(CHANNELS.downloadCancel, (id: number) => downloads.cancel(id));
-  on(CHANNELS.runCommand, (line: string) => {
-    runCommand(line);
-    // Commands come from a typed `:foo` and end in normal mode. UI-driven
-    // chrome→main channels (`downloadCancel` etc.) must not call this path,
-    // or clicking a button would drop mode out from under a user who is
-    // typing.
-    vim.requestMode("normal");
+  // ipcMain is process-global; these belong to this window.
+  win.on("closed", () => {
+    releaseChrome();
+    releasePage();
   });
 }
 
