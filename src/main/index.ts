@@ -56,13 +56,20 @@ let applying: Promise<void> = Promise.resolve();
  * and reload are the same call.
  */
 function applyConfig(config: UserConfig): Promise<void> {
-  applying = applying.then(async () => {
-    current = config;
-    await applyAdblockSettings(config);
-    applyLocalPageSettings(config);
-    downloads.applySettings(config);
-    for (const apply of windows) apply(config);
-  });
+  applying = applying
+    .then(async () => {
+      await applyAdblockSettings(config);
+      applyLocalPageSettings(config);
+      downloads.applySettings(config);
+      // Published only once everything process-wide has taken it, so a window
+      // opened mid-apply cannot configure itself from a config the local pages
+      // and the blocker have not seen yet.
+      current = config;
+      for (const apply of windows) apply(config);
+    })
+    // A failure must not poison the queue: the next save has to be applied
+    // even if this one could not be.
+    .catch((error: unknown) => console.error("kvist: could not apply the config:", error));
   return applying;
 }
 
