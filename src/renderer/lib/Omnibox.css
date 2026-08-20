@@ -12,6 +12,7 @@
     color: var(--kv-mode-fg);
     background: var(--kv-mode-bg);
     text-transform: uppercase;
+    border-radius: var(--kv-radius);
   }
 
   .kv-mode.is-insert {
