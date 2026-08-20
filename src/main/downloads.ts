@@ -2,6 +2,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import { app, type DownloadItem, type Session, type WebContents } from "electron";
+import type { Settings } from "../shared/config";
 import type { DownloadState, DownloadStatus } from "../shared/ipc";
 import { type RateState, sampleRate, startRate } from "./download-rate";
 import { resolveDownloadDir, uniqueSavePath } from "./downloads-path";
@@ -35,8 +36,8 @@ export class Downloads {
   /** Save paths claimed by transfers that have not landed on disk yet. */
   #reserved = new Set<string>();
   #timer: NodeJS.Timeout | undefined;
-  /** Reassigned from the config, like `TabManager.homepage`. */
-  configuredDir: string | undefined;
+  /** Where the user asked for their downloads, if they asked. */
+  #configuredDir: string | undefined;
   #nextId = 1;
 
   /**
@@ -45,6 +46,11 @@ export class Downloads {
    * session-scoped and outlives any window, which is why this is not the
    * window's to attach — the observers below are.
    */
+  /** Where transfers are saved; the next one picks it up. */
+  applySettings(config: { settings: Pick<Settings, "downloadDir"> }): void {
+    this.#configuredDir = config.settings.downloadDir;
+  }
+
   attach(session: Session): void {
     session.on("will-download", (_event, item, webContents) => {
       this.#adopt(item);
@@ -97,7 +103,7 @@ export class Downloads {
 
   #directory(): string {
     const dir = resolveDownloadDir({
-      configured: this.configuredDir,
+      configured: this.#configuredDir,
       env: process.env.XDG_DOWNLOAD_DIR,
       // Chromium reads `user-dirs.dirs` for this on Linux, and answers $HOME
       // when that file names no download directory.
