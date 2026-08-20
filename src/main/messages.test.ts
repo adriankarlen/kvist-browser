@@ -45,6 +45,24 @@ test("everything said also reaches the log", () => {
   expect(console.error).toHaveBeenCalledWith("kvist: unknown command :nope");
 });
 
+test("what is up outlasts the moment it was said", () => {
+  const { messages } = createMessages();
+  expect(messages.current).toBeNull();
+
+  messages.warn("config.toml: homepage: not a string");
+  // A window that loads after this has to be able to find out.
+  expect(messages.current).toEqual({
+    text: "config.toml: homepage: not a string",
+    level: "error",
+  });
+
+  messages.say("cleared 1 download");
+  expect(messages.current).toEqual({ text: "cleared 1 download", level: "info" });
+
+  messages.keyPressed();
+  expect(messages.current).toBeNull();
+});
+
 test("the next keystroke clears what is up, and only once", () => {
   const { messages, seen } = createMessages();
 

@@ -199,6 +199,9 @@ function createWindow(): void {
     // A transfer can outlive the window it started in, so the chrome is told
     // what is already going rather than only what starts from now on.
     chrome.downloads(downloads.list);
+    // Same for anything already said: a config the user has broken is found
+    // while the window is still loading, and the echo area was not there yet.
+    chrome.message(messages.current);
     tabs.create();
   });
 

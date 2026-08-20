@@ -10,8 +10,8 @@ import type { Message } from "../shared/ipc";
  */
 export class Messages {
   #observers = new Set<(message: Message | null) => void>();
-  /** Whether anything is up, so a keystroke knows if it has work to do. */
-  #showing = false;
+  /** What is up, so a window that loads later can be told what it missed. */
+  #current: Message | null = null;
 
   /**
    * A window subscribing. Answers with the way to stop, because the messages
@@ -20,6 +20,15 @@ export class Messages {
   observe(observer: (message: Message | null) => void): () => void {
     this.#observers.add(observer);
     return () => void this.#observers.delete(observer);
+  }
+
+  /**
+   * What the echo area should be showing. A window reads this once it has
+   * loaded: anything said before that — a config the user has already broken,
+   * found while the window was still opening — has nowhere to arrive.
+   */
+  get current(): Message | null {
+    return this.#current;
   }
 
   /** Something worth saying that nothing went wrong about. */
@@ -40,13 +49,13 @@ export class Messages {
    * thing worth saying is usually the thing the user is waiting for.
    */
   keyPressed(): void {
-    if (!this.#showing) return;
-    this.#showing = false;
+    if (this.#current === null) return;
+    this.#current = null;
     this.#emit(null);
   }
 
   #show(message: Message): void {
-    this.#showing = true;
+    this.#current = message;
     this.#emit(message);
   }
 
