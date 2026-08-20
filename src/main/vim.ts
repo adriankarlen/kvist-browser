@@ -1,4 +1,5 @@
 import type { Mode } from "../shared/ipc";
+import type { CommandName } from "./commands";
 import type { Keybind } from "./keybinds";
 
 export interface KeyInput {
@@ -19,12 +20,12 @@ export class Vim {
   #mode: Mode = "normal";
   #pending = "";
   #keybinds: readonly Keybind[];
-  #execute: (name: string, arg?: string) => void;
+  #execute: (name: CommandName, arg?: string) => void;
   #onMode: (mode: Mode) => void;
 
   constructor(
     keybinds: readonly Keybind[],
-    execute: (name: string, arg?: string) => void,
+    execute: (name: CommandName, arg?: string) => void,
     onMode: (mode: Mode) => void,
   ) {
     this.#keybinds = keybinds;

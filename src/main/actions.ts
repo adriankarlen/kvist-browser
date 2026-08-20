@@ -1,50 +1,72 @@
 import type { BrowserWindow } from "electron";
-import type { ScrollCommand } from "../shared/ipc";
 import { CHANNELS } from "../shared/ipc";
+import { resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
 import type { TabManager } from "./tab-manager";
 
+/**
+ * Every action takes the command's argument, because a command line is the
+ * only thing that calls one and a command line carries strings. Most ignore it.
+ */
+export type Action = (arg?: string) => void;
+
+/**
+ * What Kvist can be asked to do. Anything that has to interpret a string —
+ * a URL, a download row — interprets it here: the command table is data, and
+ * data cannot parse.
+ */
 export interface Actions {
   tabs: {
-    create(url?: string): void;
-    close(): void;
-    next(): void;
-    prev(): void;
+    /** A URL or search terms; the homepage when there is nothing to open. */
+    create: Action;
+    close: Action;
+    next: Action;
+    prev: Action;
   };
   nav: {
-    back(): void;
-    forward(): void;
-    reload(): void;
-    open(url: string): void;
+    back: Action;
+    forward: Action;
+    reload: Action;
+    /** A URL or search terms, as typed. */
+    open: Action;
   };
   scroll: {
-    to(direction: ScrollCommand): void;
+    down: Action;
+    up: Action;
+    halfDown: Action;
+    halfUp: Action;
+    top: Action;
+    bottom: Action;
   };
   find: {
-    next(): void;
-    prev(): void;
-    clear(): void;
+    next: Action;
+    prev: Action;
+    clear: Action;
   };
   hints: {
-    show(): void;
-    hide(): void;
-    key(char: string): void;
+    show: Action;
+    hide: Action;
+    /** The key a hint label is matched against. */
+    key: Action;
   };
   focus: {
-    page(): void;
-    chrome(): void;
-    omnibox(): void;
-    blurPage(): void;
+    page: Action;
+    chrome: Action;
+    omnibox: Action;
+  };
+  insert: {
+    /** Leaving insert mode: drop whatever the page focused, take the keyboard back. */
+    leave: Action;
   };
   downloads: {
-    toggle(): void;
-    clear(): void;
+    toggle: Action;
+    clear: Action;
     /** The nth row as the panel shows it, or the newest live transfer. */
-    cancel(target?: string): void;
+    cancel: Action;
   };
   app: {
-    quit(): void;
-    devtools(): void;
+    quit: Action;
+    devtools: Action;
   };
 }
 
@@ -58,9 +80,13 @@ export function createActions(
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   };
 
+  const focusChrome = (): void => {
+    if (!win.isDestroyed()) win.webContents.focus();
+  };
+
   return {
     tabs: {
-      create: (url?) => tabs.create(url),
+      create: (arg) => tabs.create(arg ? resolveUrl(arg) : undefined),
       close: () => tabs.closeActive(),
       next: () => tabs.step(1),
       prev: () => tabs.step(-1),
@@ -69,10 +95,17 @@ export function createActions(
       back: () => tabs.active?.goBack(),
       forward: () => tabs.active?.goForward(),
       reload: () => tabs.active?.reload(),
-      open: (url) => tabs.active?.navigate(url),
+      open: (arg) => {
+        if (arg) tabs.active?.navigate(resolveUrl(arg));
+      },
     },
     scroll: {
-      to: (direction) => tabs.active?.scroll(direction),
+      down: () => tabs.active?.scroll("down"),
+      up: () => tabs.active?.scroll("up"),
+      halfDown: () => tabs.active?.scroll("half-down"),
+      halfUp: () => tabs.active?.scroll("half-up"),
+      top: () => tabs.active?.scroll("top"),
+      bottom: () => tabs.active?.scroll("bottom"),
     },
     find: {
       next: () => tabs.active?.findNext(true),
@@ -82,34 +115,44 @@ export function createActions(
     hints: {
       show: () => tabs.active?.showHints(),
       hide: () => tabs.active?.hideHints(),
-      key: (char) => tabs.active?.hintKey(char),
+      key: (arg) => {
+        if (arg) tabs.active?.hintKey(arg);
+      },
     },
     focus: {
       page: () => tabs.active?.focus(),
-      chrome: () => {
-        if (!win.isDestroyed()) win.webContents.focus();
-      },
+      chrome: focusChrome,
       omnibox: () => {
-        if (!win.isDestroyed()) win.webContents.focus();
+        focusChrome();
         send(CHANNELS.focusOmnibox, null);
       },
-      blurPage: () => tabs.active?.blur(),
+    },
+    insert: {
+      // Blur first: the page keeps the keyboard until whatever it focused
+      // gives it up, and focusing the page again is what takes it back.
+      leave: () => {
+        tabs.active?.blur();
+        tabs.active?.focus();
+      },
     },
     downloads: {
       // The panel's pinned flag is the chrome's, so this can only ask.
       toggle: () => send(CHANNELS.downloadsToggle),
       clear: () => downloads.clear(),
-      cancel: (target) => {
+      cancel: (arg) => {
+        if (arg === undefined) {
+          downloads.cancelNth();
+          return;
+        }
         // A command argument is a string; anything that is not a row number is
         // no row at all, and cancelling the newest transfer instead would be a
         // surprising answer to a typo.
-        if (target === undefined) return downloads.cancelNth();
-        const n = Number(target);
-        if (!Number.isInteger(n) || n < 1) {
-          console.error(`kvist: not a download row: ${target}`);
+        const row = Number(arg);
+        if (!Number.isInteger(row) || row < 1) {
+          console.error(`kvist: not a download row: ${arg}`);
           return;
         }
-        downloads.cancelNth(n);
+        downloads.cancelNth(row);
       },
     },
     app: {

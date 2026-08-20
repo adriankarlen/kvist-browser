@@ -1,105 +1,86 @@
-import { resolveUrl } from "../shared/url";
-import type { Actions } from "./actions";
+import type { Action, Actions } from "./actions";
 
-export interface CommandDef {
-  name: string;
-  aliases?: string[];
-  execute: (arg?: string) => void;
-}
+/**
+ * Every command Kvist has, and the action each one runs. Names are written out
+ * rather than derived from the actions they point at: a command name is the
+ * closest thing Kvist has to a published surface — keybinds use it, `:lines`
+ * use it, and user keybinds will — so renaming a method must not rename a
+ * command under a user's config.
+ */
+function table(actions: Actions) {
+  return {
+    "tab.new": actions.tabs.create,
+    "tab.close": actions.tabs.close,
+    "tab.next": actions.tabs.next,
+    "tab.prev": actions.tabs.prev,
 
-export class CommandRegistry {
-  #handlers = new Map<string, (arg?: string) => void>();
-  #aliases = new Map<string, string>();
+    "nav.back": actions.nav.back,
+    "nav.forward": actions.nav.forward,
+    "nav.reload": actions.nav.reload,
+    "nav.open": actions.nav.open,
 
-  register(def: CommandDef): void {
-    this.#handlers.set(def.name, def.execute);
-    for (const alias of def.aliases ?? []) {
-      this.#aliases.set(alias, def.name);
-    }
-  }
+    "scroll.down": actions.scroll.down,
+    "scroll.up": actions.scroll.up,
+    "scroll.half-down": actions.scroll.halfDown,
+    "scroll.half-up": actions.scroll.halfUp,
+    "scroll.top": actions.scroll.top,
+    "scroll.bottom": actions.scroll.bottom,
 
-  /** Runs a command by name or alias. Returns false if the command is unknown. */
-  execute(nameOrAlias: string, arg?: string): boolean {
-    const handler =
-      this.#handlers.get(nameOrAlias) ?? this.#handlers.get(this.#aliases.get(nameOrAlias) ?? "");
-    if (!handler) return false;
-    handler(arg);
-    return true;
-  }
+    "find.next": actions.find.next,
+    "find.prev": actions.find.prev,
+    "find.clear": actions.find.clear,
 
-  /** Resolves an alias to its canonical name, or undefined if unknown. */
-  resolve(nameOrAlias: string): string | undefined {
-    if (this.#handlers.has(nameOrAlias)) return nameOrAlias;
-    const name = this.#aliases.get(nameOrAlias);
-    return name !== undefined && this.#handlers.has(name) ? name : undefined;
-  }
-}
+    "hints.show": actions.hints.show,
+    "hints.hide": actions.hints.hide,
+    "hints.key": actions.hints.key,
 
-/** Populates a registry with every built-in command. */
-export function registerCommands(api: Actions): CommandRegistry {
-  const registry = new CommandRegistry();
+    "focus.page": actions.focus.page,
+    "focus.chrome": actions.focus.chrome,
+    "focus.omnibox": actions.focus.omnibox,
 
-  const r = (name: string, execute: (arg?: string) => void, aliases?: string[]): void => {
-    registry.register({ name, execute, aliases });
+    "insert.leave": actions.insert.leave,
+
+    "downloads.toggle": actions.downloads.toggle,
+    "downloads.clear": actions.downloads.clear,
+    "downloads.cancel": actions.downloads.cancel,
+
+    "app.quit": actions.app.quit,
+    "app.devtools": actions.app.devtools,
   };
+}
 
-  // Tabs
-  r("tab.new", (url) => api.tabs.create(url ? resolveUrl(url) : undefined), ["tabnew"]);
-  r("tab.close", () => api.tabs.close(), ["q", "quit"]);
-  r("tab.next", () => api.tabs.next());
-  r("tab.prev", () => api.tabs.prev());
+/** Every name a keybind or a `:line` may use; a typo stops compiling. */
+export type CommandName = keyof ReturnType<typeof table>;
 
-  // Navigation
-  r("nav.back", () => api.nav.back());
-  r("nav.forward", () => api.nav.forward());
-  r("nav.reload", () => api.nav.reload(), ["r", "reload"]);
-  r(
-    "nav.open",
-    (url) => {
-      if (url) api.nav.open(resolveUrl(url));
+/** The short forms a user types at the prompt. */
+const ALIASES = {
+  q: "tab.close",
+  quit: "tab.close",
+  qa: "app.quit",
+  tabnew: "tab.new",
+  r: "nav.reload",
+  reload: "nav.reload",
+  o: "nav.open",
+  open: "nav.open",
+  downloads: "downloads.toggle",
+  devtools: "app.devtools",
+} satisfies Record<string, CommandName>;
+
+export interface Commands {
+  /** Runs a command by name or alias. False when there is no such command. */
+  execute(nameOrAlias: string, arg?: string): boolean;
+}
+
+export function createCommands(actions: Actions): Commands {
+  const commands: Record<string, Action | undefined> = table(actions);
+  const aliases: Record<string, string | undefined> = ALIASES;
+
+  return {
+    execute(nameOrAlias, arg) {
+      const run = commands[nameOrAlias] ?? commands[aliases[nameOrAlias] ?? ""];
+      if (!run) return false;
+      run(arg);
+      return true;
     },
-    ["o", "open"],
-  );
-
-  // Scrolling
-  r("scroll.down", () => api.scroll.to("down"));
-  r("scroll.up", () => api.scroll.to("up"));
-  r("scroll.half-down", () => api.scroll.to("half-down"));
-  r("scroll.half-up", () => api.scroll.to("half-up"));
-  r("scroll.top", () => api.scroll.to("top"));
-  r("scroll.bottom", () => api.scroll.to("bottom"));
-
-  // Find
-  r("find.next", () => api.find.next());
-  r("find.prev", () => api.find.prev());
-  r("find.clear", () => api.find.clear());
-
-  // Hints
-  r("hints.show", () => api.hints.show());
-  r("hints.hide", () => api.hints.hide());
-  r("hints.key", (key) => {
-    if (key) api.hints.key(key);
-  });
-
-  // Focus
-  r("focus.page", () => api.focus.page());
-  r("focus.chrome", () => api.focus.chrome());
-  r("focus.omnibox", () => api.focus.omnibox());
-
-  // Downloads
-  r("downloads.toggle", () => api.downloads.toggle(), ["downloads"]);
-  r("downloads.clear", () => api.downloads.clear());
-  r("downloads.cancel", (row) => api.downloads.cancel(row));
-
-  // Mode support — compound actions the mode machine needs
-  r("insert.leave", () => {
-    api.focus.blurPage();
-    api.focus.page();
-  });
-
-  // Application
-  r("app.quit", () => api.app.quit(), ["qa"]);
-  r("app.devtools", () => api.app.devtools(), ["devtools"]);
-
-  return registry;
+  };
 }

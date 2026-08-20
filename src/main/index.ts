@@ -9,7 +9,7 @@ import {
 } from "./local-pages";
 import { createActions } from "./actions";
 import { CHANNELS, type Mode, type Point, type Rect, type TabId } from "../shared/ipc";
-import { registerCommands } from "./commands";
+import { createCommands } from "./commands";
 import { loadConfig, watchConfig } from "./config";
 import { Downloads } from "./downloads";
 import { DEFAULT_KEYBINDS } from "./keybinds";
@@ -108,7 +108,7 @@ function createWindow(): void {
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
   const actions = createActions(tabs, downloads, win, () => app.quit());
-  const commands = registerCommands(actions);
+  const commands = createCommands(actions);
 
   const vim = new Vim(
     DEFAULT_KEYBINDS,

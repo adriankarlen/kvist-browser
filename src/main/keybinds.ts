@@ -1,4 +1,5 @@
 import type { Mode } from "../shared/ipc";
+import type { CommandName } from "./commands";
 
 export interface Keybind {
   /** The mode in which this binding is active. */
@@ -6,7 +7,7 @@ export interface Keybind {
   /** Key or key sequence, e.g. `"t"`, `"gt"`, `"Escape"`. */
   keys: string;
   /** Command to execute (omit for a pure mode transition). */
-  command?: string;
+  command?: CommandName;
   /** Mode to enter after the command runs. */
   enter?: Mode;
 }
