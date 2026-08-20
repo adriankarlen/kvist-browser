@@ -43,7 +43,7 @@ window.kvist.onDownloads((list) => {
 
 // `:downloads` pins the panel open. Nothing pins itself: a transfer shows the
 // panel on its own, and pinning is only how you get at the ones that finished.
-window.kvist.onToggleDownloads(() => {
+window.kvist.onDownloadsToggle(() => {
   state.pinned = !state.pinned;
 });
 

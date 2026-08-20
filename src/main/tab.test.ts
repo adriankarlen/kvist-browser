@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { expect, test, vi } from "vite-plus/test";
-import { CHANNELS, type FindResult } from "../shared/ipc";
+import { type FindResult, wire } from "../shared/ipc";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
@@ -349,7 +349,7 @@ test("the context menu carries the styling of the moment", () => {
   host.emit("context-menu", EVENT, menuParams({ x: 10, y: 20, linkURL: "https://link.example" }));
 
   const menu = host.sent.at(-1)!;
-  expect(menu.channel).toBe(CHANNELS.contextMenu);
+  expect(menu.channel).toBe(wire("contextMenu"));
   expect(menu.payload).toMatchObject({ x: 10, y: 20, css: ".kv-menu { color: red }" });
 
   tab.pickContextMenu("link.copy");
@@ -366,7 +366,7 @@ test("a pick after the menu is gone does nothing", () => {
   tab.pickContextMenu("link.copy");
   expect(copyText).not.toHaveBeenCalled();
   // The document is gone, so no hide is sent to it either.
-  expect(host.sent.filter(({ channel }) => channel === CHANNELS.contextMenu)).toHaveLength(1);
+  expect(host.sent.filter(({ channel }) => channel === wire("contextMenu"))).toHaveLength(1);
 });
 
 test("keys reach the mode machine, and a consumed key is swallowed", () => {

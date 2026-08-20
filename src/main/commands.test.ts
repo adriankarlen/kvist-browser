@@ -1,6 +1,6 @@
 import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { CHANNELS } from "../shared/ipc";
+import { wire } from "../shared/ipc";
 import { createActions } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
@@ -101,9 +101,9 @@ test("every command reaches the thing it names", () => {
     ["focus.page", () => active.focus.mock.calls.length === 1],
     // Ahead of focus.omnibox below, which is the only other caller of it.
     ["focus.chrome", () => win.webContents.focus.mock.calls.length === 1],
-    ["focus.omnibox", () => sent.some(({ channel }) => channel === CHANNELS.focusOmnibox)],
+    ["focus.omnibox", () => sent.some(({ channel }) => channel === wire("focusOmnibox"))],
     ["insert.leave", () => active.blur.mock.calls.length === 1],
-    ["downloads.toggle", () => sent.some(({ channel }) => channel === CHANNELS.downloadsToggle)],
+    ["downloads.toggle", () => sent.some(({ channel }) => channel === wire("downloadsToggle"))],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
     ["app.quit", () => quit.mock.calls.length === 1],
@@ -227,11 +227,11 @@ test("focusing the omnibox moves window focus first, then asks the chrome", () =
   commands.execute("focus.omnibox");
 
   expect(win.webContents.focus).toHaveBeenCalled();
-  expect(sent).toEqual([{ channel: CHANNELS.focusOmnibox, payload: null }]);
+  expect(sent).toEqual([{ channel: wire("focusOmnibox"), payload: undefined }]);
 });
 
 test("the downloads panel is asked to toggle, since the flag is the chrome's", () => {
   const { commands, sent } = createStubs();
   commands.execute("downloads");
-  expect(sent).toEqual([{ channel: CHANNELS.downloadsToggle, payload: undefined }]);
+  expect(sent).toEqual([{ channel: wire("downloadsToggle"), payload: undefined }]);
 });
