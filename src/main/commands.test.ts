@@ -74,7 +74,7 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, sent, quit } = createStubs();
+  const { commands, tabs, active, downloads, sent, win, quit } = createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -99,7 +99,8 @@ test("every command reaches the thing it names", () => {
     ["hints.hide", () => active.hideHints.mock.calls.length === 1],
     ["hints.key", () => true], // needs an argument; covered on its own below
     ["focus.page", () => active.focus.mock.calls.length === 1],
-    ["focus.chrome", () => true],
+    // Ahead of focus.omnibox below, which is the only other caller of it.
+    ["focus.chrome", () => win.webContents.focus.mock.calls.length === 1],
     ["focus.omnibox", () => sent.some(({ channel }) => channel === CHANNELS.focusOmnibox)],
     ["insert.leave", () => active.blur.mock.calls.length === 1],
     ["downloads.toggle", () => sent.some(({ channel }) => channel === CHANNELS.downloadsToggle)],
