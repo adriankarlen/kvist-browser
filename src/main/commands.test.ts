@@ -4,6 +4,7 @@ import { wire } from "../shared/ipc";
 import { createActions } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
+import type { Messages } from "./messages";
 import type { TabManager } from "./tab-manager";
 
 // A spy left in place would silence the next test's console; a failed
@@ -50,14 +51,16 @@ function createStubs() {
     },
   };
   const quit = vi.fn();
+  const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
 
   const actions = createActions(
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,
     win as unknown as BrowserWindow,
+    messages as unknown as Messages,
     quit,
   );
-  return { commands: createCommands(actions), tabs, active, downloads, sent, win, quit };
+  return { commands: createCommands(actions), tabs, active, downloads, sent, win, messages, quit };
 }
 
 test("an unknown command is reported rather than thrown", () => {
@@ -185,8 +188,7 @@ test("each scroll command names its own movement", () => {
 });
 
 test("a download row is a number, and anything else is no row at all", () => {
-  const { commands, downloads } = createStubs();
-  const complaints = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { commands, downloads, messages } = createStubs();
 
   commands.execute("downloads.cancel", "2");
   expect(downloads.cancelNth).toHaveBeenCalledWith(2);
@@ -195,9 +197,11 @@ test("a download row is a number, and anything else is no row at all", () => {
   commands.execute("downloads.cancel");
   expect(downloads.cancelNth).toHaveBeenLastCalledWith();
 
+  // A typo is told to the user rather than to a console they cannot see.
   for (const typo of ["x", "0", "-1", "1.5"]) commands.execute("downloads.cancel", typo);
   expect(downloads.cancelNth).toHaveBeenCalledTimes(2);
-  expect(complaints).toHaveBeenCalledTimes(4);
+  expect(messages.warn).toHaveBeenCalledTimes(4);
+  expect(messages.warn).toHaveBeenLastCalledWith("not a download row: 1.5");
 });
 
 test("hints.key passes the key on, and nothing without one", () => {

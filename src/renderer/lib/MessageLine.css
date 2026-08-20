@@ -1,0 +1,22 @@
+@layer kvist.components {
+  .kv-message {
+    --kv-line-prompt-fg: var(--kv-message-prompt-fg);
+  }
+
+  .kv-message.is-error {
+    --kv-line-prompt-fg: var(--kv-message-error-fg);
+  }
+
+  .kv-message__text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--kv-message-fg);
+  }
+
+  .kv-message.is-error .kv-message__text {
+    color: var(--kv-message-error-fg);
+  }
+}
