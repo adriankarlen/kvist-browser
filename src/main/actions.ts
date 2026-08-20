@@ -66,26 +66,26 @@ export function createActions(
       prev: () => tabs.step(-1),
     },
     nav: {
-      back: () => tabs.goBack(),
-      forward: () => tabs.goForward(),
-      reload: () => tabs.reload(),
-      open: (url) => tabs.navigate(url),
+      back: () => tabs.active?.goBack(),
+      forward: () => tabs.active?.goForward(),
+      reload: () => tabs.active?.reload(),
+      open: (url) => tabs.active?.navigate(url),
     },
     scroll: {
-      to: (direction) => tabs.scrollActive(direction),
+      to: (direction) => tabs.active?.scroll(direction),
     },
     find: {
-      next: () => tabs.findNext(true),
-      prev: () => tabs.findNext(false),
-      clear: () => tabs.stopFind(),
+      next: () => tabs.active?.findNext(true),
+      prev: () => tabs.active?.findNext(false),
+      clear: () => tabs.active?.stopFind(),
     },
     hints: {
-      show: () => tabs.showHints(),
-      hide: () => tabs.hideHints(),
-      key: (char) => tabs.hintKey(char),
+      show: () => tabs.active?.showHints(),
+      hide: () => tabs.active?.hideHints(),
+      key: (char) => tabs.active?.hintKey(char),
     },
     focus: {
-      page: () => tabs.focusActive(),
+      page: () => tabs.active?.focus(),
       chrome: () => {
         if (!win.isDestroyed()) win.webContents.focus();
       },
@@ -93,7 +93,7 @@ export function createActions(
         if (!win.isDestroyed()) win.webContents.focus();
         send(CHANNELS.focusOmnibox, null);
       },
-      blurPage: () => tabs.blurActive(),
+      blurPage: () => tabs.active?.blur(),
     },
     downloads: {
       // The panel's pinned flag is the chrome's, so this can only ask.
@@ -114,7 +114,7 @@ export function createActions(
     },
     app: {
       quit,
-      devtools: () => tabs.toggleDevTools(),
+      devtools: () => tabs.active?.toggleDevTools(),
     },
   };
 }

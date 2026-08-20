@@ -16,10 +16,17 @@ const FETCH_TIMEOUT = 15 * 1000;
 type InjectMessage = Parameters<ElectronBlocker["onInjectCosmeticFilters"]>[2];
 
 /** Key of the URL-scoped sheet per tab, so navigation can replace it. */
-const urlSheets = new WeakMap<WebContents, string>();
+/**
+ * What cosmetic filtering needs from a page: its own stylesheet surface. A tab
+ * reaches this through the `PageHost` seam, which is narrower than a
+ * `WebContents`.
+ */
+type CosmeticTarget = Pick<WebContents, "isDestroyed" | "insertCSS" | "removeInsertedCSS">;
+
+const urlSheets = new WeakMap<CosmeticTarget, string>();
 
 /** Tail of the replacement chain per tab, so overlapping navigations queue. */
-const replacements = new WeakMap<WebContents, Promise<void>>();
+const replacements = new WeakMap<CosmeticTarget, Promise<void>>();
 
 /**
  * `$generichide` and friends are matched against the whole URL, path included,
@@ -28,7 +35,7 @@ const replacements = new WeakMap<WebContents, Promise<void>>();
  * serialized because two navigations in flight at once would otherwise race
  * over which key is current.
  */
-function replaceUrlSheet(sender: WebContents, styles: string): void {
+function replaceUrlSheet(sender: CosmeticTarget, styles: string): void {
   const swap = async (): Promise<void> => {
     if (sender.isDestroyed()) return;
 
@@ -109,7 +116,7 @@ function injectCosmetics(
 }
 
 /** Reapplies the URL-scoped hiding rules after a history-API navigation. */
-export function refreshCosmeticStyles(sender: WebContents, url: string): void {
+export function refreshCosmeticStyles(sender: CosmeticTarget, url: string): void {
   if (!blocker || !enabled || sender.isDestroyed()) return;
 
   const parsed = parse(url);
