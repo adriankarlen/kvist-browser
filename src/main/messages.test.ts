@@ -1,6 +1,10 @@
-import { expect, test, vi } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import type { Message } from "../shared/ipc";
 import { Messages } from "./messages";
+
+// Every case here stubs the console; a stub left behind would silence the
+// next test's log, and a failed assertion must not be able to leave one.
+afterEach(() => vi.restoreAllMocks());
 
 function createMessages() {
   const messages = new Messages();
