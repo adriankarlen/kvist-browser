@@ -16,7 +16,7 @@
 import { ipcRenderer } from "electron";
 import { type ContextMenuState, fromPage, senders } from "../shared/ipc";
 
-const toMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
 
 let host: HTMLElement | undefined;
 
@@ -31,7 +31,7 @@ function close(id: string | null): void {
   host.remove();
   host = undefined;
   removeListeners();
-  toMain.contextMenuPick(id);
+  pageToMain.contextMenuPick(id);
 }
 
 function onOutside(event: MouseEvent): void {

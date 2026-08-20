@@ -8,7 +8,7 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
-import { fromPage, senders, toChrome, toMain } from "../shared/ipc";
+import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
 import { handle } from "./ipc";
 import { createCommands } from "./commands";
 import { loadConfig, watchConfig } from "./config";
@@ -74,6 +74,17 @@ function applyConfig(config: UserConfig): Promise<void> {
   return applying;
 }
 
+/**
+ * The one payload that is destructured the moment it lands. Everything on
+ * these channels comes from our own preload, but a click point that is not a
+ * point would take the main process down with it rather than being ignored.
+ */
+function isPoint(value: unknown): value is Point {
+  if (typeof value !== "object" || value === null) return false;
+  const { x, y } = value as Point;
+  return Number.isFinite(x) && Number.isFinite(y);
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -135,7 +146,9 @@ function createWindow(): void {
     {
       pageEditable: (editable, sender) => tabs.setEditable(sender, editable),
       hintsDone: () => vim.endHints(),
-      hintsClick: (point, sender) => tabs.tabFor(sender)?.click(point),
+      hintsClick: (point, sender) => {
+        if (isPoint(point)) tabs.tabFor(sender)?.click(point);
+      },
       contextMenuPick: (id, sender) => tabs.tabFor(sender)?.pickContextMenu(id),
     },
     (sender) => tabs.ownsTab(sender),

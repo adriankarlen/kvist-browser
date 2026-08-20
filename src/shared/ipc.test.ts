@@ -1,5 +1,15 @@
 import { expect, test, vi } from "vite-plus/test";
-import { type Channel, fromPage, listeners, senders, toChrome, toMain, toPage, wire } from "./ipc";
+import {
+  type Channel,
+  fromPage,
+  listeners,
+  senders,
+  table,
+  toChrome,
+  toMain,
+  toPage,
+  wire,
+} from "./ipc";
 
 test("a wire name is the channel name, kebabed and namespaced", () => {
   expect(wire("state")).toBe("kvist:state");
@@ -8,10 +18,19 @@ test("a wire name is the channel name, kebabed and namespaced", () => {
 });
 
 test("no two channels claim the same wire name", () => {
-  const names = [toMain, toChrome, fromPage, toPage].flatMap((table) =>
-    Object.keys(table).map(wire),
+  const names = [toMain, toChrome, fromPage, toPage].flatMap((channels) =>
+    Object.keys(channels).map(wire),
   );
   expect(new Set(names).size).toBe(names.length);
+});
+
+test("a table claiming a name another already has is refused", () => {
+  // `find` belongs to toMain; a second table taking it would have each one's
+  // payload arriving at the other's handler.
+  expect(() => table({ find: {} as Channel<string> })).toThrow("kvist:find");
+  // A free name is fine, and is not free the second time.
+  expect(() => table({ probeChannel: {} as Channel<void> })).not.toThrow();
+  expect(() => table({ probeChannel: {} as Channel<void> })).toThrow("kvist:probe-channel");
 });
 
 test("a sender sends its own channel and the payload it was given", () => {

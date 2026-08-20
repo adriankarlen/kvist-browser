@@ -98,8 +98,8 @@ export interface Channel<T> {
   readonly payload: T;
 }
 
-type AnyTable = Record<string, Channel<unknown>>;
-type PayloadOf<C> = C extends Channel<infer T> ? T : never;
+export type AnyTable = Record<string, Channel<unknown>>;
+export type PayloadOf<C> = C extends Channel<infer T> ? T : never;
 
 /**
  * The method a channel becomes. A channel that carries nothing takes no
@@ -137,7 +137,7 @@ const claimed = new Set<string>();
  * Channels share one wire namespace, so two tables must not claim one name —
  * a collision would deliver each table's payload to the other's handler.
  */
-function table<T extends AnyTable>(channels: T): T {
+export function table<T extends AnyTable>(channels: T): T {
   for (const key of Object.keys(channels)) {
     const name = wire(key);
     if (claimed.has(name)) throw new Error(`kvist: duplicate channel ${name}`);

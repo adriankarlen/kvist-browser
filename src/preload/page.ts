@@ -3,7 +3,7 @@ import { fromPage, listeners, senders, toPage } from "../shared/ipc";
 import * as hints from "./hints";
 import * as menu from "./menu";
 
-const toMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
 const fromMain = listeners(toPage, (channel, listener) => {
   const handler = (_event: unknown, payload: unknown): void => listener(payload);
   ipcRenderer.on(channel, handler);
@@ -59,7 +59,7 @@ function report(): void {
   const editable = isEditable(document.activeElement);
   if (editable === last) return;
   last = editable;
-  toMain.pageEditable(editable);
+  pageToMain.pageEditable(editable);
 }
 
 // focusout fires before the next element takes focus, so let focus settle
@@ -104,13 +104,13 @@ fromMain.onPageScroll((command) => {
 });
 
 fromMain.onHintsShow(() => {
-  if (!hints.show()) toMain.hintsDone();
+  if (!hints.show()) pageToMain.hintsDone();
 });
 
 fromMain.onHintsKey((input) => {
   const { done, click } = hints.key(input);
-  if (click) toMain.hintsClick(click);
-  if (done) toMain.hintsDone();
+  if (click) pageToMain.hintsClick(click);
+  if (done) pageToMain.hintsDone();
 });
 
 fromMain.onHintsHide(() => hints.hide());
@@ -125,7 +125,7 @@ fromMain.onContextMenu((state) => {
 document.addEventListener(
   "scroll",
   () => {
-    if (hints.hide()) toMain.hintsDone();
+    if (hints.hide()) pageToMain.hintsDone();
   },
   true,
 );

@@ -1,8 +1,5 @@
 import { ipcMain, type IpcMainEvent, type WebContents } from "electron";
-import { type Channel, wire } from "../shared/ipc";
-
-type AnyTable = Record<string, Channel<unknown>>;
-type PayloadOf<C> = C extends Channel<infer T> ? T : never;
+import { type AnyTable, type PayloadOf, wire } from "../shared/ipc";
 
 /**
  * One handler per channel, and the compiler insists on all of them: a channel
