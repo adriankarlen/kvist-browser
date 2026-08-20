@@ -71,13 +71,22 @@ export interface Commands {
   execute(nameOrAlias: string, arg?: string): boolean;
 }
 
+/**
+ * Own properties only. Every object inherits `toString`, `valueOf` and
+ * `constructor`, and none of those is a command a user may run.
+ */
+function own<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 export function createCommands(actions: Actions): Commands {
-  const commands: Record<string, Action | undefined> = table(actions);
-  const aliases: Record<string, string | undefined> = ALIASES;
+  const commands: Record<string, Action> = table(actions);
+  const aliases: Record<string, string> = ALIASES;
 
   return {
     execute(nameOrAlias, arg) {
-      const run = commands[nameOrAlias] ?? commands[aliases[nameOrAlias] ?? ""];
+      const alias = own(aliases, nameOrAlias) ?? nameOrAlias;
+      const run = own(commands, nameOrAlias) ?? own(commands, alias);
       if (!run) return false;
       run(arg);
       return true;

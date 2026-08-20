@@ -1,10 +1,14 @@
 import type { BrowserWindow } from "electron";
-import { expect, test, vi } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { CHANNELS } from "../shared/ipc";
 import { createActions } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { TabManager } from "./tab-manager";
+
+// A spy left in place would silence the next test's console; a failed
+// assertion must not be able to leave one behind.
+afterEach(() => vi.restoreAllMocks());
 
 /**
  * The collaborators an action reaches for, recorded. Only the members the
@@ -15,8 +19,15 @@ function createStubs() {
   const active = {
     navigate: vi.fn<(url: string) => void>(),
     goBack: vi.fn(),
+    goForward: vi.fn(),
+    reload: vi.fn(),
     scroll: vi.fn<(command: string) => void>(),
+    findNext: vi.fn<(forward: boolean) => void>(),
+    stopFind: vi.fn(),
+    showHints: vi.fn(),
+    hideHints: vi.fn(),
     hintKey: vi.fn<(key: string) => void>(),
+    toggleDevTools: vi.fn(),
     blur: vi.fn(),
     focus: vi.fn(),
   };
@@ -53,6 +64,55 @@ test("an unknown command is reported rather than thrown", () => {
   const { commands } = createStubs();
   expect(commands.execute("tab.nope")).toBe(false);
   expect(commands.execute("tab.next")).toBe(true);
+});
+
+test("what every object inherits is not a command", () => {
+  const { commands } = createStubs();
+  for (const inherited of ["toString", "valueOf", "constructor", "hasOwnProperty", "__proto__"]) {
+    expect(commands.execute(inherited)).toBe(false);
+  }
+});
+
+test("every command reaches the thing it names", () => {
+  const { commands, tabs, active, downloads, sent, quit } = createStubs();
+  // One entry per command in the table, so a mapping that points at the wrong
+  // action is caught rather than merely dispatching.
+  const expected: [string, () => boolean][] = [
+    ["tab.new", () => tabs.create.mock.calls.length === 1],
+    ["tab.close", () => tabs.closeActive.mock.calls.length === 1],
+    ["tab.next", () => tabs.step.mock.calls.some(([offset]) => offset === 1)],
+    ["tab.prev", () => tabs.step.mock.calls.some(([offset]) => offset === -1)],
+    ["nav.back", () => active.goBack.mock.calls.length === 1],
+    ["nav.forward", () => active.goForward.mock.calls.length === 1],
+    ["nav.reload", () => active.reload.mock.calls.length === 1],
+    ["nav.open", () => true], // needs an argument; covered on its own below
+    ["scroll.down", () => active.scroll.mock.calls.some(([c]) => c === "down")],
+    ["scroll.up", () => active.scroll.mock.calls.some(([c]) => c === "up")],
+    ["scroll.half-down", () => active.scroll.mock.calls.some(([c]) => c === "half-down")],
+    ["scroll.half-up", () => active.scroll.mock.calls.some(([c]) => c === "half-up")],
+    ["scroll.top", () => active.scroll.mock.calls.some(([c]) => c === "top")],
+    ["scroll.bottom", () => active.scroll.mock.calls.some(([c]) => c === "bottom")],
+    ["find.next", () => active.findNext.mock.calls.some(([forward]) => forward === true)],
+    ["find.prev", () => active.findNext.mock.calls.some(([forward]) => forward === false)],
+    ["find.clear", () => active.stopFind.mock.calls.length === 1],
+    ["hints.show", () => active.showHints.mock.calls.length === 1],
+    ["hints.hide", () => active.hideHints.mock.calls.length === 1],
+    ["hints.key", () => true], // needs an argument; covered on its own below
+    ["focus.page", () => active.focus.mock.calls.length === 1],
+    ["focus.chrome", () => true],
+    ["focus.omnibox", () => sent.some(({ channel }) => channel === CHANNELS.focusOmnibox)],
+    ["insert.leave", () => active.blur.mock.calls.length === 1],
+    ["downloads.toggle", () => sent.some(({ channel }) => channel === CHANNELS.downloadsToggle)],
+    ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
+    ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
+    ["app.quit", () => quit.mock.calls.length === 1],
+    ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
+  ];
+
+  for (const [name, landed] of expected) {
+    expect(commands.execute(name), `${name} dispatches`).toBe(true);
+    expect(landed(), `${name} reaches its action`).toBe(true);
+  }
 });
 
 test("aliases run the command they stand for", () => {
@@ -137,7 +197,6 @@ test("a download row is a number, and anything else is no row at all", () => {
   for (const typo of ["x", "0", "-1", "1.5"]) commands.execute("downloads.cancel", typo);
   expect(downloads.cancelNth).toHaveBeenCalledTimes(2);
   expect(complaints).toHaveBeenCalledTimes(4);
-  complaints.mockRestore();
 });
 
 test("hints.key passes the key on, and nothing without one", () => {
