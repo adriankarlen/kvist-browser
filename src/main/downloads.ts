@@ -24,6 +24,7 @@ function isFinished(status: DownloadStatus): boolean {
  * the transfer carries on — so this is owned by the app, not by `TabManager`.
  */
 export class Downloads {
+  #report: (text: string) => void;
   #emit: (downloads: DownloadState[]) => void = () => {};
   #onTabDownload: (contents: WebContents) => void = () => {};
   #items: DownloadState[] = [];
@@ -39,6 +40,11 @@ export class Downloads {
   /** Where the user asked for their downloads, if they asked. */
   #configuredDir: string | undefined;
   #nextId = 1;
+
+  /** Told when a transfer cannot be saved where the config asked for. */
+  constructor(report: (text: string) => void) {
+    this.#report = report;
+  }
 
   /**
    * Must be attached before the first tab can start a transfer, and only once:
@@ -75,10 +81,12 @@ export class Downloads {
     return this.#items;
   }
 
-  /** `:downloads.clear` — drops everything that has stopped moving. */
-  clear(): void {
+  /** `:downloads.clear` — drops everything that has stopped moving, and says how many. */
+  clear(): number {
+    const before = this.#items.length;
     this.#items = this.#items.filter((entry) => !isFinished(entry.status));
     this.#flush();
+    return before - this.#items.length;
   }
 
   /**
@@ -115,7 +123,7 @@ export class Downloads {
     try {
       mkdirSync(dir, { recursive: true });
     } catch (error) {
-      console.error(`kvist: could not create download directory ${dir}:`, error);
+      this.#report(`could not create the download directory ${dir}: ${String(error)}`);
     }
     return dir;
   }

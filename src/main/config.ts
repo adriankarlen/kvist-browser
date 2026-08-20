@@ -29,26 +29,29 @@ async function read(file: string): Promise<string> {
   }
 }
 
-// Until the message line lands, a problem still has nowhere to go but stderr.
-function report(problems: Problem[]): void {
-  for (const { field, reason } of problems) {
-    // A problem with the file itself names the file as its field; saying so
-    // twice reads as a bug.
-    const where = field === TOML_FILE ? TOML_FILE : `${TOML_FILE}: ${field}`;
-    console.error(`kvist: ${where}: ${reason}`);
-  }
+/** A config and everything wrong with it; the caller decides who is told. */
+export interface LoadedConfig {
+  config: UserConfig;
+  problems: Problem[];
 }
 
-export async function loadConfig(): Promise<UserConfig> {
+/** How a problem reads to a user: which file, which field, and why. */
+export function describeProblem({ field, reason }: Problem): string {
+  // A problem with the file itself names the file as its field; saying so
+  // twice reads as a bug.
+  const where = field === TOML_FILE ? TOML_FILE : `${TOML_FILE}: ${field}`;
+  return `${where}: ${reason}`;
+}
+
+export async function loadConfig(): Promise<LoadedConfig> {
   const [css, toml] = await Promise.all([read(CSS_FILE), read(TOML_FILE)]);
   const { settings, problems } = parseSettings(toml, lastGood);
   lastGood = settings;
-  report(problems);
-  return { css, settings };
+  return { config: { css, settings }, problems };
 }
 
 /** Watches the directory rather than the files, so saves that replace the inode still register. */
-export async function watchConfig(onChange: (config: UserConfig) => void): Promise<void> {
+export async function watchConfig(onChange: (loaded: LoadedConfig) => void): Promise<void> {
   await mkdir(configDir, { recursive: true });
 
   let timer: NodeJS.Timeout | undefined;

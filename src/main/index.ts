@@ -11,13 +11,14 @@ import { createActions } from "./actions";
 import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
 import { handle } from "./ipc";
 import { createCommands } from "./commands";
-import { loadConfig, watchConfig } from "./config";
+import { describeProblem, type LoadedConfig, loadConfig, watchConfig } from "./config";
 import { Downloads } from "./downloads";
+import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
 import { interceptKeys } from "./keys";
 import { TabManager } from "./tab-manager";
-import { Vim } from "./vim";
+import { type KeyInput, type KeySource, Vim } from "./vim";
 
 applyXdgPaths();
 registerKvistScheme();
@@ -31,7 +32,13 @@ const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
  * Session-scoped, so it is attached once and outlives every window; a window
  * only subscribes. Must be in place before the first tab can start a transfer.
  */
-const downloads = new Downloads();
+/**
+ * The echo area, app-scoped like the downloads: what main has to say outlives
+ * any one window, and a window subscribes while it is open.
+ */
+const messages = new Messages();
+
+const downloads = new Downloads((text) => messages.warn(text));
 
 /**
  * The windows' own share of a config change. A window subscribes once it has
@@ -56,6 +63,18 @@ let applying: Promise<void> = Promise.resolve();
  * load, and the local pages are configured before one can be served. Startup
  * and reload are the same call.
  */
+/**
+ * Everything wrong with the file, as one line. The echo area holds one message,
+ * so the first problem is shown and the rest are counted; the log has them all.
+ */
+function reportProblems({ problems }: LoadedConfig): void {
+  const [first, ...rest] = problems;
+  if (first === undefined) return;
+  for (const problem of rest) console.error(`kvist: ${describeProblem(problem)}`);
+  const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
+  messages.warn(`${describeProblem(first)}${more}`);
+}
+
 function applyConfig(config: UserConfig): Promise<void> {
   applying = applying
     .then(async () => {
@@ -115,26 +134,34 @@ function createWindow(): void {
   };
 
   downloads.observe((list) => chrome.downloads(list));
+  const releaseMessages = messages.observe((message) => chrome.message(message));
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
-  const actions = createActions(tabs, downloads, win, () => app.quit());
+  const actions = createActions(tabs, downloads, win, messages, () => app.quit());
   const commands = createCommands(actions);
 
   const vim = new Vim(
     DEFAULT_KEYBINDS,
     (name, arg) => {
       if (!commands.execute(name, arg)) {
-        console.error(`kvist: unknown command ${name}`);
+        messages.warn(`unknown command ${name}`);
       }
     },
     (mode) => chrome.mode(mode),
   );
 
-  tabs.interceptKeys((input, source) => vim.handleKey(input, source));
+  // Any key at all ends whatever the echo area is showing, wherever it came
+  // from — the page's keys and the chrome's both arrive here.
+  const onKey = (input: KeyInput, source: KeySource): boolean => {
+    messages.keyPressed();
+    return vim.handleKey(input, source);
+  };
+
+  tabs.interceptKeys(onKey);
   // The chrome needs the same treatment as a page: it is a separate
   // webContents, so without this every key pressed while the chrome holds
   // focus is invisible to the mode machine.
-  interceptKeys(win.webContents, "chrome", (input, source) => vim.handleKey(input, source));
+  interceptKeys(win.webContents, "chrome", onKey);
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));
   tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
@@ -159,7 +186,7 @@ function createWindow(): void {
     if (name === "") return;
     const arg = rest.join(" ") || undefined;
     if (!commands.execute(name, arg)) {
-      console.error(`kvist: unknown command :${name}`);
+      messages.warn(`unknown command :${name}`);
     }
   };
 
@@ -207,16 +234,22 @@ function createWindow(): void {
   win.on("closed", () => {
     releaseChrome();
     releasePage();
+    releaseMessages();
   });
 }
 
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
-  await applyConfig(await loadConfig());
+  const loaded = await loadConfig();
+  reportProblems(loaded);
+  await applyConfig(loaded.config);
   registerKvistProtocol();
 
   createWindow();
-  void watchConfig((next) => void applyConfig(next));
+  void watchConfig((next) => {
+    reportProblems(next);
+    void applyConfig(next.config);
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

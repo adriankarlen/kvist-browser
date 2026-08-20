@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron";
 import { senders, toChrome } from "../shared/ipc";
 import { resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
+import type { Messages } from "./messages";
 import type { TabManager } from "./tab-manager";
 
 /**
@@ -74,6 +75,7 @@ export function createActions(
   tabs: TabManager,
   downloads: Downloads,
   win: BrowserWindow,
+  messages: Messages,
   quit: () => void,
 ): Actions {
   const chrome = senders(toChrome, (channel, payload) => {
@@ -138,7 +140,11 @@ export function createActions(
     downloads: {
       // The panel's pinned flag is the chrome's, so this can only ask.
       toggle: () => chrome.downloadsToggle(),
-      clear: () => downloads.clear(),
+      // The panel may not even be up, so clearing is otherwise invisible.
+      clear: () => {
+        const cleared = downloads.clear();
+        messages.say(cleared === 1 ? "cleared 1 download" : `cleared ${cleared} downloads`);
+      },
       cancel: (arg) => {
         if (arg === undefined) {
           downloads.cancelNth();
@@ -149,7 +155,7 @@ export function createActions(
         // surprising answer to a typo.
         const row = Number(arg);
         if (!Number.isInteger(row) || row < 1) {
-          console.error(`kvist: not a download row: ${arg}`);
+          messages.warn(`not a download row: ${arg}`);
           return;
         }
         downloads.cancelNth(row);
