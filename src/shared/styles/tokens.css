@@ -83,6 +83,10 @@
     --kv-find-prompt-fg: var(--kv-color-warning);
     --kv-find-count-fg: var(--kv-color-muted);
 
+    --kv-message-fg: var(--kv-color-subtle);
+    --kv-message-prompt-fg: var(--kv-color-accent-alt);
+    --kv-message-error-fg: var(--kv-color-danger);
+
     --kv-downloads-fg: var(--kv-color-text);
     --kv-downloads-muted-fg: var(--kv-color-muted);
     /* One colour per state, shared by the marker, the meta text and the bar. */

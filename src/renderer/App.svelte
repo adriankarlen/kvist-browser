@@ -6,6 +6,8 @@
   import DownloadsPanel from "./lib/DownloadsPanel.svelte";
   import { find } from "./lib/find.svelte";
   import FindLine from "./lib/FindLine.svelte";
+  import { messages } from "./lib/messages.svelte";
+  import MessageLine from "./lib/MessageLine.svelte";
   import Omnibox from "./lib/Omnibox.svelte";
   import { ui } from "./lib/settings.svelte";
   import TabStrip from "./lib/TabStrip.svelte";
@@ -25,6 +27,11 @@
     {/if}
     {#if vim.mode === "command"}
       <CommandLine />
+    {/if}
+    <!-- The echo area shares the command line's row: a prompt is what main is
+         asking, a message is what it has to say, and never both at once. -->
+    {#if vim.mode !== "command" && messages.current}
+      <MessageLine />
     {/if}
     <!-- Outlives the prompt: matches stay highlighted for n and N, and the
          count is the only thing saying how many there are. -->
