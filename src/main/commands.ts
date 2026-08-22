@@ -81,7 +81,8 @@ function own<T>(record: Record<string, T>, key: string): T | undefined {
 
 export function createCommands(actions: Actions): Commands {
   const commands: Record<string, Action> = table(actions);
-  const aliases: Record<string, string> = ALIASES;
+  // ALIASES already carries a `satisfies` against CommandName; keep inference.
+  const aliases = ALIASES;
 
   return {
     execute(nameOrAlias, arg) {

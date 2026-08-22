@@ -5,13 +5,13 @@
   import { formatEta, formatRate, percent } from "../../shared/progress";
   import { downloads } from "./stores.svelte";
 
-  const MARKERS: Record<DownloadState["status"], string> = {
+  const MARKERS = {
     progressing: ">",
     paused: "=",
     completed: "+",
     cancelled: "x",
     interrupted: "!",
-  };
+  } satisfies Record<DownloadState["status"], string>;
 
   function moving(entry: DownloadState): boolean {
     return entry.status === "progressing" || entry.status === "paused";

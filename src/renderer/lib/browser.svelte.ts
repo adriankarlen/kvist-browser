@@ -31,7 +31,7 @@ export function createBrowser(bridge: Pick<KvistApi, "onState">) {
  * padding included in the rectangle.
  */
 export function createContentRect(bridge: Pick<KvistApi, "setContentRect">) {
-  return (node: HTMLElement): { destroy: () => void } => {
+  return (node: HTMLElement) => {
     const report = (): void => {
       const box = node.getBoundingClientRect();
       const style = getComputedStyle(node);

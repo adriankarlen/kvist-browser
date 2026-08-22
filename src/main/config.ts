@@ -31,6 +31,7 @@ async function read(file: string): Promise<string> {
   try {
     return await readFile(join(configDir, file), "utf8");
   } catch (error) {
+    // SAFETY: readFile rejects with an ErrnoException; a missing `code` just reads as not-ENOENT.
     const { code } = error as NodeJS.ErrnoException;
     if (code !== "ENOENT") console.error(`kvist: could not read ${file}:`, error);
     return "";
