@@ -53,6 +53,7 @@ function createStubs() {
   const quit = vi.fn();
   const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
 
+  // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,

@@ -66,6 +66,7 @@ function createHost() {
     removeInsertedCSS: () => Promise.resolve(),
   };
 
+  // SAFETY: partial stub — Tab only touches the members defined here.
   const host = {
     get webContents() {
       state.webContentsReads++;
