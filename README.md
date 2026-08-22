@@ -3,8 +3,6 @@
 A hackable, TUI-styled, vim-modal browser: Electron and Chromium underneath,
 Svelte 5 chrome on top, retheme it from a plain-text config file.
 
-<img width="2046" height="1294" alt="image" src="https://github.com/user-attachments/assets/f2fed993-2874-40d9-9e20-c8d24fae2d51" />
-
 Kvist borrows two things from other projects: the [textfox](https://github.com/adriankarlen/textfox)
 look (minimal, no chrome chrome, theme from a config file) and a
 [Vimium](https://vimium.github.io/)-style interaction model (normal, insert,
@@ -14,6 +12,10 @@ and command modes, keyboard-first navigation).
 > **Status:** early and incomplete. This is a personal hobby project. Expect
 > missing features, rough edges, and breaking changes to config format and
 > keybindings.
+
+## Preview
+
+<img width="2196" height="1375" alt="image" src="https://github.com/user-attachments/assets/8601e646-eb04-44da-ade2-13107d29e912" />
 
 ## Why Electron
 
