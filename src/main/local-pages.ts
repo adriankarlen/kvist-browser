@@ -16,11 +16,11 @@ export interface NewtabConfig {
 import resetCss from "../shared/styles/reset.css?raw";
 import tokensCss from "../shared/styles/tokens.css?raw";
 
-const MIME_TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-};
+const MIME_TYPES = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".css", "text/css; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+]);
 
 /**
  * The local pages the `kvist://` scheme serves: kvist://newtab/ is the
@@ -72,7 +72,7 @@ function pageDir(page: LocalPage): string {
 }
 
 function isLocalPage(hostname: string): hostname is LocalPage {
-  return (PAGES as readonly string[]).includes(hostname);
+  return PAGES.some((page) => page === hostname);
 }
 
 /** Must be called after app.whenReady(). */
@@ -110,7 +110,7 @@ export function registerKvistProtocol(): void {
     }
 
     return new Response(body, {
-      headers: { "content-type": MIME_TYPES[extname(file)] ?? "text/plain" },
+      headers: { "content-type": MIME_TYPES.get(extname(file)) ?? "text/plain" },
     });
   });
 }

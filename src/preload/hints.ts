@@ -71,6 +71,7 @@ function targets(): HTMLElement[] {
   const out: HTMLElement[] = [];
   for (const element of document.querySelectorAll<HTMLElement>(CLICKABLE)) {
     if (element.getAttribute("tabindex") === "-1") continue;
+    // SAFETY: the preload runs in its own world; `disabled` is probed optionally with `=== true`.
     if ((element as HTMLElement & { disabled?: boolean }).disabled === true) continue;
     if (isVisible(element, element.getBoundingClientRect())) out.push(element);
   }

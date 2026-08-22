@@ -8,6 +8,7 @@ function load() {
   if (raw === null) return "";
   try {
     const parsed = JSON.parse(raw);
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- JSON.parse yields untyped data; a non-string is legacy bare-text data
     return typeof parsed === "string" ? parsed : raw;
   } catch {
     return raw;

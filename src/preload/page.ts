@@ -38,6 +38,8 @@ const UNTYPABLE = new Set([
 function isEditable(node: Element | null): boolean {
   if (!node) return false;
 
+  // SAFETY: the preload runs in its own world, so instanceof cannot be trusted;
+  // the probed properties are optional and read with `=== true`.
   const element = node as HTMLElement & { disabled?: boolean; readOnly?: boolean; type?: string };
   if (element.disabled === true || element.readOnly === true) return false;
 
@@ -68,6 +70,7 @@ document.addEventListener("focusin", report, true);
 document.addEventListener("focusout", () => setTimeout(report, 0), true);
 
 fromMain.onPageBlur(() => {
+  // SAFETY: activeElement is an Element; blur() exists on any focusable (HTMLElement).
   (document.activeElement as HTMLElement | null)?.blur();
   report();
 });

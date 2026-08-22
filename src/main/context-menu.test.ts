@@ -5,6 +5,7 @@ import { buildContextMenuItems } from "./context-menu";
 
 // Only the fields the builder reads; the rest of the params are Chromium's
 // business and a cast keeps the fixture honest about that.
+// SAFETY: partial fixture — the builder under test only reads these fields.
 const EDIT_FLAGS = {
   canCut: false,
   canCopy: false,
@@ -13,6 +14,7 @@ const EDIT_FLAGS = {
 } as ContextMenuParams["editFlags"];
 
 /** A plain right-click on unremarkable page content. */
+// SAFETY: partial fixture — only the fields the builder reads are set.
 const base = {
   x: 0,
   y: 0,

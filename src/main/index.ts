@@ -95,6 +95,7 @@ function applyConfig(config: UserConfig): Promise<void> {
     })
     // A failure must not poison the queue: the next save has to be applied
     // even if this one could not be.
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejection reason is unknown; it is only logged
     .catch((error: unknown) => console.error("kvist: could not apply the config:", error));
   return applying;
 }
@@ -106,6 +107,7 @@ function applyConfig(config: UserConfig): Promise<void> {
  */
 function isPoint(value: unknown): value is Point {
   if (typeof value !== "object" || value === null) return false;
+  // SAFETY: just checked value is a non-null object; x and y are validated below.
   const { x, y } = value as Point;
   return Number.isFinite(x) && Number.isFinite(y);
 }

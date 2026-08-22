@@ -81,18 +81,18 @@ export function errorPageTarget(raw: string): ErrorPageInfo | null {
  * A short headline for the codes a user is likely to see. Unknown codes fall
  * back to Chromium's description, which is shown alongside anyway.
  */
-const HEADLINES: Record<number, string> = {
-  [-102]: "connection refused",
-  [-105]: "name not resolved",
-  [-106]: "internet disconnected",
-  [-118]: "connection timed out",
-  [-21]: "network changed",
-  [-7]: "timed out",
-  [-137]: "name resolution failed",
-  [-324]: "empty response",
-};
+const HEADLINES = new Map([
+  [-102, "connection refused"],
+  [-105, "name not resolved"],
+  [-106, "internet disconnected"],
+  [-118, "connection timed out"],
+  [-21, "network changed"],
+  [-7, "timed out"],
+  [-137, "name resolution failed"],
+  [-324, "empty response"],
+]);
 
 export function describeError(code: number | null): string {
   if (code === null) return "renderer gone";
-  return HEADLINES[code] ?? `error ${code}`;
+  return HEADLINES.get(code) ?? `error ${code}`;
 }

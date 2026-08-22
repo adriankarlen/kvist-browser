@@ -249,22 +249,22 @@ export class Tab {
     if (params === null || id === null || this.#closed) return;
 
     const webContents = this.#page;
-    const actions: Record<string, () => void> = {
-      "nav.back": () => webContents.navigationHistory.goBack(),
-      "nav.forward": () => webContents.navigationHistory.goForward(),
-      "nav.reload": () => webContents.reload(),
+    const actions = new Map<string, () => void>([
+      ["nav.back", () => webContents.navigationHistory.goBack()],
+      ["nav.forward", () => webContents.navigationHistory.goForward()],
+      ["nav.reload", () => webContents.reload()],
       // Background, next to its opener — the same answer window.open gets.
-      "link.open-in-new-tab": () => this.#on.openRequest(params.linkURL, true),
-      "link.copy": () => this.#on.copyText(params.linkURL),
-      "image.copy": () => this.#on.copyText(params.srcURL),
-      "edit.cut": () => webContents.cut(),
-      "edit.copy": () => webContents.copy(),
-      "edit.paste": () => webContents.paste(),
-      "edit.select-all": () => webContents.selectAll(),
-      "selection.copy": () => webContents.copy(),
-      inspect: () => webContents.inspectElement(params.x, params.y),
-    };
-    actions[id]?.();
+      ["link.open-in-new-tab", () => this.#on.openRequest(params.linkURL, true)],
+      ["link.copy", () => this.#on.copyText(params.linkURL)],
+      ["image.copy", () => this.#on.copyText(params.srcURL)],
+      ["edit.cut", () => webContents.cut()],
+      ["edit.copy", () => webContents.copy()],
+      ["edit.paste", () => webContents.paste()],
+      ["edit.select-all", () => webContents.selectAll()],
+      ["selection.copy", () => webContents.copy()],
+      ["inspect", () => webContents.inspectElement(params.x, params.y)],
+    ]);
+    actions.get(id)?.();
   }
 
   /** Hides the menu in the page and drops the stash; a no-op when none is up. */

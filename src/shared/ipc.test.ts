@@ -27,9 +27,12 @@ test("no two channels claim the same wire name", () => {
 test("a table claiming a name another already has is refused", () => {
   // `find` belongs to toMain; a second table taking it would have each one's
   // payload arriving at the other's handler.
+  // SAFETY: Channel's payload is phantom; an empty object is a valid channel at runtime.
   expect(() => table({ find: {} as Channel<string> })).toThrow("kvist:find");
   // A free name is fine, and is not free the second time.
+  // SAFETY: Channel's payload is phantom; an empty object is a valid channel at runtime.
   expect(() => table({ probeChannel: {} as Channel<void> })).not.toThrow();
+  // SAFETY: Channel's payload is phantom; an empty object is a valid channel at runtime.
   expect(() => table({ probeChannel: {} as Channel<void> })).toThrow("kvist:probe-channel");
 });
 
