@@ -24,6 +24,19 @@ export interface ParsedSettings {
  * default. Only a value the user actually wrote and we could not use is worth
  * telling them about.
  */
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
+/** Anything claiming to be a TOML table: a plain, non-list object. */
+function isTable(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function readString<T extends string | undefined>(
   value: unknown,
   field: string,
@@ -31,7 +44,7 @@ function readString<T extends string | undefined>(
   problems: Problem[],
 ): string | T {
   if (value === undefined) return fallback;
-  if (typeof value === "string") return value;
+  if (isString(value)) return value;
   problems.push({ field, reason: "not a string" });
   return fallback;
 }
@@ -43,7 +56,7 @@ function readBoolean(
   problems: Problem[],
 ): boolean {
   if (value === undefined) return fallback;
-  if (typeof value === "boolean") return value;
+  if (isBoolean(value)) return value;
   problems.push({ field, reason: "not true or false" });
   return fallback;
 }
@@ -56,13 +69,15 @@ function readOption<T extends string>(
   problems: Problem[],
 ): T {
   if (value === undefined) return fallback;
-  if (allowed.includes(value as T)) return value as T;
+  // SAFETY: membership in `allowed` is the parse — T is exactly that set of strings.
+  const hit = allowed.includes(value as T) ? (value as T) : undefined;
+  if (hit !== undefined) return hit;
   problems.push({ field, reason: `not ${allowed.map((option) => `"${option}"`).join(" or ")}` });
   return fallback;
 }
 
 function asTable(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return isTable(value) ? value : {};
 }
 
 /**
@@ -72,9 +87,7 @@ function asTable(value: unknown): Record<string, unknown> {
  */
 function section(value: unknown, field: string, problems: Problem[]): Record<string, unknown> {
   if (value === undefined) return {};
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
+  if (isTable(value)) return value;
   problems.push({ field, reason: "not a table" });
   return {};
 }
@@ -88,7 +101,7 @@ function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
 
   const links = value.flatMap((entry) => {
     const { name, url } = asTable(entry);
-    return typeof name === "string" && typeof url === "string" ? [{ name, url }] : [];
+    return isString(name) && isString(url) ? [{ name, url }] : [];
   });
   // All-or-nothing: one malformed entry falls back to the defaults rather than
   // silently dropping a link the user can still see in their file.
