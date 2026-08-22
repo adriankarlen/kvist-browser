@@ -11,7 +11,13 @@ import { createActions } from "./actions";
 import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
 import { handle } from "./ipc";
 import { createCommands } from "./commands";
-import { describeProblem, type LoadedConfig, loadConfig, watchConfig } from "./config";
+import {
+  createConfigStore,
+  describeProblem,
+  type LoadedConfig,
+  loadConfig,
+  watchConfig,
+} from "./config";
 import { Downloads } from "./downloads";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
@@ -243,16 +249,18 @@ function createWindow(): void {
 
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
-  const loaded = await loadConfig();
+  const config = createConfigStore();
+  const loaded = await loadConfig(config);
   reportProblems(loaded);
   await applyConfig(loaded.config);
   registerKvistProtocol();
 
   createWindow();
-  void watchConfig((next) => {
+  const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
   });
+  app.on("will-quit", releaseConfig);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

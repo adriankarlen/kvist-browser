@@ -13,11 +13,19 @@ const TOML_FILE = "config.toml";
 const DEBOUNCE_MS = 50;
 
 /**
- * The last settings that parsed. Session state belonging to the file, not to
- * parsing — `parseSettings` takes it as an argument so that a syntax error
- * mid-edit keeps the user's layout without anything hidden holding it.
+ * Everything config reading owns: the last settings that parsed. Session
+ * state belonging to the file — a syntax error mid-edit keeps these rather
+ * than reverting to the defaults. Explicit instead of a module-level `let`,
+ * so `load`/`watch` take the store they mutate rather than reaching for
+ * shared state, and a test can hold two of them.
  */
-let lastGood: Settings = DEFAULT_SETTINGS;
+export interface ConfigStore {
+  lastGood: Settings;
+}
+
+export function createConfigStore(): ConfigStore {
+  return { lastGood: DEFAULT_SETTINGS };
+}
 
 async function read(file: string): Promise<string> {
   try {
@@ -43,23 +51,37 @@ export function describeProblem({ field, reason }: Problem): string {
   return `${where}: ${reason}`;
 }
 
-export async function loadConfig(): Promise<LoadedConfig> {
+export async function loadConfig(store: ConfigStore): Promise<LoadedConfig> {
   const [css, toml] = await Promise.all([read(CSS_FILE), read(TOML_FILE)]);
-  const { settings, problems } = parseSettings(toml, lastGood);
-  lastGood = settings;
+  const { settings, problems } = parseSettings(toml, store.lastGood);
+  store.lastGood = settings;
   return { config: { css, settings }, problems };
 }
 
-/** Watches the directory rather than the files, so saves that replace the inode still register. */
-export async function watchConfig(onChange: (loaded: LoadedConfig) => void): Promise<void> {
+/**
+ * Acquires the config watcher and returns its release. A watcher is a
+ * resource with a lifecycle — the handle and the debounce timer both outlive
+ * any single event — so acquire/release is the shape of the API, not a
+ * fire-and-forget `void`. Watches the directory rather than the files, so
+ * saves that replace the inode still register.
+ */
+export async function watchConfig(
+  store: ConfigStore,
+  onChange: (loaded: LoadedConfig) => void,
+): Promise<() => void> {
   await mkdir(configDir, { recursive: true });
 
   let timer: NodeJS.Timeout | undefined;
   const watcher = watch(configDir, (_event, filename) => {
     if (filename !== CSS_FILE && filename !== TOML_FILE) return;
     clearTimeout(timer);
-    timer = setTimeout(() => void loadConfig().then(onChange), DEBOUNCE_MS);
+    timer = setTimeout(() => void loadConfig(store).then(onChange), DEBOUNCE_MS);
   });
 
   watcher.on("error", (error) => console.error("kvist: config watch failed:", error));
+
+  return () => {
+    clearTimeout(timer);
+    watcher.close();
+  };
 }
