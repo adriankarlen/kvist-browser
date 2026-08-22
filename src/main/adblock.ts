@@ -16,6 +16,16 @@ const FETCH_TIMEOUT = 15 * 1000;
 
 type InjectMessage = Parameters<ElectronBlocker["onInjectCosmeticFilters"]>[2];
 
+/**
+ * A rejection reason is `unknown` by nature, and all one of these failures
+ * needs is a log line.
+ */
+const logFailure =
+  (what: string) =>
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejection reasons are unknown; they are only logged
+  (error: unknown): void =>
+    console.error(what, error);
+
 /** Key of the URL-scoped sheet per tab, so navigation can replace it. */
 /**
  * What cosmetic filtering needs from a page: its own stylesheet surface. A tab
@@ -50,7 +60,7 @@ function replaceUrlSheet(sender: CosmeticTarget, styles: string): void {
 
   const queued = (replacements.get(sender) ?? Promise.resolve())
     .then(swap, swap)
-    .catch((error: unknown) => console.error("kvist: could not apply hiding rules:", error));
+    .catch(logFailure("kvist: could not apply hiding rules:"));
   replacements.set(sender, queued);
 }
 
@@ -68,7 +78,7 @@ function replaceUrlSheet(sender: CosmeticTarget, styles: string): void {
 function runScriptlet(sender: WebContents, script: string): void {
   sender
     .executeJavaScript(`(function(){${script}\n})();undefined`, true)
-    .catch((error: unknown) => console.error("kvist: scriptlet failed:", error));
+    .catch(logFailure("kvist: scriptlet failed:"));
 }
 
 /**
@@ -80,6 +90,7 @@ function injectCosmetics(
   sender: WebContents,
   url: string,
   msg?: InjectMessage,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- opaque library context, passed straight through to getCosmeticsFilters
   callerContext?: unknown,
 ): void {
   if (!blocker || sender.isDestroyed()) return;
@@ -109,7 +120,7 @@ function injectCosmetics(
     // sheets are additive and none of them may be removed.
     void sender
       .insertCSS(styles, { cssOrigin: "user" })
-      .catch((error: unknown) => console.error("kvist: could not apply hiding rules:", error));
+      .catch(logFailure("kvist: could not apply hiding rules:"));
   }
 
   if (!active) return;
