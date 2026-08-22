@@ -1,3 +1,10 @@
 allowBuilds:
   electron: true
   electron-winstaller: false
+
+# Hoist these so the locally-vendored lint plugins can resolve them.
+# vite+ already pulls them in transitively; this just makes them reachable
+# from project-level imports like `import { eslintCompatPlugin } from "@oxlint/plugins"`.
+publicHoistPattern:
+  - "@oxlint/*"
+  - oxlint
