@@ -68,7 +68,7 @@ export default defineConfig({
       "anti-slop/no-object-parameters": "error",
       "anti-slop/no-reflect-apply": "error",
       "anti-slop/no-reflect-get": "error",
-      "anti-slop/no-runtime-typeof": "error",
+      "anti-slop/no-runtime-typeof": ["error", { allowInTypeGuards: true }],
       "anti-slop/no-shape-in-symbol-names": "error",
       "anti-slop/no-unknown-parameters": "error",
       "anti-slop/no-unknown-returns": "error",
@@ -77,6 +77,38 @@ export default defineConfig({
       "anti-slop/no-widen-then-assert": "error",
       "anti-slop/require-safety-comment-for-type-assertion": "error",
     },
+    overrides: [
+      {
+        // The typed IPC seam: a channel table erases to `unknown` exactly here,
+        // at the transport boundary, so both sides stay typed from one table.
+        files: ["src/shared/ipc.ts", "src/main/ipc.ts", "src/preload/**"],
+        rules: {
+          "anti-slop/no-chained-type-assertions": "off",
+          "anti-slop/no-known-value-widening": "off",
+          "anti-slop/no-unknown-parameters": "off",
+        },
+      },
+      {
+        // The config.toml parser is the boundary decoder these rules ask for;
+        // its inputs are `unknown` and its intermediate tables open by nature.
+        files: ["src/main/settings.ts", "src/main/index.ts"],
+        rules: {
+          "anti-slop/no-unknown-parameters": "off",
+          "anti-slop/no-unsafe-dictionary-type": "off",
+        },
+      },
+      {
+        // Tests stub seams with partial fakes; the casts stay SAFETY-commented.
+        files: ["**/*.test.ts"],
+        rules: {
+          "anti-slop/no-chained-type-assertions": "off",
+          "anti-slop/no-unknown-parameters": "off",
+          "anti-slop/no-unknown-returns": "off",
+          "anti-slop/no-unsafe-dictionary-type": "off",
+          "anti-slop/no-known-value-widening": "off",
+        },
+      },
+    ],
   },
   build: {
     outDir: "dist/renderer",

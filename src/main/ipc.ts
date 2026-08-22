@@ -25,7 +25,9 @@ export function handle<T extends AnyTable>(
   const registered = Object.keys(channels).map((key) => {
     const name = wire(key);
     const listener = (event: IpcMainEvent, payload: unknown): void => {
-      if (accept(event.sender)) handlers[key]!(payload as never, event.sender);
+      if (!accept(event.sender)) return;
+      // SAFETY: the payload arrives over the wire erased; the channel table is the only sender.
+      handlers[key]!(payload as never, event.sender);
     };
     ipcMain.on(name, listener);
     return () => void ipcMain.off(name, listener);

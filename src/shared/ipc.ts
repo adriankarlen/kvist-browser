@@ -156,6 +156,7 @@ export function table<T extends AnyTable>(channels: T): T {
 }
 
 function channel<T>(): Channel<T> {
+  // SAFETY: `payload` is phantom — the object deliberately carries nothing; T travels in the type only.
   return {} as Channel<T>;
 }
 
@@ -241,6 +242,7 @@ export function senders<T extends AnyTable>(
     const name = wire(key);
     api[key] = (payload) => send(name, payload);
   }
+  // SAFETY: one method per key of T was built above; the transport erases payload types.
   return api as Senders<T>;
 }
 
@@ -254,6 +256,7 @@ export function listeners<T extends AnyTable>(
     const name = wire(key);
     api[`on${key[0]!.toUpperCase()}${key.slice(1)}`] = (listener) => subscribe(name, listener);
   }
+  // SAFETY: one onX method per key of T was built above; the transport erases payload types.
   return api as unknown as Listeners<T>;
 }
 
