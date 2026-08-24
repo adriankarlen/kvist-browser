@@ -1,11 +1,12 @@
 <script lang="ts">
   import "./App.css";
-  import { browser, contentRect, downloads, find, messages, ui, vim } from "./lib/stores.svelte";
+  import { browser, contentRect, downloads, find, messages, permissions, ui, vim } from "./lib/stores.svelte";
   import CommandLine from "./lib/CommandLine.svelte";
   import DownloadsPanel from "./lib/DownloadsPanel.svelte";
   import FindLine from "./lib/FindLine.svelte";
   import MessageLine from "./lib/MessageLine.svelte";
   import Omnibox from "./lib/Omnibox.svelte";
+  import PermissionLine from "./lib/PermissionLine.svelte";
   import TabStrip from "./lib/TabStrip.svelte";
 </script>
 
@@ -25,8 +26,12 @@
     {/if}
     <!-- The echo area shares the command line's row: a prompt is what main is
          asking, a message is what it has to say, and never both at once. -->
-    {#if vim.mode !== "command" && messages.current}
-      <MessageLine />
+    {#if vim.mode !== "command"}
+      {#if permissions.current}
+        <PermissionLine />
+      {:else if messages.current}
+        <MessageLine />
+      {/if}
     {/if}
     <!-- Outlives the prompt: matches stay highlighted for n and N, and the
          count is the only thing saying how many there are. -->

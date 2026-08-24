@@ -27,6 +27,10 @@
     background: var(--kv-mode-find-bg);
   }
 
+  .kv-mode.is-prompt {
+    background: var(--kv-mode-prompt-bg);
+  }
+
   .kv-omnibox__button {
     color: var(--kv-omnibox-button-fg);
     padding: 0 0.5ch;
