@@ -34,9 +34,24 @@ function httpOrigin(url: string): string | null {
   return origin.startsWith("http://") || origin.startsWith("https://") ? origin : null;
 }
 
-function keyOf(origin: string, permission: string): string {
-  // Origins never contain a space, so the pair cannot collide with another.
-  return `${origin} ${permission}`;
+function keyOf(origin: string, permission: string, mediaType?: "video" | "audio"): string {
+  // Origins never contain a space, so the pair (or triple, for a specific
+  // device kind) cannot collide with another.
+  return mediaType === undefined
+    ? `${origin} ${permission}`
+    : `${origin} ${permission}:${mediaType}`;
+}
+
+/** Whether two coalescing requests are asking about the same thing. */
+function sameMediaTypes(
+  a: ("video" | "audio")[] | undefined,
+  b: ("video" | "audio")[] | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((type, index) => type === sortedB[index]);
 }
 
 /** What the session handler needs to say about a request, adapted off Electron's union. */
@@ -45,14 +60,22 @@ export interface PermissionRequestDetails {
   mediaTypes?: ("video" | "audio")[];
 }
 
+interface Waiter {
+  contents: WebContents;
+  callback: (granted: boolean) => void;
+}
+
 interface PendingRequest {
   id: number;
   origin: string;
   permission: PromptablePermission;
   mediaTypes?: ("video" | "audio")[];
-  contents: WebContents;
-  /** One per waiting caller: a repeated request joins the prompt already up. */
-  callbacks: ((granted: boolean) => void)[];
+  /**
+   * One per tab asking about the same question, tracked with its own
+   * webContents: two tabs on one origin can both ask, and one of them
+   * closing must not strand the other's callback unanswered.
+   */
+  waiters: Waiter[];
 }
 
 function toState(entry: PendingRequest): PermissionPromptState {
@@ -88,8 +111,8 @@ export class Permissions {
         mediaTypes: "mediaTypes" in details ? details.mediaTypes : undefined,
       });
     });
-    session.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
-      this.check(permission, requestingOrigin),
+    session.setPermissionCheckHandler((_contents, permission, requestingOrigin, details) =>
+      this.check(permission, requestingOrigin, details.mediaType),
     );
   }
 
@@ -109,13 +132,25 @@ export class Permissions {
    * not, so an unknown origin reads as denied — a site that wants the
    * permission then makes the request, which is where the asking happens.
    */
-  check(permission: string, requestingOrigin: string): boolean {
+  check(
+    permission: string,
+    requestingOrigin: string,
+    mediaType?: "video" | "audio" | "unknown",
+  ): boolean {
     const ruling = policy(permission);
     if (ruling === "grant") return true;
     if (ruling === "deny") return false;
 
     const origin = httpOrigin(requestingOrigin);
     if (origin === null) return false;
+
+    if (permission === "media") {
+      // The camera and the microphone are remembered separately; a check that
+      // cannot say which one is meant cannot be answered from that memory.
+      if (mediaType !== "video" && mediaType !== "audio") return false;
+      return this.#decisions.get(keyOf(origin, permission, mediaType)) ?? false;
+    }
+
     return this.#decisions.get(keyOf(origin, permission)) ?? false;
   }
 
@@ -133,32 +168,76 @@ export class Permissions {
     const origin = httpOrigin(details.requestingUrl);
     if (origin === null) return callback(false);
 
+    if (permission === "media") {
+      this.#requestMedia(contents, callback, origin, details.mediaTypes);
+      return;
+    }
+
     const known = this.#decisions.get(keyOf(origin, permission));
     if (known !== undefined) return callback(known);
 
-    // A second request for what is already being asked joins the wait rather
-    // than stacking a prompt the user has already read.
+    // SAFETY: ruling === "ask" here is exactly the PromptablePermission set.
+    this.#queue(contents, callback, origin, permission as PromptablePermission, undefined);
+  }
+
+  /**
+   * A camera grant must not silently cover the microphone too, and the other
+   * way round: each device kind the request names is checked — and later
+   * remembered — on its own. Only once every kind asked about is already
+   * known can this skip the prompt outright.
+   */
+  #requestMedia(
+    contents: WebContents,
+    callback: (granted: boolean) => void,
+    origin: string,
+    mediaTypes: ("video" | "audio")[] | undefined,
+  ): void {
+    const types: ("video" | "audio")[] =
+      mediaTypes && mediaTypes.length > 0 ? mediaTypes : ["video", "audio"];
+    const remembered = types.map((type) => this.#decisions.get(keyOf(origin, "media", type)));
+
+    // A device kind already refused stays refused.
+    if (remembered.some((decision) => decision === false)) return callback(false);
+    // Every kind this request names has already been allowed.
+    if (remembered.every((decision) => decision === true)) return callback(true);
+
+    this.#queue(contents, callback, origin, "media", types);
+  }
+
+  /**
+   * A second request for what is already being asked joins the wait rather
+   * than stacking a prompt the user has already read — matched on the exact
+   * device kinds too, so a camera-only ask and a combined ask do not merge
+   * into the wrong question.
+   */
+  #queue(
+    contents: WebContents,
+    callback: (granted: boolean) => void,
+    origin: string,
+    permission: PromptablePermission,
+    mediaTypes: ("video" | "audio")[] | undefined,
+  ): void {
     const waiting = this.#pending.find(
-      (entry) => entry.origin === origin && entry.permission === permission,
+      (entry) =>
+        entry.origin === origin &&
+        entry.permission === permission &&
+        sameMediaTypes(entry.mediaTypes, mediaTypes),
     );
     if (waiting !== undefined) {
-      waiting.callbacks.push(callback);
+      waiting.waiters.push({ contents, callback });
+      contents.once("destroyed", () => this.#dropWaiter(waiting.id, contents));
       return;
     }
 
     const entry: PendingRequest = {
       id: this.#nextId++,
       origin,
-      // SAFETY: ruling === "ask" is exactly the PromptablePermission set.
-      permission: permission as PromptablePermission,
-      mediaTypes: details.mediaTypes,
-      contents,
-      callbacks: [callback],
+      permission,
+      mediaTypes,
+      waiters: [{ contents, callback }],
     };
     this.#pending.push(entry);
-    // A tab that dies with its question unanswered is a denial, but not one
-    // to remember: nobody answered anything.
-    contents.once("destroyed", () => this.#settle(entry.id, false, false));
+    contents.once("destroyed", () => this.#dropWaiter(entry.id, contents));
     this.#notify();
   }
 
@@ -177,12 +256,39 @@ export class Permissions {
     const index = this.#pending.findIndex((entry) => entry.id === id);
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
-    if (remember) this.#decisions.set(keyOf(entry.origin, entry.permission), allow);
-    // Calling Chromium's callback into a destroyed contents is the one way
-    // this can throw, and the dead tab no longer cares about the answer.
-    if (!entry.contents.isDestroyed()) {
-      for (const callback of entry.callbacks) callback(allow);
+
+    if (remember) {
+      if (entry.permission === "media" && entry.mediaTypes) {
+        for (const type of entry.mediaTypes)
+          this.#decisions.set(keyOf(entry.origin, "media", type), allow);
+      } else {
+        this.#decisions.set(keyOf(entry.origin, entry.permission), allow);
+      }
     }
+
+    // Calling Chromium's callback into a destroyed contents is the one way
+    // this can throw, and that tab no longer cares about the answer — but a
+    // second tab waiting on the same question is still owed its callback.
+    for (const waiter of entry.waiters) {
+      if (!waiter.contents.isDestroyed()) waiter.callback(allow);
+    }
+    this.#notify();
+  }
+
+  /**
+   * A tab that dies with its question unanswered is a denial, but not one to
+   * remember: nobody answered anything. Only that tab's own wait ends here —
+   * a second tab that coalesced onto the same question is still waiting, and
+   * the prompt stays up until every waiter is gone.
+   */
+  #dropWaiter(id: number, contents: WebContents): void {
+    const entry = this.#pending.find((candidate) => candidate.id === id);
+    if (entry === undefined) return;
+
+    entry.waiters = entry.waiters.filter((waiter) => waiter.contents !== contents);
+    if (entry.waiters.length > 0) return;
+
+    this.#pending = this.#pending.filter((candidate) => candidate.id !== id);
     this.#notify();
   }
 

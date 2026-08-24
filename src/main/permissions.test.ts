@@ -233,3 +233,76 @@ test("an observer that leaves is not told", () => {
 
   expect(seen).toHaveLength(1);
 });
+
+test("a camera grant does not silently cover the microphone too", () => {
+  const { permissions } = createPermissions();
+  const { contents } = fakeContents();
+
+  permissions.request(contents, "media", () => {}, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["video"],
+  });
+  permissions.answerHead(true);
+
+  // The microphone was never asked about, so it is still unknown.
+  const callback = vi.fn();
+  permissions.request(contents, "media", callback, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["audio"],
+  });
+
+  expect(callback).not.toHaveBeenCalled();
+  expect(permissions.pending).toMatchObject([{ mediaTypes: ["audio"] }]);
+});
+
+test("the check handler remembers the camera and the microphone separately", () => {
+  const { permissions } = createPermissions();
+  const { contents } = fakeContents();
+
+  permissions.request(contents, "media", () => {}, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["video"],
+  });
+  permissions.answerHead(true);
+
+  expect(permissions.check("media", "https://meet.example.com", "video")).toBe(true);
+  expect(permissions.check("media", "https://meet.example.com", "audio")).toBe(false);
+  // No device kind named at all: cannot say which memory answers it.
+  expect(permissions.check("media", "https://meet.example.com", "unknown")).toBe(false);
+});
+
+test("one tab dying does not strand another tab's coalesced question", () => {
+  const { permissions } = createPermissions();
+  const first = fakeContents();
+  const second = fakeContents();
+  const firstCallback = vi.fn();
+  const secondCallback = vi.fn();
+
+  permissions.request(first.contents, "geolocation", firstCallback, at("https://a.example.com"));
+  permissions.request(second.contents, "geolocation", secondCallback, at("https://a.example.com"));
+  expect(permissions.pending).toHaveLength(1);
+
+  // The tab that asked first closes; the second tab is still waiting.
+  first.destroy();
+  expect(permissions.pending).toHaveLength(1);
+
+  permissions.answerHead(true);
+  expect(secondCallback).toHaveBeenCalledWith(true);
+  expect(firstCallback).not.toHaveBeenCalled();
+});
+
+test("a combined ask and a camera-only ask do not merge into one question", () => {
+  const { permissions } = createPermissions();
+  const { contents } = fakeContents();
+
+  permissions.request(contents, "media", () => {}, {
+    requestingUrl: "https://a.example.com",
+    mediaTypes: ["video", "audio"],
+  });
+  permissions.request(contents, "media", () => {}, {
+    requestingUrl: "https://a.example.com",
+    mediaTypes: ["video"],
+  });
+
+  expect(permissions.pending).toHaveLength(2);
+});
