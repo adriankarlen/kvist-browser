@@ -19,6 +19,8 @@ export type KeySource = "page" | "chrome";
 export class Vim {
   #mode: Mode = "normal";
   #pending = "";
+  /** A permission question waiting for an answer owns normal mode while it lasts. */
+  #promptPending = false;
   #keybinds: readonly Keybind[];
   #execute: (name: CommandName, arg?: string) => void;
   #onMode: (mode: Mode) => void;
@@ -42,6 +44,19 @@ export class Vim {
     return this.#mode === "command" || this.#mode === "find";
   }
 
+  /**
+   * A permission request appearing or being answered. A pending question
+   * captures normal mode — the only mode whose keys are safe to borrow — so
+   * the prompt's y/n work whenever it shows; a user mid-typing in insert or
+   * command is never yanked, and lands in the prompt on the way back through
+   * normal instead.
+   */
+  setPromptPending(pending: boolean): void {
+    this.#promptPending = pending;
+    if (pending && this.#mode === "normal") this.#set("prompt");
+    else if (!pending && this.#mode === "prompt") this.#set("normal");
+  }
+
   /** Mode changes requested by the chrome, e.g. escaping out of the command line. */
   requestMode(mode: Mode): void {
     if (mode === "normal") this.#execute("focus.page");
@@ -58,6 +73,8 @@ export class Vim {
   setEditable(editable: boolean): void {
     // A chrome prompt is up and holds the keyboard; the page is a bystander.
     if (this.#prompting) return;
+    // A permission question owns the keyboard until it is answered.
+    if (this.#mode === "prompt") return;
     if (editable) this.#set("insert");
     else if (this.#mode === "insert") this.#set("normal");
   }
@@ -78,7 +95,9 @@ export class Vim {
     // Chrome inputs own every key they can type, and own their own Escape —
     // the omnibox and command line report the mode change back over IPC.
     if (source === "chrome") {
-      if (this.#mode !== "normal" && this.#mode !== "hint") return false;
+      if (this.#mode !== "normal" && this.#mode !== "hint" && this.#mode !== "prompt") {
+        return false;
+      }
     } else {
       // The prompts live in the chrome, so a page that still has focus must not
       // steal from them.
@@ -96,6 +115,9 @@ export class Vim {
       this.#execute("hints.key", input.key);
       return true;
     }
+
+    // A permission question owns every other key until it is answered.
+    if (this.#mode === "prompt") return true;
 
     return false;
   }
@@ -141,9 +163,13 @@ export class Vim {
   }
 
   #set(mode: Mode): void {
-    if (mode === this.#mode) return;
-    this.#mode = mode;
+    // A pending question turns normal into prompt, wherever the transition
+    // came from — an answered prompt with another queued behind it keeps the
+    // mode, because the queue only empties by being answered.
+    const target = mode === "normal" && this.#promptPending ? "prompt" : mode;
+    if (target === this.#mode) return;
+    this.#mode = target;
     this.#pending = "";
-    this.#onMode(mode);
+    this.#onMode(target);
   }
 }

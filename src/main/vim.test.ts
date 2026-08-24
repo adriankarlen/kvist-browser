@@ -296,3 +296,75 @@ test("selecting a field keeps insert rather than snapping back to normal", () =>
   vim.endHints();
   expect(vim.mode).toBe("insert");
 });
+
+test("a pending permission question captures normal mode", () => {
+  vim.setPromptPending(true);
+  expect(vim.mode).toBe("prompt");
+  expect(modes).toEqual(["prompt"]);
+});
+
+test("y, n and Escape answer the question", () => {
+  vim.setPromptPending(true);
+
+  expect(key("y")).toBe(true);
+  expect(execute).toHaveBeenCalledWith("permission.allow");
+
+  expect(key("n")).toBe(true);
+  expect(execute).toHaveBeenCalledWith("permission.deny");
+
+  expect(key("Escape")).toBe(true);
+  expect(execute).toHaveBeenCalledWith("permission.deny");
+  // No command runs focus.page or the like: the mode outlives one answer
+  // while the queue has another question behind it.
+  expect(vim.mode).toBe("prompt");
+});
+
+test("prompt mode swallows every other key, from either source", () => {
+  vim.setPromptPending(true);
+
+  expect(key("j")).toBe(true);
+  expect(chromeKey("t")).toBe(true);
+  expect(execute).not.toHaveBeenCalledWith("scroll.down");
+  expect(execute).not.toHaveBeenCalledWith("tab.new");
+});
+
+test("the queue draining is what hands normal back", () => {
+  vim.setPromptPending(true);
+  // Answered, but another question is queued behind it: still prompting.
+  vim.setPromptPending(true);
+  expect(vim.mode).toBe("prompt");
+
+  vim.setPromptPending(false);
+  expect(vim.mode).toBe("normal");
+  expect(modes).toEqual(["prompt", "normal"]);
+});
+
+test("a question arriving mid-typing waits, and catches the way back through normal", () => {
+  key("i");
+  expect(vim.mode).toBe("insert");
+
+  vim.setPromptPending(true);
+  expect(vim.mode).toBe("insert");
+
+  // Leaving insert heads for normal, and the pending question intercepts it.
+  key("Escape");
+  expect(vim.mode).toBe("prompt");
+});
+
+test("a question arriving at the command line does not take its keys", () => {
+  key(":");
+  vim.setPromptPending(true);
+  expect(vim.mode).toBe("command");
+  expect(chromeKey("y")).toBe(false);
+  expect(execute).not.toHaveBeenCalledWith("permission.allow");
+
+  // Escaping the command line lands on the prompt, not on normal.
+  vim.requestMode("normal");
+  expect(vim.mode).toBe("prompt");
+});
+
+test("a page text field does not steal the permission prompt", () => {
+  vim.setPromptPending(true);
+  vim.setEditable(true);
+  expect(vim.mode).toBe("prompt");
+});
