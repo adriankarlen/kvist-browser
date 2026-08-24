@@ -99,7 +99,8 @@ page and typing one follows it), **find** (a `/` line that searches the
 page as you type), and **prompt** (a permission question is waiting for an
 answer).
 
-Escape always returns to normal mode and blurs whatever had focus.
+Escape always returns to normal mode and blurs whatever had focus, except in
+prompt mode, where it denies the permission question instead.
 
 ### Normal mode
 
