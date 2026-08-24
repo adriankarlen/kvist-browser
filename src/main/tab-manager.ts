@@ -26,7 +26,15 @@ export class TabManager {
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
-  /** The views, kept beside the tabs: only the window needs the real thing. */
+  /**
+   * The views, kept beside the tabs: only the window needs the real thing.
+   * Invariant: a view leaves the window exactly once, in `close`. A page that
+   * dies on its own (e.g. `window.close()`) takes its webContents down before
+   * anyone can act, and reaching through the view to unparent it afterwards
+   * hangs the process — so the `died` path forgets the view while it stays
+   * parented. That is a deliberate, bounded leak: the view is inert, and the
+   * window owns it until the window itself closes.
+   */
   #views = new Map<TabId, WebContentsView>();
   #order: TabId[] = [];
   #activeId: TabId | null = null;
