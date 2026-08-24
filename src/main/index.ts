@@ -8,7 +8,14 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
-import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
+import {
+  fromPage,
+  type PermissionAnswer,
+  type Point,
+  senders,
+  toChrome,
+  toMain,
+} from "../shared/ipc";
 import { handle } from "./ipc";
 import { createCommands } from "./commands";
 import {
@@ -121,10 +128,10 @@ function isPoint(value: unknown): value is Point {
 }
 
 /** Same lesson as isPoint: a payload that is not an answer is ignored, not destructured. */
-function isPermissionAnswer(value: unknown): value is { id: number; allow: boolean } {
+function isPermissionAnswer(value: unknown): value is PermissionAnswer {
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: just checked value is a non-null object; id and allow are validated below.
-  const { id, allow } = value as { id: number; allow: boolean };
+  const { id, allow } = value as PermissionAnswer;
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 

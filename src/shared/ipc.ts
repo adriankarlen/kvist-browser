@@ -116,6 +116,12 @@ export interface PermissionPromptState {
   mediaTypes?: ("video" | "audio")[];
 }
 
+/** What a click on allow or deny sends back; the id guards against a stale click. */
+export interface PermissionAnswer {
+  id: number;
+  allow: boolean;
+}
+
 /**
  * A channel and what it carries. `payload` is a phantom: it never exists at
  * runtime, it is only how the type travels from the table to both sides.
@@ -196,7 +202,7 @@ export const toMain = table({
   /** Stops one transfer; anything that has already stopped is left alone. */
   cancelDownload: channel<number>(),
   /** Answers the permission prompt carrying the id; anything else is stale and ignored. */
-  answerPermission: channel<{ id: number; allow: boolean }>(),
+  answerPermission: channel<PermissionAnswer>(),
 });
 
 /** Main → chrome. Full snapshots, never diffs. */
