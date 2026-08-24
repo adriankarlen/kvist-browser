@@ -149,9 +149,27 @@ export class Downloads {
       item.setSavePath(savePath);
       this.#track(item, savePath);
     } catch (error) {
-      this.#reserved.delete(savePath);
+      this.#rollback(item, savePath);
       throw error;
     }
+  }
+
+  /**
+   * Undoes a partial adoption. No `done` handler made it on, so no terminal
+   * cleanup will ever fire: this is the only release of anything `#track`
+   * claimed. Cancelling also stops Chromium writing to a path we no longer
+   * track.
+   */
+  #rollback(item: DownloadItem, savePath: string): void {
+    item.removeAllListeners("updated");
+    item.removeAllListeners("done");
+    const id = this.#nextId - 1;
+    if (this.#live.get(id) === item) this.#live.delete(id);
+    const url = item.getURL();
+    this.#items = this.#items.filter((entry) => entry.url !== url);
+    this.#reserved.delete(savePath);
+    item.cancel();
+    this.#flush();
   }
 
   #track(item: DownloadItem, savePath: string): void {
