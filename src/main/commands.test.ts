@@ -5,6 +5,7 @@ import { createActions } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
+import type { Permissions } from "./permissions";
 import type { TabManager } from "./tab-manager";
 
 // A spy left in place would silence the next test's console; a failed
@@ -42,6 +43,9 @@ function createStubs() {
     cancelNth: vi.fn<(row?: number) => void>(),
     clear: vi.fn(),
   };
+  const permissions = {
+    answerHead: vi.fn<(allow: boolean) => void>(),
+  };
   const sent: { channel: string; payload?: unknown }[] = [];
   const win = {
     isDestroyed: () => false,
@@ -57,11 +61,22 @@ function createStubs() {
   const actions = createActions(
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,
+    permissions as unknown as Permissions,
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
     quit,
   );
-  return { commands: createCommands(actions), tabs, active, downloads, sent, win, messages, quit };
+  return {
+    commands: createCommands(actions),
+    tabs,
+    active,
+    downloads,
+    permissions,
+    sent,
+    win,
+    messages,
+    quit,
+  };
 }
 
 test("an unknown command is reported rather than thrown", () => {
@@ -78,7 +93,7 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, sent, win, quit } = createStubs();
+  const { commands, tabs, active, downloads, permissions, sent, win, quit } = createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -110,6 +125,8 @@ test("every command reaches the thing it names", () => {
     ["downloads.toggle", () => sent.some(({ channel }) => channel === wire("downloadsToggle"))],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
+    ["permission.allow", () => permissions.answerHead.mock.calls.some(([a]) => a === true)],
+    ["permission.deny", () => permissions.answerHead.mock.calls.some(([a]) => a === false)],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
