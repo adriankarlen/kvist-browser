@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
-import { app, type DownloadItem, type Session, type WebContents } from "electron";
+import { app, type DownloadItem, type Event, type Session, type WebContents } from "electron";
 import type { Settings } from "../shared/config";
 import type { DownloadState, DownloadStatus } from "../shared/ipc";
 import { type RateState, sampleRate, startRate } from "./download-rate";
@@ -139,11 +139,22 @@ export class Downloads {
       (path) => this.#reserved.has(path) || existsSync(path),
     );
     this.#reserved.add(savePath);
-    // Setting the path is what suppresses Chromium's save dialog; there is no
-    // themeable dialog to show instead, and a TUI browser should not sprout a
-    // native one.
-    item.setSavePath(savePath);
+    // From here until the listeners are attached, a throw would strand the
+    // reservation with no `done` to release it — acquisition and its release
+    // belong side by side.
+    try {
+      // Setting the path is what suppresses Chromium's save dialog; there is no
+      // themeable dialog to show instead, and a TUI browser should not sprout a
+      // native one.
+      item.setSavePath(savePath);
+      this.#track(item, savePath);
+    } catch (error) {
+      this.#reserved.delete(savePath);
+      throw error;
+    }
+  }
 
+  #track(item: DownloadItem, savePath: string): void {
     const entry: DownloadState = {
       id: this.#nextId++,
       filename: basename(savePath),
@@ -159,7 +170,13 @@ export class Downloads {
 
     let rate: RateState = startRate(entry.receivedBytes, Date.now());
 
-    item.on("updated", (_event, state) => {
+    // The listeners die with the item: `done` is terminal, and it drops the
+    // pair so a long session does not accumulate handlers on torn-down items.
+    const release = (): void => {
+      item.removeListener("updated", onUpdated);
+      item.removeListener("done", onDone);
+    };
+    const onUpdated = (_event: Event, state: "progressing" | "interrupted"): void => {
       // Chromium reports a pause as `isPaused`, not as a state of its own, so
       // the list's `paused` is ours to derive.
       const status: DownloadStatus = state === "progressing" && item.isPaused() ? "paused" : state;
@@ -171,11 +188,15 @@ export class Downloads {
       // not claim it is still moving.
       entry.bytesPerSecond = status === "paused" ? 0 : rate.rate;
       this.#schedule();
-    });
-
-    item.on("done", (_event, state) => {
+    };
+    const onDone = (
+      _event: Event,
+      // `done` never reports `paused`; a paused transfer reports on resume.
+      state: Exclude<DownloadStatus, "paused">,
+    ): void => {
       // Only now is the filesystem the authority on this name: a completed
       // download has become the file, and a failed one has left it free.
+      release();
       this.#reserved.delete(savePath);
       this.#live.delete(entry.id);
       entry.status = state;
@@ -183,7 +204,9 @@ export class Downloads {
       entry.totalBytes = item.getTotalBytes();
       entry.bytesPerSecond = 0;
       this.#flush();
-    });
+    };
+    item.on("updated", onUpdated);
+    item.once("done", onDone);
   }
 
   #schedule(): void {
