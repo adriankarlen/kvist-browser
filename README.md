@@ -164,13 +164,15 @@ notifications or clipboard access, a question line appears and normal mode
 becomes prompt mode: `y` allows, `n` and Escape deny, and nothing else
 reaches the page until the question is answered. The answer is remembered
 for the origin until the browser restarts — a denial included, so a refused
-site cannot re-ask on every click.
+site cannot re-ask on every click. The camera and the microphone are
+remembered separately, even though a page asking for both at once gets a
+single allow-or-deny answer covering that request.
 
 A question that arrives while you are typing waits: insert, command and find
 keep their keys, and the prompt takes over on the way back through normal.
 Everything not listed above is denied without asking, and fullscreen,
-pointer lock and clipboard _writing_ are granted without asking, as in any
-other browser.
+pointer lock and sanitized clipboard writes are granted without asking, as
+in any other browser.
 
 Both keybindings and commands are early and intentionally minimal. See
 `src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add
