@@ -2,6 +2,7 @@ import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "e
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
 import { composeContextMenuCss } from "./context-menu";
+import { externalProtocolTarget } from "./external";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { KeyInput, KeySource } from "./vim";
@@ -24,6 +25,7 @@ export class TabManager {
   #onEditable: (editable: boolean) => void = () => {};
   #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
+  #onExternal: (url: string) => void = () => {};
   #pagePreload: string;
   #tabs = new Map<TabId, Tab>();
   /**
@@ -92,6 +94,15 @@ export class TabManager {
     this.#onInPageNavigation = handler;
   }
 
+  /**
+   * A URL the desktop, not a tab, should open — mailto: and kin. Wired once
+   * per window like the other observers; the URL has already been allowlisted
+   * before it reaches here.
+   */
+  observeExternal(handler: (url: string) => void): void {
+    this.#onExternal = handler;
+  }
+
   /** The tab a webContents belongs to; the sender check for every tab channel. */
   tabFor(sender: WebContents): Tab | undefined {
     return [...this.#tabs.values()].find((tab) => tab.contents === sender);
@@ -135,6 +146,14 @@ export class TabManager {
   }
 
   create(url: string = this.#homepage, options: CreateOptions = {}): void {
+    // A scheme the desktop owns never becomes a tab: window.open and
+    // target="_blank" arrive here through openRequest, so intercepting here —
+    // rather than in the window-open handler — covers :tabnew and the context
+    // menu's open-in-new-tab too, and no uncommitted tab is left behind.
+    if (externalProtocolTarget(url) !== null) {
+      this.#onExternal(url);
+      return;
+    }
     const tab = this.#adopt(url, options.after);
     this.#window.contentView.addChildView(this.#viewOf(tab));
     tab.setVisible(false);
@@ -222,6 +241,7 @@ export class TabManager {
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
+      externalRequest: (url) => this.#onExternal(url),
     };
   }
 

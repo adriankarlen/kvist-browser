@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, session, shell } from "electron";
 import type { UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
@@ -211,6 +211,14 @@ function createWindow(): void {
   // webContents, so without this every key pressed while the chrome holds
   // focus is invisible to the mode machine.
   interceptKeys(win.webContents, "chrome", onKey);
+  // A scheme the desktop owns — already allowlisted by the time it arrives
+  // here — goes to the OS. A rejection (no app registered, etc.) is the
+  // echo area's to show: a message that disappears on its own can vanish
+  // before the user has read it, and the one thing worth saying is usually
+  // what they were trying to open.
+  tabs.observeExternal((url) => {
+    void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
+  });
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));
   tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));

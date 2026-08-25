@@ -101,6 +101,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}) {
     key: vi.fn(() => false),
     copyText: vi.fn(),
     menuCss: () => ".kv-menu {}",
+    externalRequest: vi.fn(),
     ...overrides,
   };
   return { tab: new Tab(1, host.host, callbacks, "https://a.example"), host, callbacks };
@@ -415,4 +416,79 @@ test("a history-API navigation is reported so URL-keyed rules can be reapplied",
   host.emit("did-navigate-in-page", EVENT, "https://a.example/two", true);
 
   expect(inPageNavigation).toHaveBeenCalledWith(expect.anything(), "https://a.example/two");
+});
+
+test("a link click with an allowlisted scheme is handed off to the desktop", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { host } = createTab({ externalRequest });
+
+  const details = {
+    url: "mailto:foo@bar.com",
+    isMainFrame: true,
+    preventDefault: vi.fn(),
+  };
+  host.emit("will-navigate", details);
+
+  expect(details.preventDefault).toHaveBeenCalled();
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com");
+  // The tab never starts navigating.
+  expect(host.loaded).toEqual([]);
+});
+
+test("a link click with a non-allowlisted scheme navigates as usual", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { host } = createTab({ externalRequest });
+
+  const details = {
+    url: "https://example.com/page",
+    isMainFrame: true,
+    preventDefault: vi.fn(),
+  };
+  host.emit("will-navigate", details);
+
+  expect(details.preventDefault).not.toHaveBeenCalled();
+  expect(externalRequest).not.toHaveBeenCalled();
+});
+
+test("a sub-frame navigation is not handed off, even for an allowlisted scheme", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { host } = createTab({ externalRequest });
+
+  host.emit("will-navigate", {
+    url: "mailto:foo@bar.com",
+    isMainFrame: false,
+    preventDefault: vi.fn(),
+  });
+
+  expect(externalRequest).not.toHaveBeenCalled();
+});
+
+test("navigate() hands off an allowlisted scheme instead of loading it", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("mailto:foo@bar.com");
+
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com");
+  expect(host.loaded).toEqual([]);
+});
+
+test("navigate() still loads a regular URL", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("https://example.com/page");
+
+  expect(host.loaded).toEqual(["https://example.com/page"]);
+  expect(externalRequest).not.toHaveBeenCalled();
+});
+
+test("a closed tab never reports an external handoff", () => {
+  const externalRequest = vi.fn<(url: string) => void>();
+  const { tab } = createTab({ externalRequest });
+
+  tab.close();
+  tab.navigate("mailto:foo@bar.com");
+
+  expect(externalRequest).not.toHaveBeenCalled();
 });
