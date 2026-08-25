@@ -8,7 +8,14 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
-import { fromPage, type Point, senders, toChrome, toMain } from "../shared/ipc";
+import {
+  fromPage,
+  type PermissionAnswer,
+  type Point,
+  senders,
+  toChrome,
+  toMain,
+} from "../shared/ipc";
 import { handle } from "./ipc";
 import { createCommands } from "./commands";
 import {
@@ -23,6 +30,7 @@ import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths } from "./paths";
 import { interceptKeys } from "./keys";
+import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 
@@ -45,6 +53,13 @@ const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 const messages = new Messages();
 
 const downloads = new Downloads((text) => messages.warn(text));
+
+/**
+ * Permission prompts, session-scoped like the downloads: the session allows
+ * only one handler pair, a remembered answer belongs to no window, and a
+ * window only subscribes to the queue.
+ */
+const permissions = new Permissions();
 
 /**
  * The windows' own share of a config change. A window subscribes once it has
@@ -112,6 +127,14 @@ function isPoint(value: unknown): value is Point {
   return Number.isFinite(x) && Number.isFinite(y);
 }
 
+/** Same lesson as isPoint: a payload that is not an answer is ignored, not destructured. */
+function isPermissionAnswer(value: unknown): value is PermissionAnswer {
+  if (typeof value !== "object" || value === null) return false;
+  // SAFETY: just checked value is a non-null object; id and allow are validated below.
+  const { id, allow } = value as PermissionAnswer;
+  return Number.isInteger(id) && typeof allow === "boolean";
+}
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,
@@ -145,7 +168,7 @@ function createWindow(): void {
   const releaseMessages = messages.observe((message) => chrome.message(message));
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
-  const actions = createActions(tabs, downloads, win, messages, () => app.quit());
+  const actions = createActions(tabs, downloads, permissions, win, messages, () => app.quit());
   const commands = createCommands(actions);
 
   const vim = new Vim(
@@ -157,6 +180,14 @@ function createWindow(): void {
     },
     (mode) => chrome.mode(mode),
   );
+
+  // The prompt the window shows and the mode the keyboard is in both follow
+  // the one queue: a pending question captures normal mode, and answering it
+  // hands normal back.
+  const releasePermissions = permissions.observe((pending) => {
+    chrome.permission(pending[0] ?? null);
+    vim.setPromptPending(pending.length > 0);
+  });
 
   // Any key at all ends whatever the echo area is showing, wherever it came
   // from — the page's keys and the chrome's both arrive here.
@@ -210,6 +241,10 @@ function createWindow(): void {
     // Same for anything already said: a config the user has broken is found
     // while the window is still loading, and the echo area was not there yet.
     chrome.message(messages.current);
+    // Nor could the prompt line have been: a question asked while the window
+    // was loading is still waiting for its answer.
+    chrome.permission(permissions.pending[0] ?? null);
+    vim.setPromptPending(permissions.pending.length > 0);
     tabs.create();
   });
 
@@ -229,6 +264,9 @@ function createWindow(): void {
       stopFind: () => tabs.active?.stopFind(),
       setMode: (mode) => vim.requestMode(mode),
       cancelDownload: (id) => downloads.cancel(id),
+      answerPermission: (answer) => {
+        if (isPermissionAnswer(answer)) permissions.answer(answer.id, answer.allow);
+      },
       runCommand: (line) => {
         runCommand(line);
         // Commands come from a typed `:foo` and end in normal mode. UI-driven
@@ -246,11 +284,13 @@ function createWindow(): void {
     releaseChrome();
     releasePage();
     releaseMessages();
+    releasePermissions();
   });
 }
 
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
+  permissions.attach(session.defaultSession);
   const config = createConfigStore();
   const loaded = await loadConfig(config);
   reportProblems(loaded);

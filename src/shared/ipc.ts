@@ -2,7 +2,7 @@ import type { UserConfig } from "./config";
 
 export type TabId = number;
 
-export type Mode = "normal" | "insert" | "command" | "hint" | "find";
+export type Mode = "normal" | "insert" | "command" | "hint" | "find" | "prompt";
 
 /** Scrolling lives in the page, so main names the movement rather than the pixels. */
 export type ScrollCommand = "down" | "up" | "half-down" | "half-up" | "top" | "bottom";
@@ -99,6 +99,29 @@ export interface Point {
   y: number;
 }
 
+/** A permission a page may be asked about rather than silently granted or denied. */
+export type PromptablePermission = "media" | "geolocation" | "notifications" | "clipboard-read";
+
+/**
+ * The question at the head of the permission queue, which is all the chrome
+ * ever shows: one line, answered, replaced by whatever is next.
+ */
+export interface PermissionPromptState {
+  /** Ours — answers carry it so a stale click cannot settle a newer request. */
+  id: number;
+  /** The asking site's origin, which is also what the answer is remembered under. */
+  origin: string;
+  permission: PromptablePermission;
+  /** Which of camera and microphone a `media` request covers, when Chromium said. */
+  mediaTypes?: ("video" | "audio")[];
+}
+
+/** What a click on allow or deny sends back; the id guards against a stale click. */
+export interface PermissionAnswer {
+  id: number;
+  allow: boolean;
+}
+
 /**
  * A channel and what it carries. `payload` is a phantom: it never exists at
  * runtime, it is only how the type travels from the table to both sides.
@@ -178,6 +201,8 @@ export const toMain = table({
   stopFind: channel<void>(),
   /** Stops one transfer; anything that has already stopped is left alone. */
   cancelDownload: channel<number>(),
+  /** Answers the permission prompt carrying the id; anything else is stale and ignored. */
+  answerPermission: channel<PermissionAnswer>(),
 });
 
 /** Main → chrome. Full snapshots, never diffs. */
@@ -193,6 +218,8 @@ export const toChrome = table({
   downloadsToggle: channel<void>(),
   /** The echo area: what to show, or null to clear it. */
   message: channel<Message | null>(),
+  /** The permission question waiting for an answer, or null when none is. */
+  permission: channel<PermissionPromptState | null>(),
 });
 
 /**

@@ -43,6 +43,13 @@ constrains.
 - **Downloads are session-scoped.** A transfer outlives the tab it started
   in, so `Downloads` is owned by the app and `TabManager` only subscribes
   through `observe` / `observeTabDownload`.
+- **Permissions are session-scoped too.** `Permissions` owns the handler
+  pair on `session.defaultSession` (request _and_ check — they answer
+  different APIs and default inconsistently). Deny by default, prompt in the
+  chrome for camera/mic, geolocation, notifications, clipboard-read; answers
+  are remembered per origin in memory until Phase 6 storage. A pending
+  question captures normal mode as `prompt` mode (`y`/`n`), which is why
+  `Vim.setPromptPending` exists.
 
 ## In-page vim
 
@@ -119,11 +126,12 @@ page.sendInputEvent({ type: "char", keyCode: "j" });
 page.sendInputEvent({ type: "keyUp", keyCode: "j" });
 ```
 
-Two traps. `require` comes from the inspector's command-line API and is gone
-after an `await`, so grab the webContents synchronously and only then start an
-async loop. And each inspector session must send all its keys in **one**
-`Runtime.evaluate`; keys split across separate evaluates silently fail to
-arrive. Capitals need `modifiers: ["shift"]`, or `G` arrives as `g` and leaves
+Three traps. `require` comes from the inspector's command-line API, which
+only exists when the evaluate passes `includeCommandLineAPI: true`, and is
+gone after an `await` even then — so grab the webContents synchronously and
+only then start an async loop. And each inspector session must send all its
+keys in **one** `Runtime.evaluate`; keys split across separate evaluates
+silently fail to arrive. Capitals need `modifiers: ["shift"]`, or `G` arrives as `g` and leaves
 a pending `g` prefix that eats the next key.
 
 **Nothing driven by the rendering lifecycle fires while the display is

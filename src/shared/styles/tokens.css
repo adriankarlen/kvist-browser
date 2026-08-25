@@ -75,6 +75,7 @@
     --kv-mode-insert-bg: var(--kv-color-accent-alt);
     --kv-mode-command-bg: var(--kv-color-warning);
     --kv-mode-find-bg: var(--kv-color-warning);
+    --kv-mode-prompt-bg: var(--kv-color-warning);
 
     --kv-cmdline-fg: var(--kv-color-text);
     --kv-cmdline-prompt-fg: var(--kv-color-warning);
@@ -86,6 +87,14 @@
     --kv-message-fg: var(--kv-color-subtle);
     --kv-message-prompt-fg: var(--kv-color-accent-alt);
     --kv-message-error-fg: var(--kv-color-danger);
+
+    --kv-permission-fg: var(--kv-color-text);
+    --kv-permission-prompt-fg: var(--kv-color-warning);
+    --kv-permission-hint-fg: var(--kv-color-muted);
+    --kv-permission-allow-fg: var(--kv-color-accent-alt);
+    --kv-permission-allow-hover-fg: var(--kv-color-accent);
+    --kv-permission-deny-fg: var(--kv-color-muted);
+    --kv-permission-deny-hover-fg: var(--kv-color-danger);
 
     --kv-downloads-fg: var(--kv-color-text);
     --kv-downloads-muted-fg: var(--kv-color-muted);

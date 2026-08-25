@@ -44,6 +44,11 @@ function table(actions: Actions) {
     "downloads.clear": actions.downloads.clear,
     "downloads.cancel": actions.downloads.cancel,
 
+    // No alias: a short form that forgot its argument would answer the wrong
+    // way, and these exist for the prompt-mode keys rather than for typing.
+    "permission.allow": actions.permissions.allow,
+    "permission.deny": actions.permissions.deny,
+
     "app.quit": actions.app.quit,
     "app.devtools": actions.app.devtools,
   };

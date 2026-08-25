@@ -92,13 +92,15 @@ entry point behind every script above.
 
 ## Keybindings
 
-Kvist has five modes: **normal** (default, keys are commands), **insert**
+Kvist has six modes: **normal** (default, keys are commands), **insert**
 (typing goes to a focused field or the omnibox), **command** (a `:` line at
 the bottom that runs a command on submit), **hint** (labels are shown on the
-page and typing one follows it), and **find** (a `/` line that searches the
-page as you type).
+page and typing one follows it), **find** (a `/` line that searches the
+page as you type), and **prompt** (a permission question is waiting for an
+answer).
 
-Escape always returns to normal mode and blurs whatever had focus.
+Escape always returns to normal mode and blurs whatever had focus, except in
+prompt mode, where it denies the permission question instead.
 
 ### Normal mode
 
@@ -154,6 +156,23 @@ closes the line, Escape gives up. `n` and `N` walk the matches afterward,
 and Escape in normal mode clears the highlighting. The match count sits at
 the end of the line, and the search belongs to the tab, so switching tabs
 switches what is highlighted.
+
+### Prompt mode
+
+When a page asks for the camera, the microphone, your location,
+notifications or clipboard access, a question line appears and normal mode
+becomes prompt mode: `y` allows, `n` and Escape deny, and nothing else
+reaches the page until the question is answered. The answer is remembered
+for the origin until the browser restarts — a denial included, so a refused
+site cannot re-ask on every click. The camera and the microphone are
+remembered separately, even though a page asking for both at once gets a
+single allow-or-deny answer covering that request.
+
+A question that arrives while you are typing waits: insert, command and find
+keep their keys, and the prompt takes over on the way back through normal.
+Everything not listed above is denied without asking, and fullscreen,
+pointer lock and sanitized clipboard writes are granted without asking, as
+in any other browser.
 
 Both keybindings and commands are early and intentionally minimal. See
 `src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add
