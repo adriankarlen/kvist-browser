@@ -7,6 +7,8 @@ export interface NewtabLink {
 
 export interface Settings {
   homepage: string;
+  /** Where a non-URL omnibox input goes; `{q}` is replaced with the encoded query. */
+  searchUrl: string;
   /** Quick links on the default new tab page, from [[newtab.links]]. */
   newtabLinks: NewtabLink[];
   /**
@@ -32,6 +34,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   homepage: "kvist://newtab",
+  searchUrl: "https://duckduckgo.com/?q={q}",
   newtabTimezone: undefined,
   newtabLinks: [
     { name: "github", url: "https://github.com" },
