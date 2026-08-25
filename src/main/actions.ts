@@ -13,6 +13,16 @@ import type { TabManager } from "./tab-manager";
 export type Action = (arg?: string) => void;
 
 /**
+ * The system clipboard, narrowed to the two verbs Kvist uses. Reads return
+ * whatever the OS has — a yank from another app is still a yank — and the
+ * caller decides what an empty string means.
+ */
+export interface Clipboard {
+  read(): string;
+  write(text: string): void;
+}
+
+/**
  * What Kvist can be asked to do. Anything that has to interpret a string —
  * a URL, a download row — interprets it here: the command table is data, and
  * data cannot parse.
@@ -71,6 +81,14 @@ export interface Actions {
     allow: Action;
     deny: Action;
   };
+  clipboard: {
+    /** Copy the active tab's URL to the system clipboard. */
+    yank: Action;
+    /** Open the clipboard contents in the active tab, via resolveUrl. */
+    open: Action;
+    /** Open the clipboard contents in a new tab, via resolveUrl. */
+    openNewTab: Action;
+  };
   app: {
     quit: Action;
     devtools: Action;
@@ -83,6 +101,7 @@ export function createActions(
   permissions: Permissions,
   win: BrowserWindow,
   messages: Messages,
+  clipboard: Clipboard,
   quit: () => void,
   getSearchUrl: () => string,
 ): Actions {
@@ -172,6 +191,42 @@ export function createActions(
     permissions: {
       allow: () => permissions.answerHead(true),
       deny: () => permissions.answerHead(false),
+    },
+    clipboard: {
+      // The snapshot already strips the kvist://error wrapper off, so what
+      // is on the wire matches what the user sees in the omnibox — and a
+      // freshly opened tab is empty rather than yet another about:blank.
+      yank: () => {
+        const url = tabs.active?.snapshot().url;
+        if (url === undefined || url === "") {
+          messages.warn("no URL to yank");
+          return;
+        }
+        clipboard.write(url);
+        messages.say(`yanked ${url}`);
+      },
+      open: () => {
+        const text = clipboard.read().trim();
+        if (text === "") {
+          messages.warn("clipboard is empty");
+          return;
+        }
+        const active = tabs.active;
+        if (active === undefined) {
+          messages.warn("no active tab");
+          return;
+        }
+        active.navigate(resolveUrl(text, getSearchUrl()));
+      },
+      // No active tab is fine here: opening in a new tab creates the tab.
+      openNewTab: () => {
+        const text = clipboard.read().trim();
+        if (text === "") {
+          messages.warn("clipboard is empty");
+          return;
+        }
+        tabs.create(resolveUrl(text, getSearchUrl()));
+      },
     },
     app: {
       quit,

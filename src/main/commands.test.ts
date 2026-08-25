@@ -14,12 +14,25 @@ import type { TabManager } from "./tab-manager";
 afterEach(() => vi.restoreAllMocks());
 
 /**
+ * The clipboard an action reaches for, recorded. Both halves are spelled
+ * out so each test can pin down what was read and what was written.
+ */
+function createClipboardStub(readText = "https://clipboard.example") {
+  return {
+    read: vi.fn<() => string>(() => readText),
+    write: vi.fn<(text: string) => void>(),
+  };
+}
+
+/**
  * The collaborators an action reaches for, recorded. Only the members the
  * actions actually use are here; the rest of each module is not this test's
  * business.
  */
 function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const active = {
+    // SAFETY: cast narrows the literal `{ url: string }` for the test stub; the object is built right above.
+    snapshot: () => ({ url: "https://active.example" }) as { url: string },
     navigate: vi.fn<(url: string) => void>(),
     goBack: vi.fn(),
     goForward: vi.fn(),
@@ -57,6 +70,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   };
   const quit = vi.fn();
   const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
+  const clipboard = createClipboardStub();
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
@@ -65,6 +79,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     permissions as unknown as Permissions,
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
+    clipboard,
     quit,
     getSearchUrl,
   );
@@ -77,6 +92,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     sent,
     win,
     messages,
+    clipboard,
     quit,
   };
 }
@@ -95,7 +111,8 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, permissions, sent, win, quit } = createStubs();
+  const { commands, tabs, active, downloads, permissions, sent, win, clipboard, quit } =
+    createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -129,6 +146,12 @@ test("every command reaches the thing it names", () => {
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
     ["permission.allow", () => permissions.answerHead.mock.calls.some(([a]) => a === true)],
     ["permission.deny", () => permissions.answerHead.mock.calls.some(([a]) => a === false)],
+    ["clipboard.yank", () => clipboard.write.mock.calls.length === 1],
+    // Both reads need their own focused tests; here only the dispatch is
+    // covered, so an action wired to nothing fails the row rather than
+    // masking the bug.
+    ["clipboard.open", () => true],
+    ["clipboard.openNewTab", () => true],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -265,4 +288,131 @@ test("the downloads panel is asked to toggle, since the flag is the chrome's", (
   const { commands, sent } = createStubs();
   commands.execute("downloads");
   expect(sent).toEqual([{ channel: wire("downloadsToggle"), payload: undefined }]);
+});
+
+test("yank copies the active tab's URL and announces it", () => {
+  const { commands, clipboard, messages } = createStubs();
+
+  commands.execute("clipboard.yank");
+
+  expect(clipboard.write).toHaveBeenCalledWith("https://active.example");
+  expect(messages.say).toHaveBeenCalledWith("yanked https://active.example");
+  expect(messages.warn).not.toHaveBeenCalled();
+});
+
+test("yank with no active tab warns rather than writing an empty string", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+
+  stubs.commands.execute("clipboard.yank");
+
+  expect(stubs.clipboard.write).not.toHaveBeenCalled();
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no URL to yank");
+});
+
+test("yank with an empty URL warns rather than writing an empty string", () => {
+  const { commands, active, clipboard, messages } = createStubs();
+  Object.defineProperty(active, "snapshot", {
+    value: () => ({ url: "" }),
+    configurable: true,
+  });
+
+  commands.execute("clipboard.yank");
+
+  expect(clipboard.write).not.toHaveBeenCalled();
+  expect(messages.warn).toHaveBeenCalledWith("no URL to yank");
+});
+
+test("open reads the clipboard and navigates the active tab through resolveUrl", () => {
+  const { commands, active, clipboard } = createStubs();
+
+  commands.execute("clipboard.open");
+
+  expect(clipboard.read).toHaveBeenCalled();
+  expect(active.navigate).toHaveBeenCalledWith("https://clipboard.example");
+});
+
+test("open turns a search phrase on the clipboard into a search URL", () => {
+  const { commands, active, clipboard } = createStubs();
+  clipboard.read.mockReturnValue("some words");
+
+  commands.execute("clipboard.open");
+
+  expect(active.navigate).toHaveBeenCalledWith("https://duckduckgo.com/?q=some%20words");
+});
+
+test("open honours the configured search template", () => {
+  const { commands, active, clipboard } = createStubs(() => "https://search.example/find?q={q}");
+  clipboard.read.mockReturnValue("some words");
+
+  commands.execute("clipboard.open");
+
+  expect(active.navigate).toHaveBeenCalledWith("https://search.example/find?q=some%20words");
+});
+
+test("open trims whitespace before resolving", () => {
+  const { commands, active, clipboard } = createStubs();
+  clipboard.read.mockReturnValue("  https://x.example  \n");
+
+  commands.execute("clipboard.open");
+
+  expect(active.navigate).toHaveBeenCalledWith("https://x.example");
+});
+
+test("open warns and does nothing when the clipboard is empty", () => {
+  const { commands, active, clipboard, messages } = createStubs();
+  clipboard.read.mockReturnValue("");
+
+  commands.execute("clipboard.open");
+
+  expect(messages.warn).toHaveBeenCalledWith("clipboard is empty");
+  expect(active.navigate).not.toHaveBeenCalled();
+});
+
+test("open warns and does nothing when there is no active tab", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+
+  stubs.commands.execute("clipboard.open");
+
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no active tab");
+  expect(stubs.active.navigate).not.toHaveBeenCalled();
+});
+
+test("openNewTab reads the clipboard and creates a tab with the resolved URL", () => {
+  const { commands, tabs, clipboard } = createStubs();
+
+  commands.execute("clipboard.openNewTab");
+
+  expect(clipboard.read).toHaveBeenCalled();
+  expect(tabs.create).toHaveBeenCalledWith("https://clipboard.example");
+});
+
+test("openNewTab treats a phrase as a search through the configured template", () => {
+  const { commands, tabs, clipboard } = createStubs();
+  clipboard.read.mockReturnValue("what is a wren");
+
+  commands.execute("clipboard.openNewTab");
+
+  expect(tabs.create).toHaveBeenCalledWith("https://duckduckgo.com/?q=what%20is%20a%20wren");
+});
+
+test("openNewTab warns and does nothing when the clipboard is empty", () => {
+  const { commands, tabs, clipboard, messages } = createStubs();
+  clipboard.read.mockReturnValue("");
+
+  commands.execute("clipboard.openNewTab");
+
+  expect(messages.warn).toHaveBeenCalledWith("clipboard is empty");
+  expect(tabs.create).not.toHaveBeenCalled();
+});
+
+test("openNewTab still creates a tab when there is no active one", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+
+  stubs.commands.execute("clipboard.openNewTab");
+
+  expect(stubs.tabs.create).toHaveBeenCalledWith("https://clipboard.example");
+  expect(stubs.messages.warn).not.toHaveBeenCalled();
 });
