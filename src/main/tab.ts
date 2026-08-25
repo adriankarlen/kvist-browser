@@ -13,6 +13,7 @@ import {
 } from "../shared/ipc";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
+import { externalProtocolTarget } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
 import type { KeyInput, KeySource } from "./vim";
@@ -39,6 +40,8 @@ export interface TabCallbacks {
   copyText(text: string): void;
   /** tokens + menu styles + the user's config.css, as they stand right now. */
   menuCss(): string;
+  /** A URL the desktop, not the tab, should open — mailto: and kin. */
+  externalRequest(url: string): void;
 }
 
 /**
@@ -177,7 +180,15 @@ export class Tab {
   }
 
   navigate(url: string): void {
-    if (!this.#closed) void this.#page.loadURL(url);
+    if (this.#closed) return;
+    // will-navigate does not fire for loadURL, so a scheme the desktop owns
+    // has to be intercepted here — an omnibox-typed mailto: would otherwise
+    // fail as a navigation.
+    if (externalProtocolTarget(url) !== null) {
+      this.#on.externalRequest(url);
+      return;
+    }
+    void this.#page.loadURL(url);
   }
 
   goBack(): void {
@@ -441,6 +452,17 @@ export class Tab {
     });
 
     interceptKeys(webContents, "page", (input, source) => this.#on.key(input, source));
+
+    // Link clicks and `location` changes for a scheme the desktop owns.
+    // window.open arrives in `setWindowOpenHandler` above and is funneled
+    // through `openRequest`; `loadURL` is intercepted in `navigate()`.
+    webContents.on("will-navigate", (details) => {
+      if (!details.isMainFrame) return;
+      if (externalProtocolTarget(details.url) !== null) {
+        details.preventDefault();
+        this.#on.externalRequest(details.url);
+      }
+    });
   }
 
   /**
