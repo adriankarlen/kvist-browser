@@ -84,6 +84,7 @@ export function createActions(
   win: BrowserWindow,
   messages: Messages,
   quit: () => void,
+  getSearchUrl: () => string,
 ): Actions {
   const chrome = senders(toChrome, (channel, payload) => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
@@ -95,7 +96,7 @@ export function createActions(
 
   return {
     tabs: {
-      create: (arg) => tabs.create(arg ? resolveUrl(arg) : undefined),
+      create: (arg) => tabs.create(arg ? resolveUrl(arg, getSearchUrl()) : undefined),
       close: () => tabs.closeActive(),
       next: () => tabs.step(1),
       prev: () => tabs.step(-1),
@@ -105,7 +106,7 @@ export function createActions(
       forward: () => tabs.active?.goForward(),
       reload: () => tabs.active?.reload(),
       open: (arg) => {
-        if (arg) tabs.active?.navigate(resolveUrl(arg));
+        if (arg) tabs.active?.navigate(resolveUrl(arg, getSearchUrl()));
       },
     },
     scroll: {

@@ -168,7 +168,17 @@ function createWindow(): void {
   const releaseMessages = messages.observe((message) => chrome.message(message));
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
-  const actions = createActions(tabs, downloads, permissions, win, messages, () => app.quit());
+  const actions = createActions(
+    tabs,
+    downloads,
+    permissions,
+    win,
+    messages,
+    () => app.quit(),
+    // Read at call time, so a config save changes where the next search goes
+    // without the window being recreated.
+    () => current.settings.searchUrl,
+  );
   const commands = createCommands(actions);
 
   const vim = new Vim(
