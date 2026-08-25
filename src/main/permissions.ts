@@ -63,6 +63,13 @@ export interface PermissionRequestDetails {
 interface Waiter {
   contents: WebContents;
   callback: (granted: boolean) => void;
+  /**
+   * Undoes the `destroyed` listener acquired for this waiter. Paired at the
+   * point of acquisition, same as the downloads' `updated`/`done` pair — a
+   * tab that keeps asking for permissions across a long session must not
+   * accumulate one dead listener per question it already got an answer to.
+   */
+  release: () => void;
 }
 
 interface PendingRequest {
@@ -224,21 +231,28 @@ export class Permissions {
         sameMediaTypes(entry.mediaTypes, mediaTypes),
     );
     if (waiting !== undefined) {
-      waiting.waiters.push({ contents, callback });
-      contents.once("destroyed", () => this.#dropWaiter(waiting.id, contents));
+      waiting.waiters.push(this.#waiterFor(waiting.id, contents, callback));
       return;
     }
 
+    const id = this.#nextId++;
     const entry: PendingRequest = {
-      id: this.#nextId++,
+      id,
       origin,
       permission,
       mediaTypes,
-      waiters: [{ contents, callback }],
+      waiters: [],
     };
+    entry.waiters.push(this.#waiterFor(id, contents, callback));
     this.#pending.push(entry);
-    contents.once("destroyed", () => this.#dropWaiter(entry.id, contents));
     this.#notify();
+  }
+
+  /** Acquires the `destroyed` listener a waiter needs, paired with its release. */
+  #waiterFor(id: number, contents: WebContents, callback: (granted: boolean) => void): Waiter {
+    const onDestroyed = (): void => this.#dropWaiter(id, contents);
+    contents.once("destroyed", onDestroyed);
+    return { contents, callback, release: () => contents.removeListener("destroyed", onDestroyed) };
   }
 
   /** The chrome answering the prompt it is showing; a stale id is a no-op. */
@@ -269,7 +283,10 @@ export class Permissions {
     // Calling Chromium's callback into a destroyed contents is the one way
     // this can throw, and that tab no longer cares about the answer — but a
     // second tab waiting on the same question is still owed its callback.
+    // The listener each waiter acquired is released here too: the question is
+    // answered now, so there is nothing left for it to watch for.
     for (const waiter of entry.waiters) {
+      waiter.release();
       if (!waiter.contents.isDestroyed()) waiter.callback(allow);
     }
     this.#notify();

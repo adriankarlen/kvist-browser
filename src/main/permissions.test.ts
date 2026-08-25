@@ -3,17 +3,26 @@ import type { WebContents } from "electron";
 import type { PermissionPromptState } from "../shared/ipc";
 import { Permissions } from "./permissions";
 
-/** A stand-in tab: captures the destroyed listener so a test can fire it. */
+/** A stand-in tab: a real enough store of `destroyed` listeners to test both acquiring one and releasing it. */
 function fakeContents() {
-  let onDestroyed: () => void = () => {};
-  // SAFETY: partial stub — Permissions only reaches isDestroyed and once.
+  const listeners = new Set<() => void>();
+  // SAFETY: partial stub — Permissions only reaches isDestroyed, once and removeListener.
   const contents = {
     isDestroyed: () => false,
     once: (_event: string, listener: () => void) => {
-      onDestroyed = listener;
+      listeners.add(listener);
+    },
+    removeListener: (_event: string, listener: () => void) => {
+      listeners.delete(listener);
     },
   } as unknown as WebContents;
-  return { contents, destroy: () => onDestroyed() };
+  return {
+    contents,
+    destroy: () => {
+      for (const listener of listeners) listener();
+    },
+    listenerCount: () => listeners.size,
+  };
 }
 
 function createPermissions() {
@@ -232,6 +241,31 @@ test("an observer that leaves is not told", () => {
   permissions.answerHead(true);
 
   expect(seen).toHaveLength(1);
+});
+
+test("answering releases the destroyed listener it no longer needs", () => {
+  const { permissions } = createPermissions();
+  const { contents, listenerCount } = fakeContents();
+
+  permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
+  expect(listenerCount()).toBe(1);
+
+  permissions.answerHead(true);
+  // A long session asking for several permissions from one tab must not
+  // leave one dead listener behind per question it already answered.
+  expect(listenerCount()).toBe(0);
+});
+
+test("coalesced waiters each release their own listener on answer", () => {
+  const { permissions } = createPermissions();
+  const { contents, listenerCount } = fakeContents();
+
+  permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
+  permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
+  expect(listenerCount()).toBe(2);
+
+  permissions.answerHead(true);
+  expect(listenerCount()).toBe(0);
 });
 
 test("a camera grant does not silently cover the microphone too", () => {
