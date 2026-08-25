@@ -8,6 +8,7 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
+import { systemClipboard } from "./clipboard";
 import {
   fromPage,
   type PermissionAnswer,
@@ -174,6 +175,7 @@ function createWindow(): void {
     permissions,
     win,
     messages,
+    systemClipboard,
     () => app.quit(),
     // Read at call time, so a config save changes where the next search goes
     // without the window being recreated.

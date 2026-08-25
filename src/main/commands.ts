@@ -49,6 +49,10 @@ function table(actions: Actions) {
     "permission.allow": actions.permissions.allow,
     "permission.deny": actions.permissions.deny,
 
+    "clipboard.yank": actions.clipboard.yank,
+    "clipboard.open": actions.clipboard.open,
+    "clipboard.openNewTab": actions.clipboard.openNewTab,
+
     "app.quit": actions.app.quit,
     "app.devtools": actions.app.devtools,
   };
