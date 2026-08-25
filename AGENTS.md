@@ -51,6 +51,32 @@ constrains.
   question captures normal mode as `prompt` mode (`y`/`n`), which is why
   `Vim.setPromptPending` exists.
 
+## Resource lifetimes
+
+Anything acquired with a lifetime past the call that acquired it — a
+listener, a timer, a filesystem watcher, a reservation, an IPC subscription
+— returns or is paired with a `release`, not a fire-and-forget. Pair it at
+the point of acquisition: `config.ts`'s `watchConfig` (watcher + debounce
+timer), `downloads.ts`'s save-path reservation and its `updated`/`done`
+listeners, and `permissions.ts`'s per-waiter `destroyed` listener all follow
+this shape (PR #24, KVI-35).
+
+A release reachable from only one exit path is half a fix. `permissions.ts`
+first released a waiter's `destroyed` listener only when its tab died, not
+when the question was answered normally — every resolved permission left one
+dead listener on a long-lived tab. Ask both: how does this get released when
+the resource retires normally, and how does it get released if the thing
+being watched disappears first?
+
+App/session-scoped acquisitions are the deliberate exception: `Downloads` and
+`Permissions` attach their session handlers once, for the app's whole life,
+with nothing narrower to release into — there is only one app. Everything
+window-scoped follows `observe()` → disposer: `Messages`, `Downloads` and
+`Permissions` all hand back an unsubscribe that `createWindow` calls on
+`win.on("closed", ...)`, the same shape `watchConfig`'s release takes on
+`will-quit`. A new module with a per-window subscription should return the
+same shape rather than invent its own teardown.
+
 ## In-page vim
 
 Hints live in the preload, mode stays in main. Hint labels are inline-styled
