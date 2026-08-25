@@ -208,7 +208,14 @@ export class Permissions {
     // Every kind this request names has already been allowed.
     if (remembered.every((decision) => decision === true)) return callback(true);
 
-    this.#queue(contents, callback, origin, "media", types);
+    // Only the kinds still unknown are actually in question. Queuing the
+    // full combination here would let answering it re-decide a kind that was
+    // already granted on its own — denying "camera and microphone" when the
+    // camera was only riding along must not revoke that earlier grant.
+    const unresolved = types.filter(
+      (type) => this.#decisions.get(keyOf(origin, "media", type)) === undefined,
+    );
+    this.#queue(contents, callback, origin, "media", unresolved);
   }
 
   /**

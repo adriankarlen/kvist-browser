@@ -6,9 +6,10 @@ import { Permissions } from "./permissions";
 /** A stand-in tab: a real enough store of `destroyed` listeners to test both acquiring one and releasing it. */
 function fakeContents() {
   const listeners = new Set<() => void>();
+  let destroyed = false;
   // SAFETY: partial stub — Permissions only reaches isDestroyed, once and removeListener.
   const contents = {
-    isDestroyed: () => false,
+    isDestroyed: () => destroyed,
     once: (_event: string, listener: () => void) => {
       listeners.add(listener);
     },
@@ -19,7 +20,12 @@ function fakeContents() {
   return {
     contents,
     destroy: () => {
-      for (const listener of listeners) listener();
+      destroyed = true;
+      // A real `once` listener removes itself before firing; snapshot and
+      // clear first so the fake does not retain what Electron would not.
+      const firing = [...listeners];
+      listeners.clear();
+      for (const listener of firing) listener();
     },
     listenerCount: () => listeners.size,
   };
@@ -339,4 +345,36 @@ test("a combined ask and a camera-only ask do not merge into one question", () =
   });
 
   expect(permissions.pending).toHaveLength(2);
+});
+
+test("denying a combined ask does not revoke an already-granted kind", () => {
+  const { permissions } = createPermissions();
+  const { contents } = fakeContents();
+
+  // The camera is granted on its own first.
+  permissions.request(contents, "media", () => {}, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["video"],
+  });
+  permissions.answerHead(true);
+
+  // A later combined ask has only the microphone left to decide, and the
+  // prompt reflects that rather than re-asking about the camera too.
+  const combined = vi.fn();
+  permissions.request(contents, "media", combined, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["video", "audio"],
+  });
+  expect(permissions.pending).toMatchObject([{ mediaTypes: ["audio"] }]);
+
+  // Denying it settles the microphone only; the camera grant survives.
+  permissions.answerHead(false);
+  expect(combined).toHaveBeenCalledWith(false);
+
+  const video = vi.fn();
+  permissions.request(contents, "media", video, {
+    requestingUrl: "https://meet.example.com",
+    mediaTypes: ["video"],
+  });
+  expect(video).toHaveBeenCalledWith(true);
 });
