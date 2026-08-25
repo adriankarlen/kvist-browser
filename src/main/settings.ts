@@ -131,6 +131,17 @@ function parseTimezone(value: unknown, problems: Problem[]): string | undefined 
 }
 
 /**
+ * A search URL template is only useful with somewhere to put the query, so
+ * one without `{q}` is reported and the default stands.
+ */
+function parseSearchUrl(value: unknown, problems: Problem[]): string {
+  const template = readString(value, "search", DEFAULT_SETTINGS.searchUrl, problems);
+  if (template.includes("{q}")) return template;
+  problems.push({ field: "search", reason: 'no "{q}" placeholder' });
+  return DEFAULT_SETTINGS.searchUrl;
+}
+
+/**
  * Reads config.toml. Pure: the previous settings come in as an argument, so a
  * syntax error mid-edit can keep them without anything holding state between
  * calls.
@@ -159,6 +170,7 @@ export function parseSettings(
 
   const settings: Settings = {
     homepage: readString(root.homepage, "homepage", DEFAULT_SETTINGS.homepage, problems),
+    searchUrl: parseSearchUrl(root.search, problems),
     newtabLinks: parseLinks(newtab.links, problems),
     newtabTimezone: parseTimezone(newtab.timezone, problems),
     adblock: readBoolean(root.adblock, "adblock", DEFAULT_SETTINGS.adblock, problems),

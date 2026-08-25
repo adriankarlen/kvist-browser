@@ -15,6 +15,7 @@ test("an empty file is the defaults, and says nothing about them", () => {
 test("every field is read", () => {
   const settings = settingsOf(`
     homepage = "https://example.com"
+    search = "https://search.example/?q={q}"
     adblock = false
 
     [tabs]
@@ -33,6 +34,7 @@ test("every field is read", () => {
 
   expect(settings).toEqual({
     homepage: "https://example.com",
+    searchUrl: "https://search.example/?q={q}",
     adblock: false,
     tabOrientation: "vertical",
     tabFocusPage: false,
@@ -49,10 +51,16 @@ test("an absent field is not a problem, it is the default", () => {
 
 test("a field the user wrote and we could not use is reported", () => {
   expect(problemsOf("homepage = 3")).toEqual(["homepage"]);
+  expect(problemsOf("search = 3")).toEqual(["search"]);
   expect(problemsOf("adblock = 'yes'")).toEqual(["adblock"]);
   expect(problemsOf("[tabs]\norientation = 'sideways'")).toEqual(["tabs.orientation"]);
   expect(problemsOf("[tabs]\nfocus-page = 1")).toEqual(["tabs.focus-page"]);
   expect(problemsOf("[downloads]\ndir = true")).toEqual(["downloads.dir"]);
+});
+
+test("a search template without a {q} placeholder has nowhere to put the query", () => {
+  expect(settingsOf("search = 'https://example.com'").searchUrl).toBe(DEFAULT_SETTINGS.searchUrl);
+  expect(problemsOf("search = 'https://example.com'")).toEqual(["search"]);
 });
 
 test("an unusable field falls back rather than being fatal", () => {

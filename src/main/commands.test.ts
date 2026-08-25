@@ -1,6 +1,7 @@
 import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { wire } from "../shared/ipc";
+import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
@@ -17,7 +18,7 @@ afterEach(() => vi.restoreAllMocks());
  * actions actually use are here; the rest of each module is not this test's
  * business.
  */
-function createStubs() {
+function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const active = {
     navigate: vi.fn<(url: string) => void>(),
     goBack: vi.fn(),
@@ -65,6 +66,7 @@ function createStubs() {
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
     quit,
+    getSearchUrl,
   );
   return {
     commands: createCommands(actions),
@@ -158,6 +160,13 @@ test("a bare host is opened as https, and anything else is searched for", () => 
 
   commands.execute("nav.open", "kvist://newtab");
   expect(active.navigate).toHaveBeenLastCalledWith("kvist://newtab");
+});
+
+test("the search template comes from the config, not from resolveUrl", () => {
+  const { commands, active } = createStubs(() => "https://search.example/find?q={q}");
+
+  commands.execute("nav.open", "some words");
+  expect(active.navigate).toHaveBeenLastCalledWith("https://search.example/find?q=some%20words");
 });
 
 test("nav.open without a URL does nothing", () => {

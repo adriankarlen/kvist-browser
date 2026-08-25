@@ -45,6 +45,9 @@ export function createUi(bridge: Pick<KvistApi, "onConfig">, applyCss: (css: str
     get tabOrientation(): TabOrientation {
       return state.orientation ?? state.settings.tabOrientation;
     },
+    get searchUrl(): string {
+      return state.settings.searchUrl;
+    },
     toggleTabOrientation(): void {
       state.orientation = this.tabOrientation === "horizontal" ? "vertical" : "horizontal";
     },

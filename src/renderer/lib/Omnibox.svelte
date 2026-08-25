@@ -15,7 +15,7 @@
   function submit(event: SubmitEvent): void {
     event.preventDefault();
     if (draft.trim() === "") return;
-    window.kvist.navigate(resolveUrl(draft));
+    window.kvist.navigate(resolveUrl(draft, ui.searchUrl));
     input?.blur();
   }
 
