@@ -98,6 +98,24 @@ Generic cosmetic filters are keyed on real domains, so a page served from a
 bare IP gets none of them. Test cosmetic filtering against an actual site;
 localhost will read as a false negative.
 
+## Svelte tooling
+
+The Svelte MCP server exposes official Svelte 5 / SvelteKit docs and a
+code-aware autofixer; the `svelte-code-writer` and `svelte-core-bestpractices`
+skills cover the same ground. Use them whenever a `.svelte` file or
+`.svelte.ts`/`.svelte.js` module is being created, edited, or analyzed.
+
+- `list-sections` first to find what applies, then `get-documentation` for
+  those sections — don't fetch a kitchen-sink dump.
+- `svelte-autofixer` after writing Svelte code. Keep iterating until it
+  returns nothing.
+- `playground-link` only after the user asks for one, and never for code
+  already on disk.
+
+This file's styling rules override anything the docs or autofixer suggest.
+The `@layer` system, no-`<style>`-block, and no-`!important` rules are
+load-bearing — see "Styling rules" below.
+
 ## Styling rules
 
 These are load-bearing for the product, not preferences. Hackability is the

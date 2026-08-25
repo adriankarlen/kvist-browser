@@ -6,7 +6,6 @@ release/
 *.log
 
 # ai stuff
-.mcp.json
 .claude/
 .pi/
 /.DS_Store
