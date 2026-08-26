@@ -40,6 +40,7 @@ const urlSheets = new WeakMap<CosmeticTarget, string>();
 const replacements = new WeakMap<CosmeticTarget, Promise<void>>();
 
 /**
+ * Replaces a tab's URL-scoped cosmetic filter stylesheet with a new one.
  * `$generichide` and friends are matched against the whole URL, path included,
  * so the hiding rules are not fixed for the lifetime of a document. The sheet
  * they produce is tracked and swapped rather than appended, and the swaps are
@@ -65,6 +66,7 @@ function replaceUrlSheet(sender: CosmeticTarget, styles: string): void {
 }
 
 /**
+ * Runs a uBO scriptlet in an isolated scope to prevent global scope pollution.
  * uBO scriptlets are self-contained bundles that declare their helpers at the
  * top level — several of the YouTube ones declare `class JSONPath`. The library
  * runs each as its own top-level `executeJavaScript`, so they share one global

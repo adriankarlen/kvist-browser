@@ -183,6 +183,11 @@ export function table<T extends AnyTable>(channels: T): T {
   return channels;
 }
 
+/**
+ * Creates a channel declaration. The payload type T exists only at compile
+ * time; the channel itself is an empty object whose type carries the payload
+ * information.
+ */
 function channel<T>(): Channel<T> {
   // SAFETY: `payload` is phantom — the object deliberately carries nothing; T travels in the type only.
   return {} as Channel<T>;

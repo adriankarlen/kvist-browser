@@ -63,6 +63,11 @@ export function applySettings(config: {
   };
 }
 
+/**
+ * Returns the filesystem directory containing a local page's static files.
+ * In dev mode, reads from the source public/ directory; in production, reads
+ * from the built dist/renderer/ directory.
+ */
 function pageDir(page: LocalPage): string {
   // In dev the renderer build hasn't run, so read straight from source.
   // In prod Vite copies public/ → dist/renderer/.
@@ -71,6 +76,9 @@ function pageDir(page: LocalPage): string {
     : join(import.meta.dirname, "../renderer", page);
 }
 
+/**
+ * Type guard to check if a hostname corresponds to a known local page.
+ */
 function isLocalPage(hostname: string): hostname is LocalPage {
   return PAGES.some((page) => page === hostname);
 }

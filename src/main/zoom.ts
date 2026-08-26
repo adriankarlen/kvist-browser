@@ -3,10 +3,16 @@ import { join } from "node:path";
 import type { App } from "electron";
 import { configDir } from "./paths";
 
+/**
+ * Type guard to check if a value is a plain object (not null or array).
+ */
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Type guard to check if a value is a finite number.
+ */
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }

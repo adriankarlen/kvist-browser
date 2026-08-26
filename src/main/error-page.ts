@@ -34,6 +34,11 @@ export type ErrorPageUrl = `kvist://error/?${string}`;
 const HOST = "error";
 const SCHEME = "kvist";
 
+/**
+ * Formats an error page URL from failure information. The details are encoded
+ * in the query string so the static error page can read and display them
+ * without IPC.
+ */
 export function formatErrorPageUrl(info: ErrorPageInfo): ErrorPageUrl {
   const params = new URLSearchParams();
   if (info.code !== null) params.set("code", String(info.code));
@@ -92,6 +97,11 @@ const HEADLINES = new Map([
   [-324, "empty response"],
 ]);
 
+/**
+ * Returns a short human-readable headline for a Chromium error code. Falls
+ * back to a generic description for unknown codes. Null code indicates a
+ * renderer crash rather than a network error.
+ */
 export function describeError(code: number | null): string {
   if (code === null) return "renderer gone";
   return HEADLINES.get(code) ?? `error ${code}`;
