@@ -62,4 +62,19 @@
   .kv-omnibox__input::placeholder {
     color: var(--kv-omnibox-placeholder-fg);
   }
+
+  .kv-omnibox__zoom {
+    flex: none;
+    color: var(--kv-omnibox-zoom-fg);
+    /* Chromium renders zoom to two significant figures (100%, 83%, 50%);
+     * monospace keeps the indicator from jumping width as the level changes.
+     */
+    font-variant-numeric: tabular-nums;
+    min-width: 4ch;
+    text-align: right;
+  }
+
+  .kv-omnibox__zoom.is-default {
+    color: var(--kv-omnibox-zoom-default-fg);
+  }
 }

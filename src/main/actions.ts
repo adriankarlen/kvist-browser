@@ -1,10 +1,12 @@
 import type { BrowserWindow } from "electron";
 import { senders, toChrome } from "../shared/ipc";
-import { resolveUrl } from "../shared/url";
+import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
+import { errorPageTarget } from "./error-page";
 import type { Messages } from "./messages";
 import type { Permissions } from "./permissions";
 import type { TabManager } from "./tab-manager";
+import { clamp, STEP } from "./zoom";
 
 /**
  * Every action takes the command's argument, because a command line is the
@@ -20,6 +22,16 @@ export type Action = (arg?: string) => void;
 export interface Clipboard {
   read(): string;
   write(text: string): void;
+}
+
+/**
+ * The slice of the zoom store the action layer reads and writes. The store
+ * owns the persistence and the debounce; the actions only ask for a level
+ * or hand one back.
+ */
+export interface ZoomStoreAccess {
+  get(origin: string): number;
+  set(origin: string, level: number): void;
 }
 
 /**
@@ -89,6 +101,20 @@ export interface Actions {
     /** Open the clipboard contents in a new tab, via resolveUrl. */
     openNewTab: Action;
   };
+  zoom: {
+    /** Add a step; clamped at the upper limit. */
+    in: Action;
+    /** Subtract a step; clamped at the lower limit. */
+    out: Action;
+    /** Set the level to 0 — the saved value is reapplied on next navigation. */
+    reset: Action;
+    /**
+     * Set the level to the parsed argument (in the same units as
+     * `webContents.setZoomLevel`). A non-numeric argument is a no-op plus a
+     * warning, so a typo does not silently change the level.
+     */
+    set: Action;
+  };
   app: {
     quit: Action;
     devtools: Action;
@@ -99,6 +125,7 @@ export function createActions(
   tabs: TabManager,
   downloads: Downloads,
   permissions: Permissions,
+  zoom: ZoomStoreAccess,
   win: BrowserWindow,
   messages: Messages,
   clipboard: Clipboard,
@@ -112,6 +139,54 @@ export function createActions(
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
   };
+
+  /**
+   * Whether the active tab has a URL whose zoom we should remember. Pages
+   * without a persistable origin (about:blank, data:, mailto:) cannot have a
+   * per-origin preference anyway, so the keybinds are no-ops there.
+   */
+  const zoomableOrigin = (): string | null => {
+    const active = tabs.active;
+    if (active === undefined) return null;
+    const url = active.snapshot().url;
+    if (url === "") return null;
+    // Error pages do not count as a real origin — zooming an error page would
+    // be invisible and might shadow the real site's saved level on revisit.
+    if (errorPageTarget(url) !== null) return null;
+    return originOf(url);
+  };
+
+  const setActiveZoom = (level: number): void => {
+    const origin = zoomableOrigin();
+    if (origin === null) {
+      messages.warn("no zoomable page here");
+      return;
+    }
+    const applied = tabs.active?.setZoomLevel(level);
+    if (applied === null || applied === undefined) return;
+    // Pin to whatever Chromium actually accepted, so the stored value matches.
+    zoom.set(origin, applied);
+    messages.say(`zoom ${zoomPercent(applied)}`);
+  };
+
+  /**
+   * Resets only the current view: the saved level stays, so the next
+   * navigation reapplies it — mirroring Chrome's Ctrl+0. To make the reset
+   * sticky, `:zoom 0` writes through to the store instead.
+   */
+  const resetActiveZoomView = (): void => {
+    const active = tabs.active;
+    if (active === undefined) return;
+    const origin = zoomableOrigin();
+    if (origin === null) {
+      messages.warn("no zoomable page here");
+      return;
+    }
+    active.setZoomLevel(0);
+    messages.say("zoom 100%");
+  };
+
+  const zoomPercent = (level: number): string => `${Math.round(100 * 1.2 ** level)}%`;
 
   return {
     tabs: {
@@ -226,6 +301,33 @@ export function createActions(
           return;
         }
         tabs.create(resolveUrl(text, getSearchUrl()));
+      },
+    },
+    zoom: {
+      in: () => {
+        const current = tabs.active?.zoomLevel ?? 0;
+        setActiveZoom(clamp(current + STEP));
+      },
+      out: () => {
+        const current = tabs.active?.zoomLevel ?? 0;
+        setActiveZoom(clamp(current - STEP));
+      },
+      // Reset only changes the current view — the saved level is reapplied on
+      // next navigation, matching Chrome's Ctrl+0 behaviour.
+      reset: resetActiveZoomView,
+      set: (arg) => {
+        if (arg === undefined || arg.trim() === "") {
+          messages.warn(
+            "zoom needs a level, e.g. `:zoom 1.5` or `:zoom -1` (`:z0` resets only the current view)",
+          );
+          return;
+        }
+        const level = Number(arg);
+        if (!Number.isFinite(level)) {
+          messages.warn(`not a zoom level: ${arg}`);
+          return;
+        }
+        setActiveZoom(level);
       },
     },
     app: {

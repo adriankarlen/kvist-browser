@@ -6,6 +6,7 @@ import { externalProtocolTarget } from "./external";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { KeyInput, KeySource } from "./vim";
+import type { ZoomStore } from "./zoom";
 
 interface CreateOptions {
   /** Open next to this tab rather than at the end, as a page-opened tab should. */
@@ -27,6 +28,7 @@ export class TabManager {
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
   #onExternal: (url: string) => void = () => {};
   #pagePreload: string;
+  #zoom: ZoomStore;
   #tabs = new Map<TabId, Tab>();
   /**
    * The views, kept beside the tabs: only the window needs the real thing.
@@ -47,9 +49,15 @@ export class TabManager {
   /** tokens + menu styles + the user's config.css, composed for the page's menu. */
   #menuCss = "";
 
-  constructor(window: BaseWindow, pagePreload: string, emit: (state: BrowserState) => void) {
+  constructor(
+    window: BaseWindow,
+    pagePreload: string,
+    zoom: ZoomStore,
+    emit: (state: BrowserState) => void,
+  ) {
     this.#window = window;
     this.#pagePreload = pagePreload;
+    this.#zoom = zoom;
     this.#emit = emit;
   }
 
@@ -203,7 +211,7 @@ export class TabManager {
   #adopt(url: string, after?: TabId): Tab {
     const id = this.#nextId++;
     const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
-    const tab = new Tab(id, view, this.#callbacks(id), url);
+    const tab = new Tab(id, view, this.#callbacks(id), this.#zoom, url);
     this.#views.set(id, view);
 
     this.#tabs.set(id, tab);

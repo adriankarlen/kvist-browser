@@ -53,6 +53,11 @@ function table(actions: Actions) {
     "clipboard.open": actions.clipboard.open,
     "clipboard.openNewTab": actions.clipboard.openNewTab,
 
+    "zoom.in": actions.zoom.in,
+    "zoom.out": actions.zoom.out,
+    "zoom.reset": actions.zoom.reset,
+    "zoom.set": actions.zoom.set,
+
     "app.quit": actions.app.quit,
     "app.devtools": actions.app.devtools,
   };
@@ -73,6 +78,11 @@ const ALIASES = {
   open: "nav.open",
   downloads: "downloads.toggle",
   devtools: "app.devtools",
+  // `:zoom` reads more naturally than `:zoom.in` for the common cases.
+  zi: "zoom.in",
+  zo: "zoom.out",
+  z0: "zoom.reset",
+  zoom: "zoom.set",
 } satisfies Record<string, CommandName>;
 
 export interface Commands {

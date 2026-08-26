@@ -137,5 +137,7 @@
     --kv-omnibox-placeholder-fg: var(--kv-color-muted);
     --kv-omnibox-button-fg: var(--kv-color-muted);
     --kv-omnibox-button-hover-fg: var(--kv-color-accent);
+    --kv-omnibox-zoom-fg: var(--kv-color-subtle);
+    --kv-omnibox-zoom-default-fg: var(--kv-color-muted);
   }
 }

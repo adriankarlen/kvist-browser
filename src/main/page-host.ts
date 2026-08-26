@@ -34,6 +34,10 @@ export type PageContents = Pick<
   // The page's own stylesheet surface, which the cosmetic filters write to.
   | "insertCSS"
   | "removeInsertedCSS"
+  // The zoom surface: setZoomLevel mutates, getZoomLevel reads. zoom-changed
+  // is the only way the page can land a new level without us calling it.
+  | "setZoomLevel"
+  | "getZoomLevel"
 >;
 
 export interface PageHost {

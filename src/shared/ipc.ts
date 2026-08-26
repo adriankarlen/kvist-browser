@@ -15,6 +15,11 @@ export interface TabState {
   loading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  /**
+   * The page's current zoom level (0 = 100%, +1 / -1 ≈ 20% step). Mirrored
+   * here so the chrome can show it without reaching back into main.
+   */
+  zoomLevel: number;
 }
 
 /** Where a find has got to, as `found-in-page` reports it. */

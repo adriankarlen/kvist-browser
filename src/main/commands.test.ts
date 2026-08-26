@@ -2,7 +2,7 @@ import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { wire } from "../shared/ipc";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
-import { createActions } from "./actions";
+import { createActions, type ZoomStoreAccess } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
@@ -46,6 +46,8 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     toggleDevTools: vi.fn(),
     blur: vi.fn(),
     focus: vi.fn(),
+    zoomLevel: 0,
+    setZoomLevel: vi.fn<(level: number) => number>(() => 0),
   };
   const tabs = {
     active,
@@ -59,6 +61,11 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   };
   const permissions = {
     answerHead: vi.fn<(allow: boolean) => void>(),
+  };
+  const zoom = {
+    get: vi.fn<(origin: string) => number>(() => 0),
+    set: vi.fn<(origin: string, level: number) => void>(),
+    release: vi.fn(),
   };
   const sent: { channel: string; payload?: unknown }[] = [];
   const win = {
@@ -77,6 +84,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,
     permissions as unknown as Permissions,
+    zoom as unknown as ZoomStoreAccess,
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
     clipboard,
@@ -89,6 +97,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     active,
     downloads,
     permissions,
+    zoom,
     sent,
     win,
     messages,
@@ -152,6 +161,10 @@ test("every command reaches the thing it names", () => {
     // masking the bug.
     ["clipboard.open", () => true],
     ["clipboard.openNewTab", () => true],
+    ["zoom.in", () => active.setZoomLevel.mock.calls.some(([l]) => l === 1)],
+    ["zoom.out", () => active.setZoomLevel.mock.calls.some(([l]) => l === -1)],
+    ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
+    ["zoom.set", () => true],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -415,4 +428,120 @@ test("openNewTab still creates a tab when there is no active one", () => {
 
   expect(stubs.tabs.create).toHaveBeenCalledWith("https://clipboard.example");
   expect(stubs.messages.warn).not.toHaveBeenCalled();
+});
+
+test("zoom.in nudges the active tab up one step and persists", () => {
+  const { commands, active, zoom } = createStubs();
+  active.setZoomLevel.mockReturnValue(1);
+
+  commands.execute("zoom.in");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(1);
+  expect(zoom.set).toHaveBeenCalledWith("https://active.example", 1);
+});
+
+test("zoom.out nudges down one step", () => {
+  const { commands, active } = createStubs();
+  active.zoomLevel = 2;
+  active.setZoomLevel.mockReturnValue(1);
+
+  commands.execute("zoom.out");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(1);
+});
+
+test("zoom.reset sets the current view to 0 but leaves the saved level alone", () => {
+  const { commands, active, zoom } = createStubs();
+  active.setZoomLevel.mockReturnValue(0);
+
+  commands.execute("zoom.reset");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(0);
+  // The Chrome-style behaviour: reset only touches the view, the saved
+  // level is reapplied on next navigation. `:zoom 0` is the way to make it
+  // sticky — see the next test.
+  expect(zoom.set).not.toHaveBeenCalled();
+});
+
+test("zoom.set parses a numeric argument and applies it", () => {
+  const { commands, active, zoom } = createStubs();
+  active.setZoomLevel.mockReturnValue(2);
+
+  commands.execute("zoom.set", "2");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(2);
+  expect(zoom.set).toHaveBeenCalledWith("https://active.example", 2);
+});
+
+test("zoom.set with 0 is the sticky reset — writes through to the store", () => {
+  const { commands, active, zoom } = createStubs();
+  active.setZoomLevel.mockReturnValue(0);
+
+  commands.execute("zoom.set", "0");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(0);
+  expect(zoom.set).toHaveBeenCalledWith("https://active.example", 0);
+});
+
+test("zoom.set warns and does nothing for a non-numeric argument", () => {
+  const { commands, active, messages } = createStubs();
+
+  commands.execute("zoom.set", "lots");
+
+  expect(active.setZoomLevel).not.toHaveBeenCalled();
+  expect(messages.warn).toHaveBeenCalledWith("not a zoom level: lots");
+});
+
+test("zoom.set without an argument warns the user", () => {
+  const { commands, active, messages } = createStubs();
+
+  commands.execute("zoom.set");
+
+  expect(active.setZoomLevel).not.toHaveBeenCalled();
+  expect(messages.warn).toHaveBeenCalledWith(
+    "zoom needs a level, e.g. `:zoom 1.5` or `:zoom -1` (`:z0` resets only the current view)",
+  );
+});
+
+test(":zi and :zo are aliases for zoom.in and zoom.out", () => {
+  const { commands, active } = createStubs();
+  active.setZoomLevel.mockReturnValue(1);
+
+  commands.execute("zi");
+  expect(active.setZoomLevel).toHaveBeenLastCalledWith(1);
+
+  active.setZoomLevel.mockReturnValue(-1);
+  commands.execute("zo");
+  expect(active.setZoomLevel).toHaveBeenLastCalledWith(-1);
+});
+
+test(":zoom <level> goes through zoom.set with the parsed argument", () => {
+  const { commands, active } = createStubs();
+  active.setZoomLevel.mockReturnValue(1.5);
+
+  commands.execute("zoom", "1.5");
+
+  expect(active.setZoomLevel).toHaveBeenCalledWith(1.5);
+});
+
+test("zoom on a tab with no zoomable URL warns rather than setting", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.active, "snapshot", {
+    value: () => ({ url: "about:blank" }),
+    configurable: true,
+  });
+
+  stubs.commands.execute("zoom.in");
+
+  expect(stubs.active.setZoomLevel).not.toHaveBeenCalled();
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no zoomable page here");
+});
+
+test("zoom with no active tab warns rather than throwing", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+
+  stubs.commands.execute("zoom.in");
+
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no zoomable page here");
 });
