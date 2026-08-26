@@ -60,7 +60,6 @@ Roughly what's next, in no particular order and with no promised timeline:
 
 - In-page navigation, the start of in-page vim.
 - Per-site blocking toggles, and user filter lists.
-- Password manager integration, Bitwarden first.
 - In-page styling, in the spirit of Stylus: user CSS for sites, not just
   the chrome.
 - Bookmarks.
@@ -68,6 +67,11 @@ Roughly what's next, in no particular order and with no promised timeline:
   hidden on demand.
 - A custom sidebar.
 - Default new tab page.
+
+Extensions (a real distribution model, Bitwarden and other extension
+integrations) are deliberately not on this list. They need dedicated design
+thought this project isn't giving them yet, so that work is parked rather
+than queued.
 
 ## Install & run
 

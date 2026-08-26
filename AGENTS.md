@@ -196,8 +196,12 @@ matches its own shell command line.
 
 ## Extensions
 
-No extension support: Electron implements too little of the `chrome.*` API
-for extensions to be viable. See KVI-19, KVI-20.
+No extension support for now: Electron implements too little of the
+`chrome.*` API for extensions to be broadly viable (KVI-19's uBlock findings
+are the evidence). The rest of that scope — KVI-18 (unpacked-extension
+loading) and KVI-20 (Bitwarden) — is closed out rather than pursued, on
+purpose: extensions deserve dedicated thought this project isn't giving them
+right now, not a resumed backlog item. Revisit as a fresh initiative later.
 
 ## Gotchas
 
@@ -212,8 +216,13 @@ leave a comment when something non-obvious came up — those comments are the
 main record of why things are the way they are.
 
 Phases are not strictly sequential. Agreed order: 0 → 1 → 2 → 3 (chrome-level
-vim only) → 4 (uBlock only) → 3 (in-page vim) → 3.5 → 5 → 6 → 7, with 4
-(Bitwarden) parked until Electron's extension API surface grows.
+vim only) → 4 (uBlock only) → 3 (in-page vim) → 3.5 → 5 → 6 → 7. Extensions
+(unpacked-extension loading, Bitwarden) are parked, not just reordered: they
+were the rest of what used to be phase 4, and got closed out rather than left
+blocking, because extensions need dedicated thought this project isn't giving
+them yet. Revisit as a fresh initiative later, not by resuming KVI-18/KVI-20
+as-is; "the extension phase" is deliberately not part of the count anymore.
 
 Out of scope unless revisited: history/bookmark sync, extension-store
-integration, any GUI settings panel.
+integration, any GUI settings panel, and extensions generally (unpacked
+loading, Bitwarden) per the parked milestone above.
