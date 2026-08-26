@@ -6,6 +6,8 @@ import type { Action, Actions } from "./actions";
  * closest thing Kvist has to a published surface — keybinds use it, `:lines`
  * use it, and user keybinds will — so renaming a method must not rename a
  * command under a user's config.
+ *
+ * @returns A record mapping command names to their action handlers.
  */
 function table(actions: Actions) {
   return {
@@ -53,6 +55,11 @@ function table(actions: Actions) {
     "clipboard.open": actions.clipboard.open,
     "clipboard.openNewTab": actions.clipboard.openNewTab,
 
+    "zoom.in": actions.zoom.in,
+    "zoom.out": actions.zoom.out,
+    "zoom.reset": actions.zoom.reset,
+    "zoom.set": actions.zoom.set,
+
     "app.quit": actions.app.quit,
     "app.devtools": actions.app.devtools,
   };
@@ -73,6 +80,11 @@ const ALIASES = {
   open: "nav.open",
   downloads: "downloads.toggle",
   devtools: "app.devtools",
+  // `:zoom` reads more naturally than `:zoom.in` for the common cases.
+  zi: "zoom.in",
+  zo: "zoom.out",
+  z0: "zoom.reset",
+  zoom: "zoom.set",
 } satisfies Record<string, CommandName>;
 
 export interface Commands {
@@ -83,11 +95,18 @@ export interface Commands {
 /**
  * Own properties only. Every object inherits `toString`, `valueOf` and
  * `constructor`, and none of those is a command a user may run.
+ *
+ * @returns The value if the key is an own property, undefined otherwise.
  */
 function own<T>(record: Record<string, T>, key: string): T | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
+/**
+ * Creates the command dispatcher that resolves names and aliases to their
+ * corresponding actions. Commands can be invoked by their full name or by a
+ * short alias.
+ */
 export function createCommands(actions: Actions): Commands {
   const commands: Record<string, Action> = table(actions);
   // ALIASES already carries a `satisfies` against CommandName; keep inference.

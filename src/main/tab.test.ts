@@ -4,6 +4,7 @@ import { type FindResult, wire } from "../shared/ipc";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
+import { ZoomStore } from "./zoom";
 
 /**
  * The in-memory adapter at the `PageHost` seam. Records what a Tab asked
@@ -22,6 +23,8 @@ function createHost() {
     webContentsReads: 0,
   };
   const calls = { stopFind: 0, focus: 0, crash: 0, close: 0 };
+  let zoomLevel = 0;
+  const zoomHistory: number[] = [];
   let openHandler: ((details: { url: string; disposition: string }) => unknown) | undefined;
 
   const webContents = {
@@ -64,6 +67,20 @@ function createHost() {
     closeDevTools: () => {},
     insertCSS: () => Promise.resolve(""),
     removeInsertedCSS: () => Promise.resolve(),
+    setZoomLevel: (level: number) => {
+      zoomHistory.push(level);
+      // Mock Chromium's clamp at the edges.
+      if (level < -2.8) zoomLevel = -2.8;
+      else if (level > 5.7) zoomLevel = 5.7;
+      else zoomLevel = level;
+    },
+    getZoomLevel: () => zoomLevel,
+  };
+
+  // The session moving the level without the tab asking — a same-origin
+  // sibling's zoom propagating — as opposed to a call the tab made itself.
+  const setLiveZoom = (level: number): void => {
+    zoomLevel = level;
   };
 
   // SAFETY: partial stub — Tab only touches the members defined here.
@@ -86,10 +103,13 @@ function createHost() {
     emit: (event: string, ...args: unknown[]) => void events.emit(event, ...args),
     openWindow: (url: string, disposition = "foreground-tab") =>
       openHandler?.({ url, disposition }),
+    getZoomLevel: () => zoomLevel,
+    getZoomHistory: () => zoomHistory,
+    setLiveZoom,
   };
 }
 
-function createTab(overrides: Partial<TabCallbacks> = {}) {
+function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
   const host = createHost();
   const callbacks: TabCallbacks = {
     changed: vi.fn(),
@@ -104,7 +124,11 @@ function createTab(overrides: Partial<TabCallbacks> = {}) {
     externalRequest: vi.fn(),
     ...overrides,
   };
-  return { tab: new Tab(1, host.host, callbacks, "https://a.example"), host, callbacks };
+  return {
+    tab: new Tab(1, host.host, callbacks, zoom ?? new ZoomStore(), "https://a.example"),
+    host,
+    callbacks,
+  };
 }
 
 /** Chromium's listeners all take an event object first. */
@@ -141,6 +165,7 @@ test("the snapshot follows the page", () => {
     loading: false,
     canGoBack: true,
     canGoForward: false,
+    zoomLevel: 0,
   });
 });
 
@@ -491,4 +516,133 @@ test("a closed tab never reports an external handoff", () => {
   tab.navigate("mailto:foo@bar.com");
 
   expect(externalRequest).not.toHaveBeenCalled();
+});
+
+test("setZoomLevel passes through and reflects the clamped result", async () => {
+  const { tab, host } = createTab();
+  host.state.url = "https://example.com";
+
+  const applied = tab.setZoomLevel(2);
+  expect(applied).toBe(2);
+  expect(tab.snapshot().zoomLevel).toBe(2);
+  expect(host.getZoomHistory()).toEqual([2]);
+
+  // Beyond the upper edge — Chromium clamps; the tab mirrors that.
+  expect(tab.setZoomLevel(99)).toBeCloseTo(5.7, 5);
+});
+
+test("setZoomLevel on a closed tab is a no-op", () => {
+  const { tab, host } = createTab();
+  tab.close();
+  expect(tab.setZoomLevel(1)).toBeNull();
+  expect(host.getZoomHistory()).toEqual([]);
+});
+
+test("a main-frame navigation re-applies the saved zoom for the new origin", async () => {
+  const zoom = new ZoomStore();
+  zoom.set("https://example.com", 1.5);
+  const { tab, host } = createTab({}, zoom);
+  host.state.url = "https://example.com";
+  host.emit("did-navigate", EVENT);
+
+  expect(host.getZoomHistory()).toEqual([1.5]);
+  expect(tab.snapshot().zoomLevel).toBe(1.5);
+});
+
+test("a navigation to an origin with no saved level leaves zoom alone", () => {
+  const { tab, host } = createTab();
+  host.state.url = "https://fresh.example";
+  host.emit("did-navigate", EVENT);
+
+  expect(host.getZoomHistory()).toEqual([]);
+  expect(tab.snapshot().zoomLevel).toBe(0);
+});
+
+test("a navigation to an unzoomable origin does not call setZoomLevel", async () => {
+  const { host } = createTab();
+  host.state.url = "about:blank";
+  host.emit("did-navigate", EVENT);
+
+  expect(host.getZoomHistory()).toEqual([]);
+});
+
+test("zoom-changed reflects in the snapshot and is persisted", async () => {
+  const zoom = new ZoomStore();
+  const { tab, host } = createTab({}, zoom);
+  host.state.url = "https://example.com";
+
+  // Simulate Chromium reporting the level that resulted from our setZoomLevel.
+  host.emit("zoom-changed", EVENT, "in");
+  // The host mock updated getZoomLevel to 0 by default; the real flow goes
+  // getZoomLevel() -> mirror. Drive the mock to a non-default first.
+  tab.setZoomLevel(2);
+  host.emit("zoom-changed", EVENT, "in");
+
+  expect(tab.snapshot().zoomLevel).toBe(2);
+  expect(zoom.get("https://example.com")).toBe(2);
+});
+
+test("zoom-changed on an unzoomable origin is not persisted", () => {
+  const zoom = new ZoomStore();
+  const { tab, host } = createTab({}, zoom);
+  host.state.url = "about:blank";
+
+  tab.setZoomLevel(1);
+  host.emit("zoom-changed", EVENT, "in");
+
+  expect(zoom.get("about:blank")).toBe(0);
+});
+
+test("an error page is reported as such until a real navigation starts", () => {
+  const { tab, host } = createTab();
+  expect(tab.showsErrorPage).toBe(false);
+
+  host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
+  expect(tab.showsErrorPage).toBe(true);
+
+  // The error page's own load is a navigation to the wrapper — it must not
+  // clear the flag.
+  host.emit("did-start-navigation", EVENT, host.loaded[0]!, false, true);
+  expect(tab.showsErrorPage).toBe(true);
+
+  // Retrying the failed URL starts a real navigation, which does.
+  host.emit("did-start-navigation", EVENT, "https://gone.example", false, true);
+  expect(tab.showsErrorPage).toBe(false);
+});
+
+test("a Ctrl+wheel zoom on an error page is mirrored but never persisted", () => {
+  const zoom = new ZoomStore();
+  const { tab, host } = createTab({}, zoom);
+  host.state.url = "https://gone.example";
+  host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
+
+  host.setLiveZoom(2);
+  host.emit("zoom-changed", EVENT, "in");
+
+  expect(tab.snapshot().zoomLevel).toBe(2);
+  // Not under the wrapper's origin, and not under the failed site's either.
+  expect(zoom.get("kvist://error")).toBe(0);
+  expect(zoom.get("https://gone.example")).toBe(0);
+});
+
+test("syncZoom re-reads the level the session applied while the tab was hidden", () => {
+  const { tab, host } = createTab();
+  tab.setZoomLevel(1);
+  expect(tab.snapshot().zoomLevel).toBe(1);
+
+  // A same-origin sibling's zoom propagates inside the session; no event
+  // reaches the hidden tab, so its mirror is stale until re-read.
+  host.setLiveZoom(3);
+  expect(tab.snapshot().zoomLevel).toBe(1);
+
+  tab.syncZoom();
+  expect(tab.snapshot().zoomLevel).toBe(3);
+});
+
+test("syncZoom on a closed tab reaches for nothing", () => {
+  const { tab, host } = createTab();
+  tab.close();
+  const before = host.state.webContentsReads;
+  tab.syncZoom();
+  expect(host.state.webContentsReads).toBe(before);
 });

@@ -19,6 +19,9 @@ export interface DownloadDirSources {
   home: string;
 }
 
+/**
+ * Expands tilde notation (~) in a file path to the user's home directory.
+ */
 function expandTilde(path: string): string {
   if (path === "~") return homedir();
   return path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;

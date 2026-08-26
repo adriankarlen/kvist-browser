@@ -122,6 +122,26 @@ test("navigation keys are bound", () => {
   expect(execute).toHaveBeenCalledWith("tab.close");
 });
 
+test("zoom keys are bound in normal mode only", () => {
+  key("zi");
+  key("zo");
+  key("z0");
+  expect(execute.mock.calls).toEqual([["zoom.in"], ["zoom.out"], ["zoom.reset"]]);
+});
+
+test("z alone is a prefix and does not execute", () => {
+  expect(key("z")).toBe(true);
+  expect(execute).not.toHaveBeenCalled();
+});
+
+test("z in insert mode is not a binding", () => {
+  key("i");
+  expect(key("z")).toBe(false);
+  expect(key("z"));
+  expect(key("i")).toBe(false);
+  expect(execute).not.toHaveBeenCalledWith("zoom.in");
+});
+
 test("chrome keys drive normal mode, so focus on the chrome is not a dead end", () => {
   expect(chromeKey("t")).toBe(true);
   expect(execute).toHaveBeenCalledWith("tab.new");

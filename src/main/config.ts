@@ -23,10 +23,17 @@ export interface ConfigStore {
   lastGood: Settings;
 }
 
+/**
+ * Creates a new config store with default settings as the initial state.
+ */
 export function createConfigStore(): ConfigStore {
   return { lastGood: DEFAULT_SETTINGS };
 }
 
+/**
+ * Reads a config file from the config directory. Returns an empty string if
+ * the file is missing (not an error); logs and returns empty on other errors.
+ */
 async function read(file: string): Promise<string> {
   try {
     return await readFile(join(configDir, file), "utf8");
@@ -52,6 +59,11 @@ export function describeProblem({ field, reason }: Problem): string {
   return `${where}: ${reason}`;
 }
 
+/**
+ * Loads both config.css and config.toml from disk, parses the settings, and
+ * updates the store with any successfully parsed values. Returns the loaded
+ * config and any problems encountered during parsing.
+ */
 export async function loadConfig(store: ConfigStore): Promise<LoadedConfig> {
   const [css, toml] = await Promise.all([read(CSS_FILE), read(TOML_FILE)]);
   const { settings, problems } = parseSettings(toml, store.lastGood);

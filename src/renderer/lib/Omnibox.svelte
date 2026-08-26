@@ -12,6 +12,15 @@
     if (!focused) draft = url;
   });
 
+  // Zoom follows the active tab; the omnibox is just a mirror, so this is
+  // a derived read of the snapshot. 1.2^level is what Electron's setZoomLevel
+  // uses internally, so the rendered percentage is the same one the user sees
+  // on the page.
+  const zoom = $derived.by(() => {
+    const level = browser.active?.zoomLevel ?? 0;
+    return Math.round(100 * 1.2 ** level);
+  });
+
   function submit(event: SubmitEvent): void {
     event.preventDefault();
     if (draft.trim() === "") return;
@@ -79,6 +88,7 @@
     {onblur}
     {onkeydown}
   />
+  <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
   <button
     class="kv-omnibox__button"

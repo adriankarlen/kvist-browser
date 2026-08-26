@@ -34,6 +34,7 @@ import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
+import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
 registerKvistScheme();
@@ -136,7 +137,7 @@ function isPermissionAnswer(value: unknown): value is PermissionAnswer {
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
-function createWindow(): void {
+function createWindow(zoom: ZoomStore): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -150,7 +151,7 @@ function createWindow(): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
 
-  const tabs = new TabManager(win, pagePreload, (state) => chrome.state(state));
+  const tabs = new TabManager(win, pagePreload, zoom, (state) => chrome.state(state));
 
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -173,6 +174,7 @@ function createWindow(): void {
     tabs,
     downloads,
     permissions,
+    zoom,
     win,
     messages,
     systemClipboard,
@@ -317,15 +319,20 @@ void app.whenReady().then(async () => {
   await applyConfig(loaded.config);
   registerKvistProtocol();
 
-  createWindow();
+  const zoom = await ZoomStore.load();
+  createWindow(zoom);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
   });
+  // The config watcher and the zoom store are both acquired once and released
+  // on quit. The store additionally holds the quit until its queued write has
+  // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
   app.on("will-quit", releaseConfig);
+  flushOnQuit(app, zoom);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom);
   });
 });
 

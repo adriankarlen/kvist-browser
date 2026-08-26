@@ -11,12 +11,14 @@ import {
   type TabState,
   toPage,
 } from "../shared/ipc";
+import { originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
 import { externalProtocolTarget } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
 import type { KeyInput, KeySource } from "./vim";
+import type { ZoomStore } from "./zoom";
 
 /**
  * What a Tab reports upward. A Tab never names the collection it belongs to:
@@ -62,6 +64,7 @@ export class Tab {
   /** The page's half of the channel tables, bound to this tab's webContents. */
   #toPage: Senders<typeof toPage>;
   #on: TabCallbacks;
+  #zoom: ZoomStore;
   #closed = false;
 
   #title: string;
@@ -79,8 +82,14 @@ export class Tab {
   #failedUrl: string | null = null;
   /** The menu that is up, if any — the params are needed again at pick time. */
   #menu: ContextMenuParams | null = null;
+  /**
+   * The active webContents zoom level, mirrored here so the snapshot can
+   * ship it without reaching through the view. Chromium owns the actual
+   * level; `zoom-changed` and our own `setZoomLevel` calls keep this in sync.
+   */
+  #zoomLevel = 0;
 
-  constructor(id: TabId, host: PageHost, callbacks: TabCallbacks, url: string) {
+  constructor(id: TabId, host: PageHost, callbacks: TabCallbacks, zoom: ZoomStore, url: string) {
     this.id = id;
     this.#host = host;
     this.#page = host.webContents;
@@ -88,6 +97,7 @@ export class Tab {
       if (!this.#closed) this.#page.send(channel, payload);
     });
     this.#on = callbacks;
+    this.#zoom = zoom;
     this.#title = url;
     this.#url = url;
     this.#track();
@@ -111,6 +121,15 @@ export class Tab {
     return !this.#closed && this.#page.getURL() !== "";
   }
 
+  /**
+   * True while the failure page stands in for a dead load. The snapshot's URL
+   * is the failed site's even then, so anything keyed to the page's URL — the
+   * zoom store, most visibly — must not treat that origin as what's on screen.
+   */
+  get showsErrorPage(): boolean {
+    return this.#failedUrl !== null;
+  }
+
   snapshot(): TabState {
     const strip = {
       id: this.id,
@@ -118,6 +137,7 @@ export class Tab {
       url: this.#url,
       favicon: this.#favicon,
       loading: this.#loading,
+      zoomLevel: this.#zoomLevel,
     };
     // Read live rather than tracked: history depth changes without an event.
     // A closed page has no history left to ask.
@@ -128,6 +148,40 @@ export class Tab {
       canGoBack: navigationHistory.canGoBack(),
       canGoForward: navigationHistory.canGoForward(),
     };
+  }
+
+  /**
+   * The current zoom level of this tab's page. Used by the actions that
+   * nudge it; never read by the snapshot, which already carries the level.
+   */
+  get zoomLevel(): number {
+    return this.#zoomLevel;
+  }
+
+  /**
+   * Sets the zoom level of this tab's webContents, if it is still alive.
+   * Returns the level that was applied (Chromium may clamp), or null when
+   * the tab is closed. Notifies the collection so the snapshot republishes
+   * the new level — a programmatic `setZoomLevel` does not itself emit a
+   * `zoom-changed` event, so without this the chrome would never see the
+   * level change.
+   */
+  setZoomLevel(level: number): number | null {
+    if (this.#closed) return null;
+    this.#page.setZoomLevel(level);
+    this.#zoomLevel = this.#page.getZoomLevel();
+    this.#on.changed();
+    return this.#zoomLevel;
+  }
+
+  /**
+   * Re-reads the level Chromium actually has. Same-origin zoom propagates
+   * across tabs inside the session, so while a tab was hidden a sibling's
+   * zoom could move this one's level with no event for it to observe.
+   */
+  syncZoom(): void {
+    if (this.#closed) return;
+    this.#zoomLevel = this.#page.getZoomLevel();
   }
 
   setVisible(visible: boolean): void {
@@ -445,10 +499,35 @@ export class Tab {
         this.#report(null);
       }
       trackUrl();
+      this.#applyOriginZoom();
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       trackUrl();
       if (isMainFrame) this.#on.inPageNavigation(webContents, url);
+    });
+
+    // Reload does not change the URL, so `did-navigate` never fires for it.
+    // The saved level still has to come back: a `:z0` reset only affects the
+    // current view, and a reload re-applies the saved level on the new page,
+    // matching Chrome's Ctrl+0 behaviour. Idempotent: a no-op when the level
+    // already matches.
+    webContents.on("did-finish-load", () => {
+      this.#applyOriginZoom();
+    });
+
+    // The only other way the level changes: the user pinned Ctrl+wheel on the
+    // page. Mirror it, then persist it so a restart keeps the preference. An
+    // error page zooms the wrapper, not the site — mirroring keeps the
+    // snapshot truthful, but persisting it would write under kvist://error.
+    webContents.on("zoom-changed", () => {
+      if (this.#closed) return;
+      const level = webContents.getZoomLevel();
+      this.#zoomLevel = level;
+      if (this.#failedUrl === null) {
+        const origin = originOf(webContents.getURL());
+        if (origin !== null) this.#zoom.set(origin, level);
+      }
+      this.#on.changed();
     });
 
     interceptKeys(webContents, "page", (input, source) => this.#on.key(input, source));
@@ -484,5 +563,24 @@ export class Tab {
       css: this.#on.menuCss(),
     };
     this.#toPage.contextMenu(state);
+  }
+
+  /**
+   * Applies the saved zoom for the page's current origin, if any. Called on
+   * every main-frame navigation: Chromium propagates zoom within a session
+   * automatically, but a brand-new tab on a previously-visited origin lands
+   * at default zoom until we re-apply. Persisted state is the only way the
+   * preference survives a restart.
+   */
+  #applyOriginZoom(): void {
+    if (this.#closed) return;
+    const origin = originOf(this.#page.getURL());
+    if (origin === null) return;
+    const saved = this.#zoom.get(origin);
+    if (saved === this.#zoomLevel) return;
+    this.#page.setZoomLevel(saved);
+    // setZoomLevel can clamp; mirror what Chromium actually accepted.
+    this.#zoomLevel = this.#page.getZoomLevel();
+    this.#on.changed();
   }
 }

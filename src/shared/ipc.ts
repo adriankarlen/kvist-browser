@@ -15,6 +15,11 @@ export interface TabState {
   loading: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  /**
+   * The page's current zoom level (0 = 100%, +1 / -1 ≈ 20% step). Mirrored
+   * here so the chrome can show it without reaching back into main.
+   */
+  zoomLevel: number;
 }
 
 /** Where a find has got to, as `found-in-page` reports it. */
@@ -178,6 +183,11 @@ export function table<T extends AnyTable>(channels: T): T {
   return channels;
 }
 
+/**
+ * Creates a channel declaration. The payload type T exists only at compile
+ * time; the channel itself is an empty object whose type carries the payload
+ * information.
+ */
 function channel<T>(): Channel<T> {
   // SAFETY: `payload` is phantom — the object deliberately carries nothing; T travels in the type only.
   return {} as Channel<T>;

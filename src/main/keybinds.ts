@@ -38,6 +38,9 @@ export const DEFAULT_KEYBINDS: readonly Keybind[] = [
   { mode: "normal", keys: "y", command: "clipboard.yank" },
   { mode: "normal", keys: "p", command: "clipboard.open" },
   { mode: "normal", keys: "P", command: "clipboard.openNewTab" },
+  { mode: "normal", keys: "zi", command: "zoom.in" },
+  { mode: "normal", keys: "zo", command: "zoom.out" },
+  { mode: "normal", keys: "z0", command: "zoom.reset" },
 
   // ── insert mode ──────────────────────────────────────────────
   { mode: "insert", keys: "Escape", command: "insert.leave", enter: "normal" },
