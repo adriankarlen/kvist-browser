@@ -4,6 +4,7 @@ import { ElectronBlocker } from "@ghostery/adblocker-electron";
 import { app, session, type WebContents } from "electron";
 import { parse } from "tldts-experimental";
 import type { Settings } from "../shared/config";
+import { ReplaceableStylesheet, type StylesheetTarget } from "./stylesheet";
 
 let blocker: ElectronBlocker | undefined;
 let enabled = false;
@@ -26,44 +27,16 @@ const logFailure =
   (error: unknown): void =>
     console.error(what, error);
 
-/** Key of the URL-scoped sheet per tab, so navigation can replace it. */
 /**
- * What cosmetic filtering needs from a page: its own stylesheet surface. A tab
- * reaches this through the `PageHost` seam, which is narrower than a
- * `WebContents`.
+ * The tab's URL-scoped cosmetic filter stylesheet. `$generichide` and friends
+ * are matched against the whole URL, path included, so the hiding rules are
+ * not fixed for the lifetime of a document — the sheet is swapped on every
+ * navigation rather than appended to.
+ *
+ * `user` origin, because a hiding rule has to beat the page's own
+ * `!important`; that is the whole job.
  */
-type CosmeticTarget = Pick<WebContents, "isDestroyed" | "insertCSS" | "removeInsertedCSS">;
-
-const urlSheets = new WeakMap<CosmeticTarget, string>();
-
-/** Tail of the replacement chain per tab, so overlapping navigations queue. */
-const replacements = new WeakMap<CosmeticTarget, Promise<void>>();
-
-/**
- * Replaces a tab's URL-scoped cosmetic filter stylesheet with a new one.
- * `$generichide` and friends are matched against the whole URL, path included,
- * so the hiding rules are not fixed for the lifetime of a document. The sheet
- * they produce is tracked and swapped rather than appended, and the swaps are
- * serialized because two navigations in flight at once would otherwise race
- * over which key is current.
- */
-function replaceUrlSheet(sender: CosmeticTarget, styles: string): void {
-  const swap = async (): Promise<void> => {
-    if (sender.isDestroyed()) return;
-
-    const previous = urlSheets.get(sender);
-    urlSheets.delete(sender);
-    if (previous !== undefined) await sender.removeInsertedCSS(previous);
-    if (styles.length === 0 || sender.isDestroyed()) return;
-
-    urlSheets.set(sender, await sender.insertCSS(styles, { cssOrigin: "user" }));
-  };
-
-  const queued = (replacements.get(sender) ?? Promise.resolve())
-    .then(swap, swap)
-    .catch(logFailure("kvist: could not apply hiding rules:"));
-  replacements.set(sender, queued);
-}
+const urlSheet = new ReplaceableStylesheet("user", "kvist: could not apply hiding rules:");
 
 /**
  * Runs a uBO scriptlet in an isolated scope to prevent global scope pollution.
@@ -116,7 +89,7 @@ function injectCosmetics(
   });
 
   if (isFirstRun) {
-    replaceUrlSheet(sender, active ? styles : "");
+    urlSheet.replace(sender, active ? styles : "");
   } else if (active && styles.length > 0) {
     // Each update covers selectors the earlier passes had not seen, so these
     // sheets are additive and none of them may be removed.
@@ -130,7 +103,7 @@ function injectCosmetics(
 }
 
 /** Reapplies the URL-scoped hiding rules after a history-API navigation. */
-export function refreshCosmeticStyles(sender: CosmeticTarget, url: string): void {
+export function refreshCosmeticStyles(sender: StylesheetTarget, url: string): void {
   if (!blocker || !enabled || sender.isDestroyed()) return;
 
   const parsed = parse(url);
@@ -145,7 +118,7 @@ export function refreshCosmeticStyles(sender: CosmeticTarget, url: string): void
     getRulesFromDOM: false,
   });
 
-  replaceUrlSheet(sender, active ? styles : "");
+  urlSheet.replace(sender, active ? styles : "");
 }
 
 /** Rejects a cached engine past its shelf life, so `fromCached` refetches. */
