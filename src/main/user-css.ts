@@ -170,11 +170,17 @@ function parseMetadata(meta: string, problems: UserCssProblem[]): ParsedMetadata
   return { metadata, preprocessor };
 }
 
-/** Strips one layer of matching quotes; the spec allows either, or neither. */
+/**
+ * Strips one layer of matching quotes and decodes CSS escape sequences.
+ * The spec allows either quote character, or neither. Inside a quoted value,
+ * `\<char>` is the CSS escape for `<char>` — most visibly `\\` for a literal
+ * backslash in a `regexp()` matcher — and must be decoded before the value is
+ * used, or `regexp("a\\.b")` matches `a\b` rather than `a.b`.
+ */
 function unquote(value: string): string {
   const first = value[0];
   if ((first === '"' || first === "'") && value.length >= 2 && value.at(-1) === first) {
-    return value.slice(1, -1);
+    return value.slice(1, -1).replace(/\\([\s\S])/g, "$1");
   }
   return value;
 }
@@ -234,7 +240,10 @@ function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null 
   const value = unquote(rawValue.trim());
   if (value === "") {
     problems.push({ reason: `empty ${type}() matcher` });
-    return null;
+    // url-prefix("") is a valid "match every URL" selector: an empty prefix is
+    // a prefix of every string. All other matcher types have no sensible
+    // interpretation for an empty value, so they are dropped.
+    if (type !== "url-prefix") return null;
   }
 
   // SAFETY: type was just checked against MATCHER_TYPES above.
@@ -423,7 +432,11 @@ function matchesRegexp(pattern: string, url: string): boolean {
 
 /** Whether `host` is `domain` or a subdomain of it, and not merely suffixed by it. */
 function matchesDomain(domain: string, host: string): boolean {
-  return host === domain || host.endsWith(`.${domain}`);
+  // Hostnames are case-insensitive (RFC 4343); `URL.hostname` normalises ASCII
+  // hosts to lowercase already, but a matcher value from a CSS file may not be.
+  const d = domain.toLowerCase();
+  const h = host.toLowerCase();
+  return h === d || h.endsWith(`.${d}`);
 }
 
 /**

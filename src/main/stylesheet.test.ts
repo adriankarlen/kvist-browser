@@ -115,6 +115,35 @@ test("a failed swap does not wedge the chain", async () => {
   logged.mockRestore();
 });
 
+test("a failed removal is retried by the next queued replacement", async () => {
+  const sheet = new ReplaceableStylesheet("author", "kvist: boom:");
+  const { target, inserted, removed } = createTarget();
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+  // Insert a first sheet; this gives us key-1 to track.
+  sheet.replace(target, "a {}");
+  await flush();
+
+  // Removal of key-1 fails on the second replace.
+  const failRemove = vi
+    .spyOn(target, "removeInsertedCSS")
+    .mockRejectedValueOnce(new Error("transient"));
+  sheet.replace(target, "b {}");
+  await flush();
+  failRemove.mockRestore();
+
+  // Third replace: key-1 must still be in the map and retried now.
+  sheet.replace(target, "c {}");
+  await flush();
+
+  // key-1 was retried and removed on the third attempt.
+  expect(removed).toContain("key-1");
+  // b {} never inserted because its swap threw before reaching insertCSS.
+  expect(inserted.map(({ css }) => css)).toEqual(["a {}", "c {}"]);
+  expect(logged).toHaveBeenCalledWith("kvist: boom:", expect.any(Error));
+  logged.mockRestore();
+});
+
 test("two targets keep their own sheets", async () => {
   const sheet = new ReplaceableStylesheet("author", "kvist: boom:");
   const first = createTarget();

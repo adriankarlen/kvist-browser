@@ -97,7 +97,7 @@ test("several match rules in one block are alternatives", () => {
     { type: "url", value: "http://a.example/" },
     { type: "url-prefix", value: "http://a.example/style/" },
     { type: "domain", value: "b.example" },
-    { type: "regexp", value: "https://c\\\\.example/.*" },
+    { type: "regexp", value: "https://c\\.example/.*" },
   ]);
 });
 
@@ -317,6 +317,45 @@ test("domain() matches the domain and its subdomains only", () => {
   // Suffixed, not a subdomain — the classic phishing shape.
   expect(matchesUserCss(matchers, "https://notexample.com/")).toBe(false);
   expect(matchesUserCss(matchers, "https://example.com.evil.test/")).toBe(false);
+});
+
+test("domain() matching is case-insensitive", () => {
+  // A matcher value written with caps in a CSS file must still match the
+  // lowercase hostname URL.hostname returns.
+  const matchers = [{ type: "domain", value: "Example.Com" } as const];
+  expect(matchesUserCss(matchers, "https://example.com/")).toBe(true);
+  expect(matchesUserCss(matchers, "https://www.example.com/")).toBe(true);
+});
+
+test("CSS escape sequences in matcher values are decoded", () => {
+  // `\\.` in a CSS string is an escaped backslash followed by a literal dot.
+  // After decoding, the regexp value should be `\.` (one backslash + dot),
+  // which as a JS regex matches a literal dot, not any character.
+  const parsed = parseUserCss(`/* ==UserStyle==
+@name Escape
+==/UserStyle== */
+@-moz-document regexp("https://a\\\\.example/") { a {} }`);
+  const matcher = parsed.blocks[0]!.matchers![0]!;
+  // One backslash in the stored value: `\.`
+  expect(matcher.value).toBe("https://a\\.example/");
+  // Matches the intended URL.
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://a.example/")).toBe(true);
+  // Does NOT match a URL with a literal backslash (which the old two-backslash
+  // value would have required).
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://a\\.example/")).toBe(false);
+});
+
+test('url-prefix("") matches every URL and reports a problem', () => {
+  const parsed = parseUserCss(`/* ==UserStyle==
+@name Global prefix
+==/UserStyle== */
+@-moz-document url-prefix("") { body { color: red } }`);
+
+  expect(parsed.problems).toEqual([{ reason: "empty url-prefix() matcher" }]);
+  // The block must survive with its empty-prefix matcher intact.
+  expect(parsed.blocks[0]!.matchers).toEqual([{ type: "url-prefix", value: "" }]);
+  // An empty prefix is a prefix of every URL.
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://any.example/path")).toBe(true);
 });
 
 test("domain() against a URL with no host matches nothing", () => {

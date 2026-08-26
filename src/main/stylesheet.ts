@@ -58,10 +58,13 @@ export class ReplaceableStylesheet {
       if (target.isDestroyed()) return;
 
       const previous = this.#keys.get(target);
-      // Forgotten before the await, not after: a failure to remove must not
-      // leave a key that a later swap would try to remove a second time.
-      this.#keys.delete(target);
-      if (previous !== undefined) await target.removeInsertedCSS(previous);
+      if (previous !== undefined) {
+        // Delete only after removal succeeds: a transient failure leaves the
+        // sheet in the DOM, and keeping the key lets the next queued swap retry
+        // the removal rather than forgetting it ever existed.
+        await target.removeInsertedCSS(previous);
+        this.#keys.delete(target);
+      }
       if (css.length === 0 || target.isDestroyed()) return;
 
       this.#keys.set(target, await target.insertCSS(css, { cssOrigin: this.#origin }));
