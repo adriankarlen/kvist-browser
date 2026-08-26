@@ -190,6 +190,11 @@ export class TabManager {
     }
 
     target.setBounds(this.#contentRect);
+    // Same-origin zoom propagates across tabs inside the session, so a hidden
+    // tab's level can have moved with nothing for it to observe. Refresh the
+    // mirror before the publish below, or the strip shows — and the next
+    // zi/zo steps from — a stale level.
+    target.syncZoom();
     // Hiding the view that had focus drops it back on the chrome, so without
     // this the page stops receiving keys after the first tab switch.
     if (this.#focusPage) {

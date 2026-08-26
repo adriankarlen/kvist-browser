@@ -2,7 +2,6 @@ import type { BrowserWindow } from "electron";
 import { senders, toChrome } from "../shared/ipc";
 import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
-import { errorPageTarget } from "./error-page";
 import type { Messages } from "./messages";
 import type { Permissions } from "./permissions";
 import type { TabManager } from "./tab-manager";
@@ -148,11 +147,14 @@ export function createActions(
   const zoomableOrigin = (): string | null => {
     const active = tabs.active;
     if (active === undefined) return null;
+    // An error page is a local page standing in for a failed load. The
+    // snapshot's URL is already the failed site's with the wrapper stripped,
+    // so it cannot be told apart by parsing — only the tab's own state knows.
+    // Keying zoom off it would overwrite the site's saved level with whatever
+    // the wrapper happened to show.
+    if (active.showsErrorPage) return null;
     const url = active.snapshot().url;
     if (url === "") return null;
-    // Error pages do not count as a real origin — zooming an error page would
-    // be invisible and might shadow the real site's saved level on revisit.
-    if (errorPageTarget(url) !== null) return null;
     return originOf(url);
   };
 

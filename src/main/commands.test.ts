@@ -47,6 +47,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     blur: vi.fn(),
     focus: vi.fn(),
     zoomLevel: 0,
+    showsErrorPage: false,
     setZoomLevel: vi.fn<(level: number) => number>(() => 0),
   };
   const tabs = {
@@ -530,6 +531,16 @@ test("zoom on a tab with no zoomable URL warns rather than setting", () => {
     value: () => ({ url: "about:blank" }),
     configurable: true,
   });
+
+  stubs.commands.execute("zoom.in");
+
+  expect(stubs.active.setZoomLevel).not.toHaveBeenCalled();
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no zoomable page here");
+});
+
+test("zoom on an error page warns rather than keying off the failed site's origin", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.active, "showsErrorPage", { value: true, configurable: true });
 
   stubs.commands.execute("zoom.in");
 

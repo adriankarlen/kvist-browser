@@ -77,6 +77,12 @@ function createHost() {
     getZoomLevel: () => zoomLevel,
   };
 
+  // The session moving the level without the tab asking — a same-origin
+  // sibling's zoom propagating — as opposed to a call the tab made itself.
+  const setLiveZoom = (level: number): void => {
+    zoomLevel = level;
+  };
+
   // SAFETY: partial stub — Tab only touches the members defined here.
   const host = {
     get webContents() {
@@ -99,6 +105,7 @@ function createHost() {
       openHandler?.({ url, disposition }),
     getZoomLevel: () => zoomLevel,
     getZoomHistory: () => zoomHistory,
+    setLiveZoom,
   };
 }
 
@@ -584,4 +591,58 @@ test("zoom-changed on an unzoomable origin is not persisted", () => {
   host.emit("zoom-changed", EVENT, "in");
 
   expect(zoom.get("about:blank")).toBe(0);
+});
+
+test("an error page is reported as such until a real navigation starts", () => {
+  const { tab, host } = createTab();
+  expect(tab.showsErrorPage).toBe(false);
+
+  host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
+  expect(tab.showsErrorPage).toBe(true);
+
+  // The error page's own load is a navigation to the wrapper — it must not
+  // clear the flag.
+  host.emit("did-start-navigation", EVENT, host.loaded[0]!, false, true);
+  expect(tab.showsErrorPage).toBe(true);
+
+  // Retrying the failed URL starts a real navigation, which does.
+  host.emit("did-start-navigation", EVENT, "https://gone.example", false, true);
+  expect(tab.showsErrorPage).toBe(false);
+});
+
+test("a Ctrl+wheel zoom on an error page is mirrored but never persisted", () => {
+  const zoom = new ZoomStore();
+  const { tab, host } = createTab({}, zoom);
+  host.state.url = "https://gone.example";
+  host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
+
+  host.setLiveZoom(2);
+  host.emit("zoom-changed", EVENT, "in");
+
+  expect(tab.snapshot().zoomLevel).toBe(2);
+  // Not under the wrapper's origin, and not under the failed site's either.
+  expect(zoom.get("kvist://error")).toBe(0);
+  expect(zoom.get("https://gone.example")).toBe(0);
+});
+
+test("syncZoom re-reads the level the session applied while the tab was hidden", () => {
+  const { tab, host } = createTab();
+  tab.setZoomLevel(1);
+  expect(tab.snapshot().zoomLevel).toBe(1);
+
+  // A same-origin sibling's zoom propagates inside the session; no event
+  // reaches the hidden tab, so its mirror is stale until re-read.
+  host.setLiveZoom(3);
+  expect(tab.snapshot().zoomLevel).toBe(1);
+
+  tab.syncZoom();
+  expect(tab.snapshot().zoomLevel).toBe(3);
+});
+
+test("syncZoom on a closed tab reaches for nothing", () => {
+  const { tab, host } = createTab();
+  tab.close();
+  const before = host.state.webContentsReads;
+  tab.syncZoom();
+  expect(host.state.webContentsReads).toBe(before);
 });

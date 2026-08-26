@@ -1,8 +1,9 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { App } from "electron";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { clamp, ZoomStore } from "./zoom";
+import { clamp, flushOnQuit, ZoomStore } from "./zoom";
 
 let dir: string;
 beforeEach(async () => {
@@ -110,4 +111,55 @@ test("clamp pins out-of-range values at the nearest edge", () => {
   expect(clamp(0)).toBe(0);
   expect(clamp(-99)).toBeCloseTo(-2.8, 5);
   expect(clamp(99)).toBeCloseTo(5.7, 5);
+});
+
+test("an immediate quit after a set lands the write before quitting", async () => {
+  const store = await ZoomStore.load(dir);
+  const listeners: ((event: { preventDefault(): void }) => void)[] = [];
+  let prevented = 0;
+  let quits = 0;
+  // SAFETY: the fake implements exactly the on("will-quit")/quit surface
+  // flushOnQuit uses; quit() re-emits will-quit like the resumed quit does.
+  const app = {
+    on: (_event: "will-quit", listener: (event: { preventDefault(): void }) => void): void => {
+      listeners.push(listener);
+    },
+    quit: (): void => {
+      quits++;
+      for (const listener of listeners) listener({ preventDefault: () => void prevented++ });
+    },
+  } as unknown as Pick<App, "on" | "quit">;
+  flushOnQuit(app, store);
+
+  store.set("https://a.example", 1);
+  for (const listener of listeners) listener({ preventDefault: () => void prevented++ });
+
+  // The first pass holds the quit until the write has landed.
+  expect(prevented).toBe(1);
+  expect(quits).toBe(0);
+
+  await store.flushed();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  expect(quits).toBe(1);
+  // The resumed quit passes through: flushing is already true, so the second
+  // will-quit does not hold again.
+  expect(prevented).toBe(1);
+  const raw = await readFile(join(dir, "zoom.json"), "utf8");
+  expect(JSON.parse(raw)).toEqual({ "https://a.example": 1 });
+});
+
+test("a write failure is logged, not fatal, and does not poison later flushes", async () => {
+  // A file where the directory should be: mkdir, writeFile and rename all fail.
+  const blocked = join(dir, "blocked");
+  await writeFile(blocked, "x", "utf8");
+
+  const store = await ZoomStore.load(blocked);
+  store.set("https://a.example", 1);
+  store.release();
+  // Before the fix, the mkdir rejection sat outside the try/catch and the
+  // fire-and-forget write in release() left it unhandled — and every later
+  // flushed() inherited the poisoned promise.
+  await expect(store.flushed()).resolves.toBeUndefined();
+  expect(console.error).toHaveBeenCalled();
 });

@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { App } from "electron";
 import { configDir } from "./paths";
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -112,17 +113,25 @@ export class ZoomStore {
   async #writeNow(): Promise<void> {
     this.#pending = false;
     const snapshot = Object.fromEntries(this.#levels);
-    this.#lastWrite = this.#write(snapshot);
+    // Writes serialize through #lastWrite: every writer shares the one tmp
+    // path, so a write starting while another is still on the fs would race
+    // it — a timer flush overlapping a quit flush would rename over the
+    // other's half-written file.
+    this.#lastWrite = this.#lastWrite.then(() => this.#write(snapshot));
     await this.#lastWrite;
   }
 
   async #write(snapshot: Record<string, number>): Promise<void> {
-    await mkdir(this.#dir, { recursive: true });
     const target = join(this.#dir, ZOOM_FILE);
     // Write to a temp file then rename, so a crash mid-write cannot leave a
     // truncated zoom.json that boots into an empty map.
     const tmp = `${target}.tmp`;
+    // mkdir lives inside the try so a failure here — like any other fs
+    // failure — is logged rather than rejecting #lastWrite, which release()'s
+    // fire-and-forget call would otherwise leave unhandled and poisoned for
+    // every later flushed().
     try {
+      await mkdir(this.#dir, { recursive: true });
       await writeFile(tmp, JSON.stringify(snapshot, null, 2), "utf8");
       await rename(tmp, target);
     } catch (error) {
@@ -136,4 +145,27 @@ export function clamp(level: number): number {
   if (level < FLOOR) return FLOOR;
   if (level > CEILING) return CEILING;
   return level;
+}
+
+/**
+ * Hooks `will-quit` so a write queued inside the debounce window still lands
+ * before the process exits. `release()` starts the write synchronously, but
+ * without holding the quit the app is gone before the fs round-trip finishes.
+ * Quitting resumes once the flush resolves; the re-armed quit fires
+ * `will-quit` again, and the second pass lets it through.
+ *
+ * Documented limitation: Electron does not emit `will-quit` at all on Windows
+ * system shutdown, restart and logout, so the flush never runs there — the
+ * write is best-effort in that window no matter what this does.
+ */
+export function flushOnQuit(app: Pick<App, "on" | "quit">, store: ZoomStore): void {
+  let flushing = false;
+  app.on("will-quit", (event) => {
+    if (flushing) return;
+    flushing = true;
+    event.preventDefault();
+    store.release();
+    // #write never rejects, so the flush cannot hang the quit.
+    void store.flushed().then(() => app.quit());
+  });
 }

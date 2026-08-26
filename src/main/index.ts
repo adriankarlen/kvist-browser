@@ -34,7 +34,7 @@ import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
-import { ZoomStore } from "./zoom";
+import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
 registerKvistScheme();
@@ -326,11 +326,10 @@ void app.whenReady().then(async () => {
     void applyConfig(next.config);
   });
   // The config watcher and the zoom store are both acquired once and released
-  // on quit: a Ctrl-wheel nudge queued during shutdown would otherwise be lost.
-  app.on("will-quit", () => {
-    releaseConfig();
-    zoom.release();
-  });
+  // on quit. The store additionally holds the quit until its queued write has
+  // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
+  app.on("will-quit", releaseConfig);
+  flushOnQuit(app, zoom);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom);

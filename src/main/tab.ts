@@ -121,6 +121,15 @@ export class Tab {
     return !this.#closed && this.#page.getURL() !== "";
   }
 
+  /**
+   * True while the failure page stands in for a dead load. The snapshot's URL
+   * is the failed site's even then, so anything keyed to the page's URL — the
+   * zoom store, most visibly — must not treat that origin as what's on screen.
+   */
+  get showsErrorPage(): boolean {
+    return this.#failedUrl !== null;
+  }
+
   snapshot(): TabState {
     const strip = {
       id: this.id,
@@ -163,6 +172,16 @@ export class Tab {
     this.#zoomLevel = this.#page.getZoomLevel();
     this.#on.changed();
     return this.#zoomLevel;
+  }
+
+  /**
+   * Re-reads the level Chromium actually has. Same-origin zoom propagates
+   * across tabs inside the session, so while a tab was hidden a sibling's
+   * zoom could move this one's level with no event for it to observe.
+   */
+  syncZoom(): void {
+    if (this.#closed) return;
+    this.#zoomLevel = this.#page.getZoomLevel();
   }
 
   setVisible(visible: boolean): void {
@@ -497,13 +516,17 @@ export class Tab {
     });
 
     // The only other way the level changes: the user pinned Ctrl+wheel on the
-    // page. Mirror it, then persist it so a restart keeps the preference.
+    // page. Mirror it, then persist it so a restart keeps the preference. An
+    // error page zooms the wrapper, not the site — mirroring keeps the
+    // snapshot truthful, but persisting it would write under kvist://error.
     webContents.on("zoom-changed", () => {
       if (this.#closed) return;
       const level = webContents.getZoomLevel();
       this.#zoomLevel = level;
-      const origin = originOf(webContents.getURL());
-      if (origin !== null) this.#zoom.set(origin, level);
+      if (this.#failedUrl === null) {
+        const origin = originOf(webContents.getURL());
+        if (origin !== null) this.#zoom.set(origin, level);
+      }
       this.#on.changed();
     });
 
