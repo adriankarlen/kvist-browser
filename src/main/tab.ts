@@ -30,6 +30,11 @@ export interface TabCallbacks {
   changed(): void;
   /** The page took its own webContents down, e.g. `window.close()`. */
   died(): void;
+  /**
+   * A main-frame navigation committed, with the URL it landed on. Anything
+   * keyed to the URL rather than the document starts here.
+   */
+  navigated(page: PageContents, url: string): void;
   /** `window.open` or `target="_blank"`, which wants a tab next to this one. */
   openRequest(url: string, background: boolean): void;
   found(result: FindResult | null): void;
@@ -500,6 +505,11 @@ export class Tab {
       }
       trackUrl();
       this.#applyOriginZoom();
+      // The URL Chromium actually committed, not the one the strip shows: an
+      // error page is its own document, and styling it as the site that failed
+      // would inject a site's CSS into our wrapper. Same call the zoom above
+      // makes.
+      this.#on.navigated(webContents, webContents.getURL());
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       trackUrl();

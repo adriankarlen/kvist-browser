@@ -118,6 +118,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
     found: vi.fn(),
     editable: vi.fn(),
     inPageNavigation: vi.fn(),
+    navigated: vi.fn(),
     key: vi.fn(() => false),
     copyText: vi.fn(),
     menuCss: () => ".kv-menu {}",
@@ -441,6 +442,29 @@ test("a history-API navigation is reported so URL-keyed rules can be reapplied",
   host.emit("did-navigate-in-page", EVENT, "https://a.example/two", true);
 
   expect(inPageNavigation).toHaveBeenCalledWith(expect.anything(), "https://a.example/two");
+});
+
+test("a committed navigation is reported with the URL it landed on", () => {
+  const navigated = vi.fn();
+  const { host } = createTab({ navigated });
+
+  host.state.url = "https://b.example/page";
+  host.emit("did-navigate", EVENT);
+
+  expect(navigated).toHaveBeenCalledWith(expect.anything(), "https://b.example/page");
+});
+
+test("an error page is reported as the wrapper it is, not the site that failed", () => {
+  const navigated = vi.fn();
+  const { host } = createTab({ navigated });
+
+  host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
+  host.emit("did-navigate", EVENT);
+
+  // The strip shows the failed site, but a site's styles must not be injected
+  // into our own error page.
+  expect(navigated).toHaveBeenCalledWith(expect.anything(), host.loaded[0]);
+  expect(errorPageTarget(host.loaded[0]!)?.url).toBe("https://gone.example");
 });
 
 test("a link click with an allowlisted scheme is handed off to the desktop", () => {

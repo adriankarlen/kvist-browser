@@ -34,6 +34,7 @@ import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
+import { UserStyles } from "./user-styles";
 import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
@@ -62,6 +63,15 @@ const downloads = new Downloads((text) => messages.warn(text));
  * window only subscribes to the queue.
  */
 const permissions = new Permissions();
+
+/**
+ * The user's own stylesheets, session-scoped for the same reason as the rest:
+ * a style belongs to no window, and every tab gets the same answer for the
+ * same URL. Nothing fills it yet — the watched directory that will call
+ * `setSources` is KVI-22; the engine underneath it is in place and applied on
+ * every navigation from here.
+ */
+const userStyles = new UserStyles();
 
 /**
  * The windows' own share of a config change. A window subscribes once it has
@@ -225,7 +235,14 @@ function createWindow(zoom: ZoomStore): void {
   });
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));
-  tabs.observeInPageNavigation((contents, url) => refreshCosmeticStyles(contents, url));
+  // Both halves of "the URL changed": a committed navigation and a history-API
+  // one. The user's styles are keyed to the URL rather than the document, so a
+  // SPA moving between routes has to be restyled with nothing reloading.
+  tabs.observeNavigation((contents, url) => userStyles.applyTo(contents, url));
+  tabs.observeInPageNavigation((contents, url) => {
+    refreshCosmeticStyles(contents, url);
+    userStyles.applyTo(contents, url);
+  });
 
   // A tab's own channels, accepted from a webContents that owns one and from
   // nothing else.
