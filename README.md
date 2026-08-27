@@ -54,7 +54,7 @@ unfortunately, a necessary part of a project with this vision.
   own filter lists. See [Ad blocking](#ad-blocking).
 - **Per-site user styles**, in the spirit of Stylus: drop UserCSS-format
   `.css` files into `~/.config/kvist/styles/`, live-reloaded on save, and
-  jump to whichever one applies to the current page with `:style`. See
+  open every file that applies to the current page with `:style`. See
   [User styles](#user-styles).
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
 
