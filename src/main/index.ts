@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { app, BrowserWindow, session, shell } from "electron";
 import type { UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
@@ -34,7 +34,8 @@ import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
-import { UserStyles } from "./user-styles";
+import { UserStyles, type UserStyleProblem } from "./user-styles";
+import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
@@ -67,9 +68,8 @@ const permissions = new Permissions();
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
  * a style belongs to no window, and every tab gets the same answer for the
- * same URL. Nothing fills it yet — the watched directory that will call
- * `setSources` is KVI-22; the engine underneath it is in place and applied on
- * every navigation from here.
+ * same URL. Filled from the watched styles directory on startup and on every
+ * change to it (KVI-22), and applied on every navigation from here.
  */
 const userStyles = new UserStyles();
 
@@ -79,6 +79,14 @@ const userStyles = new UserStyles();
  * change nor keeps answering after it is gone.
  */
 const windows = new Set<(config: UserConfig) => void>();
+
+/**
+ * Every open window's tabs, so a styles-directory change can reach pages
+ * already open rather than waiting for their next navigation. Separate from
+ * `windows`: that fan-out is the chrome and each tab's *next* navigation,
+ * this one is restyling what is on screen right now.
+ */
+const tabManagers = new Set<TabManager>();
 
 /** The config as it stands, for a window opened after the last change. */
 let current: UserConfig;
@@ -106,6 +114,22 @@ function reportProblems({ problems }: LoadedConfig): void {
   for (const problem of rest) console.error(`kvist: ${describeProblem(problem)}`);
   const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
   messages.warn(`${describeProblem(first)}${more}`);
+}
+
+/**
+ * Same shape as reportProblems, one file's worth at a time: a style file is
+ * hand-edited and hot-reloaded exactly like config.toml, so a typo in one
+ * block must not blank out every style file that still parses.
+ */
+function reportStyleProblems(problems: UserStyleProblem[]): void {
+  const [first, ...rest] = problems;
+  if (first === undefined) return;
+  for (const problem of rest) console.error(`kvist: ${problem.id}: ${problem.reason}`);
+  const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
+  // The echo area names the file, not the full path — the log line above
+  // already carries that, and a config directory nested a few levels deep
+  // pushes the reason itself off the end of the line.
+  messages.warn(`${basename(first.id)}: ${first.reason}${more}`);
 }
 
 function applyConfig(config: UserConfig): Promise<void> {
@@ -162,6 +186,7 @@ function createWindow(zoom: ZoomStore): void {
   });
 
   const tabs = new TabManager(win, pagePreload, zoom, (state) => chrome.state(state));
+  tabManagers.add(tabs);
 
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -188,6 +213,8 @@ function createWindow(zoom: ZoomStore): void {
     win,
     messages,
     systemClipboard,
+    shell,
+    userStyles,
     () => app.quit(),
     // Read at call time, so a config save changes where the next search goes
     // without the window being recreated.
@@ -268,7 +295,10 @@ function createWindow(zoom: ZoomStore): void {
     }
   };
 
-  win.on("closed", () => windows.delete(applyToWindow));
+  win.on("closed", () => {
+    windows.delete(applyToWindow);
+    tabManagers.delete(tabs);
+  });
 
   win.webContents.once("did-finish-load", () => {
     windows.add(applyToWindow);
@@ -336,16 +366,28 @@ void app.whenReady().then(async () => {
   await applyConfig(loaded.config);
   registerKvistProtocol();
 
+  reportStyleProblems(userStyles.setSources(await readStyleFiles()));
+
   const zoom = await ZoomStore.load();
   createWindow(zoom);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
   });
+  const releaseStyleFiles = await watchStyleFiles((sources) => {
+    reportStyleProblems(userStyles.setSources(sources));
+    // A rescan otherwise only reaches a page on its next navigation — an edit
+    // or a removed file has to take effect on what is already open, not just
+    // on what loads afterward.
+    for (const tabs of tabManagers) {
+      tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+    }
+  });
   // The config watcher and the zoom store are both acquired once and released
   // on quit. The store additionally holds the quit until its queued write has
   // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
   app.on("will-quit", releaseConfig);
+  app.on("will-quit", releaseStyleFiles);
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {

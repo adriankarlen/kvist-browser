@@ -78,6 +78,27 @@ test("a file needing a preprocessor is skipped by name, not injected", () => {
   expect(styles.cssFor("https://a.example/")).toBe("body { color: red }");
 });
 
+test("a preprocessor-skipped file is still found by :style, just not injected", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    {
+      id: "rose-pine.user.less",
+      source: `/* ==UserStyle==
+@name Rose Pine
+@preprocessor less
+==/UserStyle== */
+@-moz-document domain("a.example") { body { color: darken(@base, 10%) } }`,
+    },
+  ]);
+
+  // Its CSS never reaches the page…
+  expect(styles.cssFor("https://a.example/")).toBe("");
+  // …but the file itself is still the one to open for that page: its match
+  // rule parsed fine, only the preprocessor stopped the CSS from being used.
+  expect(styles.filesFor("https://a.example/")).toEqual(["rose-pine.user.less"]);
+  expect(styles.filesFor("https://other.example/")).toEqual([]);
+});
+
 test("problems carry the file they were found in", () => {
   const styles = new UserStyles();
   const problems = styles.setSources([
@@ -128,6 +149,39 @@ test("a page matching nothing is not left wearing the last page's styles", async
   // The second application removes rather than inserting; the sheet's own
   // tests cover the removal.
   expect(inserted).toEqual(["body { color: red }"]);
+});
+
+test("filesFor names every distinct file matching a URL, in the order given", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    { id: "global.css", source: "html { font-size: 15px }" },
+    { id: "a.css", source: scoped("a.example", "body { color: red }") },
+    { id: "b.css", source: scoped("b.example", "body { color: blue }") },
+  ]);
+
+  expect(styles.filesFor("https://a.example/")).toEqual(["global.css", "a.css"]);
+  expect(styles.filesFor("https://b.example/")).toEqual(["global.css", "b.css"]);
+  expect(styles.filesFor("https://c.example/")).toEqual(["global.css"]);
+});
+
+test("filesFor names a file once even when several of its blocks match", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    {
+      id: "multi.css",
+      source: `${scoped("a.example", "body { color: red }")}\n${scoped("a.example", "a { color: gray }")}`,
+    },
+  ]);
+
+  expect(styles.filesFor("https://a.example/")).toEqual(["multi.css"]);
+});
+
+test("filesFor is empty when nothing has been set, or nothing matches", () => {
+  const styles = new UserStyles();
+  expect(styles.filesFor("https://a.example/")).toEqual([]);
+
+  styles.setSources([{ id: "a.css", source: scoped("a.example", "body { color: red }") }]);
+  expect(styles.filesFor("https://z.example/")).toEqual([]);
 });
 
 test("a file with a broken block cannot leak into other sites' styles", () => {

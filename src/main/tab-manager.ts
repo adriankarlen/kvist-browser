@@ -75,6 +75,16 @@ export class TabManager {
     this.#menuCss = composeContextMenuCss(config.css);
   }
 
+  /**
+   * Every open tab's page and its current URL. For a change that has to reach
+   * pages already open rather than wait for their next navigation — the
+   * user's own styles, reapplied whenever the watched directory changes, are
+   * the one case today.
+   */
+  forEachTab(fn: (contents: PageContents, url: string) => void): void {
+    for (const tab of this.#tabs.values()) fn(tab.contents, tab.snapshot().url);
+  }
+
   /** The tab every "do this to the page" verb belongs to, if there is one. */
   get active(): Tab | undefined {
     return this.#activeId === null ? undefined : this.#tabs.get(this.#activeId);

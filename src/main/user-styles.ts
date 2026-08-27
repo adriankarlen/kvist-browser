@@ -3,7 +3,7 @@ import { ReplaceableStylesheet, type StylesheetTarget } from "./stylesheet";
 
 /** One style file: where it came from, and what it says. */
 export interface UserStyleSource {
-  /** How the file is named to a user — a path, once KVI-22 reads a directory. */
+  /** How the file is named to a user — the absolute path KVI-22's directory read it from. */
   id: string;
   source: string;
 }
@@ -12,6 +12,15 @@ export interface UserStyleSource {
 interface OwnedBlock {
   id: string;
   block: UserCssBlock;
+  /**
+   * False for a block whose file declared a preprocessor Kvist does not run.
+   * Its matchers are real — parsing them does not require compiling anything
+   * — so `:style` can still find the file by them; only its CSS is withheld
+   * from injection. A user reaching for `:style` on a page one of these
+   * covers is exactly the person who needs to get at the file, typo'd
+   * `@preprocessor` and all.
+   */
+  injectable: boolean;
 }
 
 /** A problem, named by the file it was found in. */
@@ -52,13 +61,15 @@ export class UserStyles {
 
       // No preprocessor lives in the browser: a file that needs compiling is
       // skipped by name, not injected as broken CSS. Converting it to plain
-      // CSS is a separate tool's job, outside this repo.
-      if (parsed.preprocessor !== "default") {
+      // CSS is a separate tool's job, outside this repo. Its blocks are kept
+      // anyway, marked non-injectable: the matchers parsed fine regardless of
+      // the preprocessor, and `:style` still has to be able to find the file.
+      const injectable = parsed.preprocessor === "default";
+      if (!injectable) {
         problems.push({ id, reason: `skipped: @preprocessor ${parsed.preprocessor} is not run` });
-        continue;
       }
 
-      for (const block of parsed.blocks) blocks.push({ id, block });
+      for (const block of parsed.blocks) blocks.push({ id, block, injectable });
     }
 
     this.#blocks = blocks;
@@ -68,9 +79,33 @@ export class UserStyles {
   /** Every block that applies to a URL, in the order its files were given. */
   cssFor(url: string): string {
     return this.#blocks
-      .filter(({ block }) => matchesUserCss(block.matchers, url))
+      .filter(({ block, injectable }) => injectable && matchesUserCss(block.matchers, url))
       .map(({ block }) => block.css)
       .join("\n");
+  }
+
+  /**
+   * Every distinct file whose CSS currently applies to a URL, in the order
+   * its file was first given — what `:style` (KVI-23) jumps to. A file can
+   * contribute more than one matching block (a global rule plus a
+   * domain-scoped one, say); it is named once regardless, since there is only
+   * one file to open for it.
+   *
+   * Unlike `cssFor`, a preprocessor-skipped file's matchers still count here:
+   * nothing of its CSS reaches a page, but a user who typed `:style` on a page
+   * that file was written for is exactly who needs it opened.
+   */
+  filesFor(url: string): string[] {
+    const seen = new Set<string>();
+    const files: string[] = [];
+
+    for (const { id, block } of this.#blocks) {
+      if (seen.has(id) || !matchesUserCss(block.matchers, url)) continue;
+      seen.add(id);
+      files.push(id);
+    }
+
+    return files;
   }
 
   /**

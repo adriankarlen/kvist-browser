@@ -52,6 +52,10 @@ unfortunately, a necessary part of a project with this vision.
 - **Vertical or horizontal tabs**, configurable via `config.toml`.
 - **Ad and tracker blocking** built in, using EasyList and uBlock Origin's
   own filter lists. See [Ad blocking](#ad-blocking).
+- **Per-site user styles**, in the spirit of Stylus: drop UserCSS-format
+  `.css` files into `~/.config/kvist/styles/`, live-reloaded on save, and
+  open every file that applies to the current page with `:style`. See
+  [User styles](#user-styles).
 - Single `WebContentsView` per tab, hidden rather than destroyed on switch.
 
 ## Roadmap
@@ -60,8 +64,6 @@ Roughly what's next, in no particular order and with no promised timeline:
 
 - In-page navigation, the start of in-page vim.
 - Per-site blocking toggles, and user filter lists.
-- In-page styling, in the spirit of Stylus: user CSS for sites, not just
-  the chrome.
 - Bookmarks.
 - A toggleable UI, so the omnibox, tab bar, and other chrome pieces can be
   hidden on demand.
@@ -281,6 +283,43 @@ three-tier token system:
 
 Ships with [Rosé Pine](https://rosepinetheme.com/) by default. See
 `src/renderer/styles/tokens.css` for the full token list.
+
+### User styles
+
+`config.css` themes the chrome; `~/.config/kvist/styles/` themes pages
+themselves, Stylus-style. Drop any `*.css` file into that directory and it is
+picked up live — no restart, same as `config.toml`.
+
+A file may start with a UserCSS metadata comment to scope itself to specific
+sites:
+
+```css
+/* ==UserStyle==
+@name My GitHub tweaks
+==/UserStyle== */
+@-moz-document domain("github.com") {
+  body {
+    font-family: monospace;
+  }
+}
+```
+
+`domain()`, `url()`, `url-prefix()` and `regexp()` are all supported, each
+`@-moz-document` block only applies where it matches, and a file with no
+metadata block at all (or CSS outside any block) applies everywhere. Multiple
+files, and multiple blocks within one file, all combine.
+
+Only plain CSS is injected — there is no LESS/Stylus-lang preprocessing, on
+purpose, the same reasoning as unlayered `config.css`: it works _because_
+it's just CSS, with no build step between file and effect. A file that
+declares `@preprocessor less`/`stylus`/`uso` is skipped with a log message
+rather than injected uncompiled. Theme repos that ship `.user.less` (like
+[rose-pine/userstyles](https://github.com/rose-pine/userstyles)) need
+converting to plain CSS first; there is currently no bundled tool for that.
+
+`:style` opens, for editing, every file in that directory whose rules apply
+to the page you're currently on — handed to whatever your OS opens `.css`
+files with.
 
 ## Layout
 
