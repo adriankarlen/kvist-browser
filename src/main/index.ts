@@ -80,6 +80,14 @@ const userStyles = new UserStyles();
  */
 const windows = new Set<(config: UserConfig) => void>();
 
+/**
+ * Every open window's tabs, so a styles-directory change can reach pages
+ * already open rather than waiting for their next navigation. Separate from
+ * `windows`: that fan-out is the chrome and each tab's *next* navigation,
+ * this one is restyling what is on screen right now.
+ */
+const tabManagers = new Set<TabManager>();
+
 /** The config as it stands, for a window opened after the last change. */
 let current: UserConfig;
 
@@ -178,6 +186,7 @@ function createWindow(zoom: ZoomStore): void {
   });
 
   const tabs = new TabManager(win, pagePreload, zoom, (state) => chrome.state(state));
+  tabManagers.add(tabs);
 
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -286,7 +295,10 @@ function createWindow(zoom: ZoomStore): void {
     }
   };
 
-  win.on("closed", () => windows.delete(applyToWindow));
+  win.on("closed", () => {
+    windows.delete(applyToWindow);
+    tabManagers.delete(tabs);
+  });
 
   win.webContents.once("did-finish-load", () => {
     windows.add(applyToWindow);
@@ -364,6 +376,12 @@ void app.whenReady().then(async () => {
   });
   const releaseStyleFiles = await watchStyleFiles((sources) => {
     reportStyleProblems(userStyles.setSources(sources));
+    // A rescan otherwise only reaches a page on its next navigation — an edit
+    // or a removed file has to take effect on what is already open, not just
+    // on what loads afterward.
+    for (const tabs of tabManagers) {
+      tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+    }
   });
   // The config watcher and the zoom store are both acquired once and released
   // on quit. The store additionally holds the quit until its queued write has
