@@ -171,16 +171,36 @@ function parseMetadata(meta: string, problems: UserCssProblem[]): ParsedMetadata
 }
 
 /**
+ * Decodes one CSS `\<hex digits>` escape. `parseInt` stops at the first
+ * non-hex character, so the regex-consumed optional trailing-whitespace
+ * delimiter is naturally ignored.
+ */
+function decodeHexEscape(match: string): string {
+  const codePoint = parseInt(match.slice(1), 16);
+  try {
+    return String.fromCodePoint(codePoint);
+  } catch {
+    // Codepoints above U+10FFFF are invalid; substitute the replacement char.
+    return "\uFFFD";
+  }
+}
+
+/**
  * Strips one layer of matching quotes and decodes CSS escape sequences.
- * The spec allows either quote character, or neither. Inside a quoted value,
- * `\<char>` is the CSS escape for `<char>` — most visibly `\\` for a literal
- * backslash in a `regexp()` matcher — and must be decoded before the value is
- * used, or `regexp("a\\.b")` matches `a\b` rather than `a.b`.
+ * Applied in the order the CSS spec requires:
+ *   1. Hex escapes `\<1–6 hex digits><optional whitespace>` → Unicode char.
+ *      Processed first so `\41` is not half-eaten by the single-char pass.
+ *   2. Escaped newlines (line-continuation): `\<CR><LF>`, `\<CR>`, `\<LF>` → ""
+ *   3. Single-char escapes `\<char>` → `<char>`. Handles `\\` → `\` and `\.` → `.`.
  */
 function unquote(value: string): string {
   const first = value[0];
   if ((first === '"' || first === "'") && value.length >= 2 && value.at(-1) === first) {
-    return value.slice(1, -1).replace(/\\([\s\S])/g, "$1");
+    return value
+      .slice(1, -1)
+      .replace(/\\[0-9a-fA-F]{1,6}\s?/g, decodeHexEscape)
+      .replace(/\\\r\n|\\\r|\\\n/g, "")
+      .replace(/\\([\s\S])/g, "$1");
   }
   return value;
 }

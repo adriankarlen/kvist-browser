@@ -345,6 +345,39 @@ test("CSS escape sequences in matcher values are decoded", () => {
   expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://a\\.example/")).toBe(false);
 });
 
+test("hex CSS escapes in matcher values are decoded to their Unicode characters", () => {
+  // \65 = 'e', \2E = '.', so \65xample\2Ecom decodes to 'example.com'.
+  // \65 terminates at 'x' (not a hex digit); \2E has no trailing whitespace
+  // and is followed by 'c' (a hex digit), but the pattern is greedy up to
+  // 6 digits so \2E is only two digits and 'c' is the next literal char.
+  const parsed = parseUserCss(`/* ==UserStyle==
+@name Hex escapes
+==/UserStyle== */
+@-moz-document domain("\\65xample.com") { a {} }`);
+
+  expect(parsed.problems).toEqual([]);
+  expect(parsed.blocks[0]!.matchers).toEqual([{ type: "domain", value: "example.com" }]);
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://example.com/")).toBe(true);
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://xample.com/")).toBe(false);
+});
+
+test("escaped newlines in matcher values are removed as line continuations", () => {
+  // A backslash immediately before a newline in a CSS string is a
+  // line-continuation: both characters are deleted.
+  const parsed = parseUserCss(`/* ==UserStyle==
+@name Line continuation
+==/UserStyle== */
+@-moz-document url-prefix("https://exam\\
+ple.com/") { a {} }`);
+
+  expect(parsed.problems).toEqual([]);
+  expect(parsed.blocks[0]!.matchers).toEqual([
+    { type: "url-prefix", value: "https://example.com/" },
+  ]);
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://example.com/page")).toBe(true);
+  expect(matchesUserCss(parsed.blocks[0]!.matchers, "https://exam.com/")).toBe(false);
+});
+
 test('url-prefix("") matches every URL and reports a problem', () => {
   const parsed = parseUserCss(`/* ==UserStyle==
 @name Global prefix
