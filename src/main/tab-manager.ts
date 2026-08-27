@@ -26,6 +26,7 @@ export class TabManager {
   #onEditable: (editable: boolean) => void = () => {};
   #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
+  #onNavigated: (page: PageContents, url: string) => void = () => {};
   #onExternal: (url: string) => void = () => {};
   #pagePreload: string;
   #zoom: ZoomStore;
@@ -92,6 +93,14 @@ export class TabManager {
   /** Match counts for the active tab, so the chrome can show them. */
   observeFind(onFind: (result: FindResult | null) => void): void {
     this.#onFind = onFind;
+  }
+
+  /**
+   * A committed main-frame navigation, which is where anything keyed to the
+   * URL rather than the document is applied — the user's styles, for one.
+   */
+  observeNavigation(handler: (page: PageContents, url: string) => void): void {
+    this.#onNavigated = handler;
   }
 
   /**
@@ -251,6 +260,7 @@ export class TabManager {
         if (id === this.#activeId) this.#onEditable(editable);
       },
       inPageNavigation: (page, url) => this.#onInPageNavigation(page, url),
+      navigated: (page, url) => this.#onNavigated(page, url),
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
