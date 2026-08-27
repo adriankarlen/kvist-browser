@@ -18,6 +18,14 @@ function xdg(variable: string, fallback: string): string {
 export const configDir = xdg("XDG_CONFIG_HOME", ".config");
 
 /**
+ * Hand-written UserCSS files live here, watched and live-reloaded (KVI-22).
+ * A subdirectory of configDir rather than a setting of its own — same as
+ * config.css/config.toml, this is a fixed, hand-edited location, not
+ * something worth a settings key.
+ */
+export const stylesDir = join(configDir, "styles");
+
+/**
  * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
  * state would bury the hand-edited config that belongs there. Keeps
  * ~/.config/kvist free for the user. Must run before app ready.

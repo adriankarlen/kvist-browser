@@ -34,7 +34,8 @@ import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
 import { type KeyInput, type KeySource, Vim } from "./vim";
-import { UserStyles } from "./user-styles";
+import { UserStyles, type UserStyleProblem } from "./user-styles";
+import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
@@ -67,9 +68,8 @@ const permissions = new Permissions();
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
  * a style belongs to no window, and every tab gets the same answer for the
- * same URL. Nothing fills it yet — the watched directory that will call
- * `setSources` is KVI-22; the engine underneath it is in place and applied on
- * every navigation from here.
+ * same URL. Filled from the watched styles directory on startup and on every
+ * change to it (KVI-22), and applied on every navigation from here.
  */
 const userStyles = new UserStyles();
 
@@ -106,6 +106,19 @@ function reportProblems({ problems }: LoadedConfig): void {
   for (const problem of rest) console.error(`kvist: ${describeProblem(problem)}`);
   const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
   messages.warn(`${describeProblem(first)}${more}`);
+}
+
+/**
+ * Same shape as reportProblems, one file's worth at a time: a style file is
+ * hand-edited and hot-reloaded exactly like config.toml, so a typo in one
+ * block must not blank out every style file that still parses.
+ */
+function reportStyleProblems(problems: UserStyleProblem[]): void {
+  const [first, ...rest] = problems;
+  if (first === undefined) return;
+  for (const problem of rest) console.error(`kvist: ${problem.id}: ${problem.reason}`);
+  const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
+  messages.warn(`${first.id}: ${first.reason}${more}`);
 }
 
 function applyConfig(config: UserConfig): Promise<void> {
@@ -336,16 +349,22 @@ void app.whenReady().then(async () => {
   await applyConfig(loaded.config);
   registerKvistProtocol();
 
+  reportStyleProblems(userStyles.setSources(await readStyleFiles()));
+
   const zoom = await ZoomStore.load();
   createWindow(zoom);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
   });
+  const releaseStyleFiles = await watchStyleFiles((sources) => {
+    reportStyleProblems(userStyles.setSources(sources));
+  });
   // The config watcher and the zoom store are both acquired once and released
   // on quit. The store additionally holds the quit until its queued write has
   // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
   app.on("will-quit", releaseConfig);
+  app.on("will-quit", releaseStyleFiles);
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {
