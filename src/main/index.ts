@@ -201,6 +201,8 @@ function createWindow(zoom: ZoomStore): void {
     win,
     messages,
     systemClipboard,
+    shell,
+    userStyles,
     () => app.quit(),
     // Read at call time, so a config save changes where the next search goes
     // without the window being recreated.

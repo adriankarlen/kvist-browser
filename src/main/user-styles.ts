@@ -3,7 +3,7 @@ import { ReplaceableStylesheet, type StylesheetTarget } from "./stylesheet";
 
 /** One style file: where it came from, and what it says. */
 export interface UserStyleSource {
-  /** How the file is named to a user — a path, once KVI-22 reads a directory. */
+  /** How the file is named to a user — the absolute path KVI-22's directory read it from. */
   id: string;
   source: string;
 }
@@ -71,6 +71,26 @@ export class UserStyles {
       .filter(({ block }) => matchesUserCss(block.matchers, url))
       .map(({ block }) => block.css)
       .join("\n");
+  }
+
+  /**
+   * Every distinct file whose CSS currently applies to a URL, in the order
+   * its file was first given — what `:style` (KVI-23) jumps to. A file can
+   * contribute more than one matching block (a global rule plus a
+   * domain-scoped one, say); it is named once regardless, since there is only
+   * one file to open for it.
+   */
+  filesFor(url: string): string[] {
+    const seen = new Set<string>();
+    const files: string[] = [];
+
+    for (const { id, block } of this.#blocks) {
+      if (seen.has(id) || !matchesUserCss(block.matchers, url)) continue;
+      seen.add(id);
+      files.push(id);
+    }
+
+    return files;
   }
 
   /**

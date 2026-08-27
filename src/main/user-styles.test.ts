@@ -130,6 +130,39 @@ test("a page matching nothing is not left wearing the last page's styles", async
   expect(inserted).toEqual(["body { color: red }"]);
 });
 
+test("filesFor names every distinct file matching a URL, in the order given", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    { id: "global.css", source: "html { font-size: 15px }" },
+    { id: "a.css", source: scoped("a.example", "body { color: red }") },
+    { id: "b.css", source: scoped("b.example", "body { color: blue }") },
+  ]);
+
+  expect(styles.filesFor("https://a.example/")).toEqual(["global.css", "a.css"]);
+  expect(styles.filesFor("https://b.example/")).toEqual(["global.css", "b.css"]);
+  expect(styles.filesFor("https://c.example/")).toEqual(["global.css"]);
+});
+
+test("filesFor names a file once even when several of its blocks match", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    {
+      id: "multi.css",
+      source: `${scoped("a.example", "body { color: red }")}\n${scoped("a.example", "a { color: gray }")}`,
+    },
+  ]);
+
+  expect(styles.filesFor("https://a.example/")).toEqual(["multi.css"]);
+});
+
+test("filesFor is empty when nothing has been set, or nothing matches", () => {
+  const styles = new UserStyles();
+  expect(styles.filesFor("https://a.example/")).toEqual([]);
+
+  styles.setSources([{ id: "a.css", source: scoped("a.example", "body { color: red }") }]);
+  expect(styles.filesFor("https://z.example/")).toEqual([]);
+});
+
 test("a file with a broken block cannot leak into other sites' styles", () => {
   const styles = new UserStyles();
   const problems = styles.setSources([

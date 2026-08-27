@@ -79,6 +79,8 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const quit = vi.fn();
   const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
   const clipboard = createClipboardStub();
+  const opener = { openPath: vi.fn<(path: string) => Promise<string>>(() => Promise.resolve("")) };
+  const userStyles = { filesFor: vi.fn<(url: string) => string[]>(() => []) };
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
@@ -89,6 +91,8 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
     clipboard,
+    opener,
+    userStyles,
     quit,
     getSearchUrl,
   );
@@ -103,6 +107,8 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     win,
     messages,
     clipboard,
+    opener,
+    userStyles,
     quit,
   };
 }
@@ -166,6 +172,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.out", () => active.setZoomLevel.mock.calls.some(([l]) => l === -1)],
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
+    ["style.open", () => true], // needs userStyles/opener plumbed; covered on its own below
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -555,4 +562,72 @@ test("zoom with no active tab warns rather than throwing", () => {
   stubs.commands.execute("zoom.in");
 
   expect(stubs.messages.warn).toHaveBeenCalledWith("no zoomable page here");
+});
+
+test("style opens every file userStyles names for the active URL", () => {
+  const { commands, opener, userStyles } = createStubs();
+  userStyles.filesFor.mockReturnValue(["/config/styles/global.css", "/config/styles/a.css"]);
+
+  commands.execute("style.open");
+
+  expect(userStyles.filesFor).toHaveBeenCalledWith("https://active.example");
+  expect(opener.openPath.mock.calls).toEqual([
+    ["/config/styles/global.css"],
+    ["/config/styles/a.css"],
+  ]);
+});
+
+test(":style is an alias for style.open", () => {
+  const { commands, opener, userStyles } = createStubs();
+  userStyles.filesFor.mockReturnValue(["/config/styles/a.css"]);
+
+  commands.execute("style");
+
+  expect(opener.openPath).toHaveBeenCalledWith("/config/styles/a.css");
+});
+
+test("style warns and opens nothing when no file matches the page", () => {
+  const { commands, opener, messages } = createStubs();
+
+  commands.execute("style.open");
+
+  expect(opener.openPath).not.toHaveBeenCalled();
+  expect(messages.warn).toHaveBeenCalledWith("no style file matches this page");
+});
+
+test("style warns rather than looking anything up when there is no active tab", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+
+  stubs.commands.execute("style.open");
+
+  expect(stubs.userStyles.filesFor).not.toHaveBeenCalled();
+  expect(stubs.messages.warn).toHaveBeenCalledWith("no page to style");
+});
+
+test("style warns when the active tab has no URL to match against", () => {
+  const { commands, active, userStyles, messages } = createStubs();
+  Object.defineProperty(active, "snapshot", { value: () => ({ url: "" }), configurable: true });
+
+  commands.execute("style.open");
+
+  expect(userStyles.filesFor).not.toHaveBeenCalled();
+  expect(messages.warn).toHaveBeenCalledWith("no page to style");
+});
+
+test("a file that fails to open is warned about without holding up the rest", async () => {
+  const { commands, opener, userStyles, messages } = createStubs();
+  userStyles.filesFor.mockReturnValue(["/config/styles/broken.css", "/config/styles/fine.css"]);
+  opener.openPath.mockImplementation((path: string) =>
+    Promise.resolve(path.endsWith("broken.css") ? "no application can open this file" : ""),
+  );
+
+  commands.execute("style.open");
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(messages.warn).toHaveBeenCalledWith(
+    "could not open /config/styles/broken.css: no application can open this file",
+  );
+  expect(messages.warn).toHaveBeenCalledTimes(1);
 });

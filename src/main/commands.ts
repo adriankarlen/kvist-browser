@@ -55,6 +55,8 @@ function table(actions: Actions) {
     "clipboard.open": actions.clipboard.open,
     "clipboard.openNewTab": actions.clipboard.openNewTab,
 
+    "style.open": actions.style.open,
+
     "zoom.in": actions.zoom.in,
     "zoom.out": actions.zoom.out,
     "zoom.reset": actions.zoom.reset,
@@ -85,6 +87,7 @@ const ALIASES = {
   zo: "zoom.out",
   z0: "zoom.reset",
   zoom: "zoom.set",
+  style: "style.open",
 } satisfies Record<string, CommandName>;
 
 export interface Commands {

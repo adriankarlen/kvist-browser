@@ -24,6 +24,22 @@ export interface Clipboard {
 }
 
 /**
+ * The bit of `electron.shell` `:style` needs: handing a path to whatever the
+ * OS (or a user's own `xdg-mime`/file-association setup) opens `.css` files
+ * with. Narrowed to one method for the same reason `Clipboard` is narrowed —
+ * a test can satisfy it without touching the real shell.
+ */
+export interface FileOpener {
+  /** Empty string on success; any other string is the OS's own error text. */
+  openPath(path: string): Promise<string>;
+}
+
+/** What `:style` asks `UserStyles` for: which files are in force on a URL. */
+export interface StyleFileLookup {
+  filesFor(url: string): string[];
+}
+
+/**
  * The slice of the zoom store the action layer reads and writes. The store
  * owns the persistence and the debounce; the actions only ask for a level
  * or hand one back.
@@ -100,6 +116,13 @@ export interface Actions {
     /** Open the clipboard contents in a new tab, via resolveUrl. */
     openNewTab: Action;
   };
+  style: {
+    /**
+     * Opens every watched-directory style file whose CSS currently applies to
+     * the active tab, for editing.
+     */
+    open: Action;
+  };
   zoom: {
     /** Add a step; clamped at the upper limit. */
     in: Action;
@@ -133,6 +156,8 @@ export function createActions(
   win: BrowserWindow,
   messages: Messages,
   clipboard: Clipboard,
+  opener: FileOpener,
+  userStyles: StyleFileLookup,
   quit: () => void,
   getSearchUrl: () => string,
 ): Actions {
@@ -320,6 +345,28 @@ export function createActions(
           return;
         }
         tabs.create(resolveUrl(text, getSearchUrl()));
+      },
+    },
+    style: {
+      // Fire-and-forget per file, like external-protocol handling: one file
+      // failing to open — deleted between the scan and the click, say — must
+      // not hold up or hide the others.
+      open: () => {
+        const url = tabs.active?.snapshot().url;
+        if (url === undefined || url === "") {
+          messages.warn("no page to style");
+          return;
+        }
+        const files = userStyles.filesFor(url);
+        if (files.length === 0) {
+          messages.warn("no style file matches this page");
+          return;
+        }
+        for (const file of files) {
+          void opener.openPath(file).then((error) => {
+            if (error !== "") messages.warn(`could not open ${file}: ${error}`);
+          });
+        }
       },
     },
     zoom: {
