@@ -1,3 +1,4 @@
+import type { watch } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -175,5 +176,60 @@ test("a directory that cannot be created yields a no-op release", async () => {
 
   expect(console.error).toHaveBeenCalled();
   // Nothing to release, but calling it must not throw.
+  expect(() => release()).not.toThrow();
+});
+
+test("a slow rescan cannot overwrite a result from one started after it", async () => {
+  const onChange = vi.fn<(sources: UserStyleSource[]) => void>();
+  const resolvers: ((sources: UserStyleSource[]) => void)[] = [];
+  const read = vi.fn(
+    () =>
+      new Promise<UserStyleSource[]>((resolve) => {
+        resolvers.push(resolve);
+      }),
+  );
+
+  const release = await watchStyleFiles(onChange, dir, read);
+
+  // The first change starts a rescan that will stay pending until resolved
+  // by hand below.
+  await writeFile(join(dir, "a.css"), "a", "utf8");
+  await waitFor(() => read.mock.calls.length === 1);
+
+  // Once the debounce has fully elapsed, a second change starts a second
+  // rescan while the first is still in flight.
+  await sleep(60);
+  await writeFile(join(dir, "b.css"), "b", "utf8");
+  await waitFor(() => read.mock.calls.length === 2);
+
+  // The newer rescan resolves first — realistic when the first one is doing
+  // more work — then the older, slower one finally resolves too.
+  resolvers[1]?.([{ id: "b.css", source: "b" }]);
+  await sleep(10);
+  resolvers[0]?.([{ id: "a.css", source: "a" }]);
+  await sleep(10);
+
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange).toHaveBeenCalledWith([{ id: "b.css", source: "b" }]);
+
+  release();
+});
+
+test("a watch that cannot be acquired yields a no-op release rather than throwing", async () => {
+  const onChange = vi.fn<(sources: UserStyleSource[]) => void>();
+  const watchDir = vi.fn(() => {
+    throw new Error("EMFILE: too many open files");
+  });
+
+  const release = await watchStyleFiles(
+    onChange,
+    dir,
+    undefined,
+    // SAFETY: the stub only needs to be callable and throw; watchStyleFiles
+    // never reads any other property off it.
+    watchDir as unknown as typeof watch,
+  );
+
+  expect(console.error).toHaveBeenCalled();
   expect(() => release()).not.toThrow();
 });

@@ -91,8 +91,10 @@ export async function readStyleFiles(dir: string = stylesDir): Promise<UserStyle
  * handing UserStyles a fresh snapshot of everything.
  *
  * A directory that cannot even be created (a stray non-directory file in its
- * place, an unwritable parent) yields a no-op release rather than rejecting:
- * a bad config directory must not be the reason the window never opens.
+ * place, an unwritable parent), or whose watch cannot be acquired (an inotify
+ * limit, the directory vanishing right after creation), yields a no-op
+ * release rather than rejecting: a bad or unwatchable config directory must
+ * not be the reason the window never opens.
  */
 export async function watchStyleFiles(
   onChange: (sources: UserStyleSource[]) => void,
@@ -101,6 +103,10 @@ export async function watchStyleFiles(
   // landing between the debounced rescan starting and it resolving — is too
   // narrow a window to hit reliably against the real filesystem.
   read: (dir: string) => Promise<UserStyleSource[]> = readStyleFiles,
+  // Injectable purely for tests, same reason: `fs.watch` throwing
+  // synchronously (an inotify-watch limit, say) is not practical to
+  // reproduce against the real filesystem.
+  watchDir: typeof watch = watch,
 ): Promise<() => void> {
   try {
     await mkdir(dir, { recursive: true });
@@ -113,18 +119,39 @@ export async function watchStyleFiles(
   // closes does not call back into a teardown UserStyles instance. Clearing
   // the timer alone only stops a rescan that has not started yet.
   let released = false;
+  // Bumped on every debounced fire, and captured by the rescan it starts. Two
+  // rescans can be in flight together — clearing the timer only cancels a
+  // fire that has not happened yet, not a read() already underway — and
+  // resolution order is not guaranteed to match start order. Applying a
+  // result whose revision has fallen behind would overwrite newer state with
+  // older.
+  let revision = 0;
   let timer: NodeJS.Timeout | undefined;
-  const watcher = watch(dir, () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      void read(dir)
-        .then((sources) => {
-          if (!released) onChange(sources);
-        })
-        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejection reason is unknown; it is only logged
-        .catch((error: unknown) => console.error("kvist: could not reload styles:", error));
-    }, DEBOUNCE_MS);
-  });
+
+  let watcher: ReturnType<typeof watch>;
+  try {
+    watcher = watchDir(dir, () => {
+      clearTimeout(timer);
+      const thisRevision = ++revision;
+      timer = setTimeout(() => {
+        void read(dir)
+          .then((sources) => {
+            if (!released && thisRevision === revision) onChange(sources);
+          })
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejection reason is unknown; it is only logged
+          .catch((error: unknown) => console.error("kvist: could not reload styles:", error));
+      }, DEBOUNCE_MS);
+    });
+  } catch (error) {
+    // `fs.watch` can throw synchronously — an inotify-watch limit, or the
+    // directory vanishing between the `mkdir` above and this call. A styles
+    // watcher that never starts must not be the reason the rest of startup
+    // (the config watcher's `will-quit`, the zoom store's flush, `activate`)
+    // never runs either, so this fails the same way an unmakeable directory
+    // does: logged, answered with a no-op release.
+    console.error("kvist: could not watch the styles directory:", error);
+    return () => {};
+  }
 
   watcher.on("error", (error) => console.error("kvist: styles watch failed:", error));
 
