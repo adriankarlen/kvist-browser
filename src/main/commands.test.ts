@@ -127,7 +127,7 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, permissions, sent, win, clipboard, quit } =
+  const { commands, tabs, active, downloads, permissions, sent, win, clipboard, userStyles, quit } =
     createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
@@ -172,7 +172,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.out", () => active.setZoomLevel.mock.calls.some(([l]) => l === -1)],
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
-    ["style.open", () => true], // needs userStyles/opener plumbed; covered on its own below
+    ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];

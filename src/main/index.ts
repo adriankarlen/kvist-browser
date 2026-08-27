@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { app, BrowserWindow, session, shell } from "electron";
 import type { UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
@@ -118,7 +118,10 @@ function reportStyleProblems(problems: UserStyleProblem[]): void {
   if (first === undefined) return;
   for (const problem of rest) console.error(`kvist: ${problem.id}: ${problem.reason}`);
   const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
-  messages.warn(`${first.id}: ${first.reason}${more}`);
+  // The echo area names the file, not the full path — the log line above
+  // already carries that, and a config directory nested a few levels deep
+  // pushes the reason itself off the end of the line.
+  messages.warn(`${basename(first.id)}: ${first.reason}${more}`);
 }
 
 function applyConfig(config: UserConfig): Promise<void> {
