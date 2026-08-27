@@ -78,6 +78,27 @@ test("a file needing a preprocessor is skipped by name, not injected", () => {
   expect(styles.cssFor("https://a.example/")).toBe("body { color: red }");
 });
 
+test("a preprocessor-skipped file is still found by :style, just not injected", () => {
+  const styles = new UserStyles();
+  styles.setSources([
+    {
+      id: "rose-pine.user.less",
+      source: `/* ==UserStyle==
+@name Rose Pine
+@preprocessor less
+==/UserStyle== */
+@-moz-document domain("a.example") { body { color: darken(@base, 10%) } }`,
+    },
+  ]);
+
+  // Its CSS never reaches the page…
+  expect(styles.cssFor("https://a.example/")).toBe("");
+  // …but the file itself is still the one to open for that page: its match
+  // rule parsed fine, only the preprocessor stopped the CSS from being used.
+  expect(styles.filesFor("https://a.example/")).toEqual(["rose-pine.user.less"]);
+  expect(styles.filesFor("https://other.example/")).toEqual([]);
+});
+
 test("problems carry the file they were found in", () => {
   const styles = new UserStyles();
   const problems = styles.setSources([
