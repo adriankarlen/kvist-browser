@@ -8,4 +8,4 @@ release/
 # ai stuff
 .claude/
 .pi/
-/.DS_Store
+**/.DS_Store
