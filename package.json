@@ -11,16 +11,22 @@
     "check": "vp check",
     "test": "vp test",
     "package": "vp build && electron-builder --dir",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit check",
     "postinstall": "install-electron"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.2",
+    "arktype": "^2.2.3",
+    "drizzle-arktype": "^0.1.3",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "smol-toml": "^1.7.1",
     "tldts-experimental": "^7.4.10"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@types/node": "^24.13.3",
+    "drizzle-kit": "1.0.0-rc.5-ab785fc",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "svelte": "^5.56.8",

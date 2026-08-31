@@ -77,6 +77,31 @@ window-scoped follows `observe()` → disposer: `Messages`, `Downloads` and
 `will-quit`. A new module with a per-window subscription should return the
 same shape rather than invent its own teardown.
 
+## Persistence
+
+The storage layer is `node:sqlite` behind Drizzle, with ArkType for runtime
+validation of typed boundaries (KVI-24). The driver is Node's built-in
+module, the ORM is pinned to the Drizzle 1.0 RC line, and the validator
+is ArkType 2.x — the pins are intentional, so the eventual bump to
+stable is a version change rather than a rewrite.
+
+- The single `Database` instance is opened in `app.whenReady` and released
+  on `will-quit`. Consumers take the same instance and call `db.drizzle`
+  to query. One process, one connection; WAL mode is on, but readers and
+  writers are not a concurrency story Kvist needs.
+- Schemas live in `src/main/db/schema.ts` and migrations in
+  `src/main/db/migrations/`. The workflow for adding a table: define it,
+  re-export it from `schema.ts`, run `pnpm db:generate`, check the
+  generated SQL in. The migrator is read-only at runtime; the schema is
+  the source of truth.
+- Runtime validation of typed boundaries goes through ArkType via
+  `parse()` / `parseAll()` in `src/main/db/validation.ts`. The result
+  adapts to the existing `Problem` interface from `shared/config.ts`, so
+  config-style `reportProblems` flows read validation errors from any
+  boundary. For DB rows, `drizzle-arktype`'s `createSelectSchema(table)`
+  derives a validator from the Drizzle schema — types and runtime checks
+  come from one source.
+
 ## In-page vim
 
 Hints live in the preload, mode stays in main. Hint labels are inline-styled

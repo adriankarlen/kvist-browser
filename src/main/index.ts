@@ -8,6 +8,7 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
+import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import {
   fromPage,
@@ -29,7 +30,7 @@ import {
 import { Downloads } from "./downloads";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
-import { applyXdgPaths } from "./paths";
+import { applyXdgPaths, dbPath } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
@@ -360,6 +361,18 @@ function createWindow(zoom: ZoomStore): void {
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
   permissions.attach(session.defaultSession);
+  // A bad migration, corrupted DB, or missing migrations folder is a
+  // real failure — log and quit rather than leave the user staring at
+  // a window that never appears, which is what an unhandled rejection
+  // here would do.
+  let db: Database;
+  try {
+    db = Database.open(dbPath);
+  } catch (error) {
+    console.error("kvist: could not open the storage layer:", error);
+    app.quit();
+    return;
+  }
   const config = createConfigStore();
   const loaded = await loadConfig(config);
   reportProblems(loaded);
@@ -388,6 +401,7 @@ void app.whenReady().then(async () => {
   // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
   app.on("will-quit", releaseConfig);
   app.on("will-quit", releaseStyleFiles);
+  app.on("will-quit", () => db.close());
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {

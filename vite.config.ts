@@ -1,6 +1,12 @@
+import { cpSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
 import electron from "vite-plugin-electron/simple";
+
+/** Copies a directory tree to the build output. */
+function copyDir(from: string, to: string): void {
+  cpSync(from, to, { recursive: true });
+}
 
 /**
  * Each preload is built on its own: the plugin bundles a preload to a single
@@ -98,6 +104,16 @@ export default defineConfig({
         },
       },
       {
+        // The validation utility is the typed boundary for ArkType: callers
+        // hand it `unknown` precisely so it can decode, and the field-path
+        // builder has to look at runtime segment shapes.
+        files: ["src/main/db/validation.ts"],
+        rules: {
+          "anti-slop/no-unknown-parameters": "off",
+          "anti-slop/no-unsafe-dictionary-type": "off",
+        },
+      },
+      {
         // Tests stub seams with partial fakes; the casts stay SAFETY-commented.
         files: ["**/*.test.ts"],
         rules: {
@@ -120,13 +136,44 @@ export default defineConfig({
       main: {
         entry: "src/main/index.ts",
         vite: {
+          plugins: [
+            // Lives inside the main sub-build because vite-plugin-electron
+            // does not propagate root plugins to sub-builds — a root-level
+            // copy hook would run for the renderer only, and `pnpm dev`
+            // would never see the migrations. In dev the runtime resolves
+            // to the source tree directly, so build mode is the only
+            // context this matters in.
+            {
+              name: "kvist-db-migrations",
+              apply: "build",
+              enforce: "post",
+              closeBundle: {
+                order: "pre",
+                handler() {
+                  return copyDir("src/main/db/migrations", "dist/main/migrations");
+                },
+              },
+            },
+          ],
           build: {
             outDir: "dist/main",
-            // The adblocker resolves its own preload with require.resolve at
-            // runtime, which only works from inside its package directory.
-            // Bundling it moves that call to dist/main, where pnpm's
-            // non-hoisted layout cannot see the transitive dependency.
-            rolldownOptions: { external: ["@ghostery/adblocker-electron"] },
+            // The adblocker has a `require.resolve` that breaks once it
+            // leaves its package directory. `arktype` and `drizzle-orm/*`
+            // are externalized as a unit: a copy embedded here and a
+            // peer-dep-resolved copy in `drizzle-arktype` would be
+            // different module instances, and `parse()`'s
+            // `instanceof ArkErrors` check would silently return
+            // rejected data as success. Node's built-in `node:sqlite`
+            // is auto-externalized.
+            rolldownOptions: {
+              external: [
+                "@ghostery/adblocker-electron",
+                "arktype",
+                /^drizzle-orm\//,
+                "drizzle-orm",
+                "drizzle-arktype",
+              ],
+            },
           },
         },
       },

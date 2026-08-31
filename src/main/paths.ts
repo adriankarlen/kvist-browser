@@ -25,6 +25,11 @@ export const configDir = xdg("XDG_CONFIG_HOME", ".config");
  */
 export const stylesDir = join(configDir, "styles");
 
+/** Where the SQLite database lives. Exposed as a path string so tests can point the storage at a tmpdir without going through `app.getPath`. */
+export const dataDir = xdg("XDG_DATA_HOME", join(".local", "share"));
+
+export const dbPath = join(dataDir, "kvist.db");
+
 /**
  * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
  * state would bury the hand-edited config that belongs there. Keeps
@@ -34,9 +39,7 @@ export const stylesDir = join(configDir, "styles");
  * from sessionData and ignores both --disk-cache-dir and the `cache` path.
  */
 export function applyXdgPaths(): void {
-  const data = xdg("XDG_DATA_HOME", join(".local", "share"));
-
-  app.setPath("userData", data);
-  app.setPath("sessionData", data);
+  app.setPath("userData", dataDir);
+  app.setPath("sessionData", dataDir);
   app.setPath("crashDumps", join(xdg("XDG_CACHE_HOME", ".cache"), "crashpad"));
 }
