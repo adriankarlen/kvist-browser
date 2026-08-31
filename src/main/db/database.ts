@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app } from "electron";
@@ -64,9 +64,15 @@ export class Database {
     client.exec("PRAGMA busy_timeout = 5000");
 
     const db = drizzle({ client });
-    // The migrator manages its own bookkeeping table, so an empty folder
-    // is a no-op (the state this ticket ships in).
-    migrate(db, { migrationsFolder });
+    // An empty folder is a no-op for the migrator (the state this
+    // ticket ships in). A missing one is not: electron-builder drops
+    // `.gitkeep`, so the packaged app has no `migrations` folder at
+    // all, and the migrator throws ENOENT instead of treating that as
+    // zero migrations. Skip it rather than throw; skip rather than
+    // create it, because packaged files live in a read-only asar.
+    if (existsSync(migrationsFolder)) {
+      migrate(db, { migrationsFolder });
+    }
 
     return new Database(client, db);
   }
