@@ -10,6 +10,7 @@ import {
 import { createActions } from "./actions";
 import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
+import { History } from "./history";
 import {
   fromPage,
   type PermissionAnswer,
@@ -172,7 +173,7 @@ function isPermissionAnswer(value: unknown): value is PermissionAnswer {
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
-function createWindow(zoom: ZoomStore): void {
+function createWindow(zoom: ZoomStore, history: History): void {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -266,10 +267,22 @@ function createWindow(zoom: ZoomStore): void {
   // Both halves of "the URL changed": a committed navigation and a history-API
   // one. The user's styles are keyed to the URL rather than the document, so a
   // SPA moving between routes has to be restyled with nothing reloading.
-  tabs.observeNavigation((contents, url) => userStyles.applyTo(contents, url));
+  tabs.observeNavigation((contents, url) => {
+    userStyles.applyTo(contents, url);
+    // The tab's title at commit time is usually the URL itself until
+    // `page-title-updated` fires; recording that initial value is what
+    // keeps the omnibox's suggestion list honest the first time it asks.
+    const title = tabs.tabFor(contents)?.snapshot().title ?? url;
+    history.record({ url, title, visitedAt: Date.now() });
+  });
   tabs.observeInPageNavigation((contents, url) => {
     refreshCosmeticStyles(contents, url);
     userStyles.applyTo(contents, url);
+    // SPA route changes are deliberately not recorded here — every hash
+    // change and `pushState` would otherwise land in history and drown
+    // out the real visits. A future ticket can revisit if the omnibox
+    // wants pushState suggestions; for now only committed main-frame loads
+    // become history rows.
   });
 
   // A tab's own channels, accepted from a webContents that owns one and from
@@ -374,6 +387,7 @@ void app.whenReady().then(async () => {
     return;
   }
   const config = createConfigStore();
+  const history = new History(db);
   const loaded = await loadConfig(config);
   reportProblems(loaded);
   await applyConfig(loaded.config);
@@ -382,7 +396,7 @@ void app.whenReady().then(async () => {
   reportStyleProblems(userStyles.setSources(await readStyleFiles()));
 
   const zoom = await ZoomStore.load();
-  createWindow(zoom);
+  createWindow(zoom, history);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
@@ -405,7 +419,7 @@ void app.whenReady().then(async () => {
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom);
+    if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom, history);
   });
 });
 
