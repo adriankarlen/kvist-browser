@@ -1,4 +1,5 @@
 import { desc, sql } from "drizzle-orm";
+import { type } from "arktype";
 import { originOf } from "../shared/url";
 import type { Database } from "./db/database";
 import { history } from "./db/schema";
@@ -21,6 +22,17 @@ export interface HistoryRow {
 const DEFAULT_LIMIT = 50;
 /** The hard ceiling on a single search/recent call — a runaway limit would scan the whole table. */
 const MAX_LIMIT = 500;
+
+/**
+ * Shape of `record`'s argument. Composed from the per-field validators so a
+ * single `parse()` call produces one failure report and the validated value
+ * feeds straight into the insert.
+ */
+const recordValidator = type({
+  url: urlString,
+  title: nonEmptyString,
+  visitedAt: epochMillis,
+});
 
 /**
  * What `record` takes. The URL's title is whatever the tab has at the moment
@@ -58,25 +70,24 @@ export class History {
 
   /**
    * Appends one row. Skips silently and returns `false` when the row would
-   * be a wrapper or an opaque origin, or when validation fails — callers
-   * are all in main and the rejection is intentional, so the noise of a
-   * log line on every filtered navigation would not pay for itself.
+   * be a wrapper or an opaque origin, or when the input fails the schema
+   * validation — callers are all in main and the rejection is intentional,
+   * so the noise of a log line on every filtered navigation would not pay
+   * for itself.
    */
   record(input: RecordInput): boolean {
-    const origin = originOf(input.url);
-    if (origin === null) return false;
-    if (errorPageTarget(input.url) !== null) return false;
-    if (parse(urlString, input.url).problem !== undefined) return false;
-    if (parse(nonEmptyString, input.title).problem !== undefined) return false;
-    if (parse(epochMillis, input.visitedAt).problem !== undefined) return false;
+    const validated = parse(recordValidator, input);
+    if (validated.problem !== undefined) return false;
+    if (originOf(validated.value.url) === null) return false;
+    if (errorPageTarget(validated.value.url) !== null) return false;
 
     this.#db.drizzle
       .insert(history)
       .values({
-        url: input.url,
-        title: input.title,
-        origin,
-        visitedAt: input.visitedAt,
+        url: validated.value.url,
+        title: validated.value.title,
+        origin: originOf(validated.value.url),
+        visitedAt: validated.value.visitedAt,
       })
       .run();
     return true;
