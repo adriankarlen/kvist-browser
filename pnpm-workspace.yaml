@@ -1,6 +1,7 @@
 allowBuilds:
   electron: true
   electron-winstaller: false
+  esbuild: true
 
 # Hoist these so the locally-vendored lint plugins can resolve them.
 # vite+ already pulls them in transitively; this just makes them reachable

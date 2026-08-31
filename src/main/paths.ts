@@ -26,6 +26,18 @@ export const configDir = xdg("XDG_CONFIG_HOME", ".config");
 export const stylesDir = join(configDir, "styles");
 
 /**
+ * Where the SQLite database lives (KVI-24). Resolved before `applyXdgPaths`
+ * runs, so the value is `XDG_DATA_HOME/kvist` (or the conventional fallback)
+ * regardless of where Electron's profile would otherwise land. Exposed as a
+ * path string so tests can point the storage at a tmpdir without going
+ * through `app.getPath`.
+ */
+export const dataDir = xdg("XDG_DATA_HOME", join(".local", "share"));
+
+/** The single file the storage layer owns. Phase 6's tables live inside it. */
+export const dbPath = join(dataDir, "kvist.db");
+
+/**
  * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
  * state would bury the hand-edited config that belongs there. Keeps
  * ~/.config/kvist free for the user. Must run before app ready.
@@ -34,9 +46,7 @@ export const stylesDir = join(configDir, "styles");
  * from sessionData and ignores both --disk-cache-dir and the `cache` path.
  */
 export function applyXdgPaths(): void {
-  const data = xdg("XDG_DATA_HOME", join(".local", "share"));
-
-  app.setPath("userData", data);
-  app.setPath("sessionData", data);
+  app.setPath("userData", dataDir);
+  app.setPath("sessionData", dataDir);
   app.setPath("crashDumps", join(xdg("XDG_CACHE_HOME", ".cache"), "crashpad"));
 }

@@ -8,6 +8,7 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
+import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import {
   fromPage,
@@ -29,7 +30,7 @@ import {
 import { Downloads } from "./downloads";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
-import { applyXdgPaths } from "./paths";
+import { applyXdgPaths, dbPath } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
@@ -360,6 +361,12 @@ function createWindow(zoom: ZoomStore): void {
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
   permissions.attach(session.defaultSession);
+  // The storage layer is opened before any consumer can take it: a future
+  // migration of `Permissions` to read/write a table, or the Phase 6
+  // history/bookmarks/session tables, all run against this same instance.
+  // For KVI-24 the DB has no tables yet, so it sits idle until the first
+  // consumer lands.
+  const db = Database.open(dbPath);
   const config = createConfigStore();
   const loaded = await loadConfig(config);
   reportProblems(loaded);
@@ -388,6 +395,7 @@ void app.whenReady().then(async () => {
   // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
   app.on("will-quit", releaseConfig);
   app.on("will-quit", releaseStyleFiles);
+  app.on("will-quit", () => db.close());
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {
