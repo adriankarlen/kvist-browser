@@ -269,10 +269,12 @@ function createWindow(zoom: ZoomStore, history: History): void {
   // SPA moving between routes has to be restyled with nothing reloading.
   tabs.observeNavigation((contents, url) => {
     userStyles.applyTo(contents, url);
-    // The tab's title at commit time is usually the URL itself until
-    // `page-title-updated` fires; recording that initial value is what
-    // keeps the omnibox's suggestion list honest the first time it asks.
-    const title = tabs.tabFor(contents)?.snapshot().title ?? url;
+    // `Tab#title` is the *previous* page's title at the moment `did-navigate`
+    // fires — `page-title-updated` for the new page arrives asynchronously,
+    // so reading the snapshot here would record a stale title for every
+    // navigation after the first. The URL is the truthful answer at commit
+    // time; backfilling the real title when it lands is a follow-up.
+    const title = url;
     history.record({ url, title, visitedAt: Date.now() });
   });
   tabs.observeInPageNavigation((contents, url) => {
