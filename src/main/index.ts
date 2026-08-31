@@ -361,17 +361,10 @@ function createWindow(zoom: ZoomStore): void {
 void app.whenReady().then(async () => {
   downloads.attach(session.defaultSession);
   permissions.attach(session.defaultSession);
-  // The storage layer is opened before any consumer can take it: a future
-  // migration of `Permissions` to read/write a table, or the Phase 6
-  // history/bookmarks/session tables, all run against this same instance.
-  // For KVI-24 the DB has no tables yet, so it sits idle until the first
-  // consumer lands.
-  //
-  // A failure here is a real one (bad migration, corrupted DB, missing
-  // migrations folder) and the browser cannot run without storage. Log
-  // and quit rather than leave the user staring at a window that never
-  // appears, which is what would happen if this threw into an unhandled
-  // promise rejection.
+  // A bad migration, corrupted DB, or missing migrations folder is a
+  // real failure — log and quit rather than leave the user staring at
+  // a window that never appears, which is what an unhandled rejection
+  // here would do.
   let db: Database;
   try {
     db = Database.open(dbPath);

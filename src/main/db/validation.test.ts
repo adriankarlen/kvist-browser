@@ -42,9 +42,9 @@ test("epochMillis rejects negative integers", () => {
 });
 
 test("a Drizzle-derived validator plugs into parse and rejects malformed rows", () => {
-  // A Drizzle table is just the schema; `createSelectSchema` derives an
-  // ArkType validator for the row shape. The integration is the point: a
-  // future row reader gets a typed validator without writing one by hand.
+  // `createSelectSchema` derives an ArkType validator from a Drizzle
+  // table, so a row reader gets typed validation without writing one
+  // by hand. The integration is what this test is asserting.
   const widgets = sqliteTable("widgets", {
     id: integer("id").primaryKey(),
     name: text("name").notNull(),
@@ -56,7 +56,6 @@ test("a Drizzle-derived validator plugs into parse and rejects malformed rows", 
   if (ok.problem !== undefined) return;
   expect(ok.value).toEqual({ id: 1, name: "spinner" });
 
-  // Missing a required column (`name`) — the validator should reject.
   const bad = parse(widgetRow, { id: 1 });
   expect(bad.problem).toBeDefined();
 });

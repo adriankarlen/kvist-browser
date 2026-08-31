@@ -25,16 +25,9 @@ export const configDir = xdg("XDG_CONFIG_HOME", ".config");
  */
 export const stylesDir = join(configDir, "styles");
 
-/**
- * Where the SQLite database lives (KVI-24). Resolved before `applyXdgPaths`
- * runs, so the value is `XDG_DATA_HOME/kvist` (or the conventional fallback)
- * regardless of where Electron's profile would otherwise land. Exposed as a
- * path string so tests can point the storage at a tmpdir without going
- * through `app.getPath`.
- */
+/** Where the SQLite database lives. Exposed as a path string so tests can point the storage at a tmpdir without going through `app.getPath`. */
 export const dataDir = xdg("XDG_DATA_HOME", join(".local", "share"));
 
-/** The single file the storage layer owns. Phase 6's tables live inside it. */
 export const dbPath = join(dataDir, "kvist.db");
 
 /**

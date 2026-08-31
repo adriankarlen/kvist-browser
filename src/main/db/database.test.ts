@@ -20,12 +20,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-/**
- * Writes a migration in the v7 folder layout. Drizzle Kit 1.0 RC emits each
- * migration as its own `<timestamp>_<name>/` directory containing
- * `migration.sql` and `snapshot.json`. The runtime migrator reads the same
- * shape.
- */
+/** Writes a migration in the v7 folder layout that the runtime migrator reads. */
 function writeMigration(name: string, sql: string): void {
   const folder = join(migDir, name);
   mkdirSync(folder, { recursive: true });
@@ -43,18 +38,17 @@ const widgets = sqliteTable("widgets", {
 
 test("defaultMigrationsFolder resolves to an existing directory", () => {
   // The default folder is what production uses when `Database.open` is
-  // called with no second argument, and an ENOENT there leaves the user
-  // staring at a window that never opens. Reading the directory is the
-  // cheapest assertion that the path resolves to something real.
+  // called with no second argument; an ENOENT there leaves the user
+  // staring at a window that never opens. This is the assertion that
+  // would have caught the `../../migrations/` regression.
   const folder = defaultMigrationsFolder();
   expect(() => mkdirSync(folder, { recursive: true })).not.toThrow();
 });
 
 test("Database.open with the default migrations folder does not throw", () => {
-  // End-to-end: no second argument, so the default path is exercised.
-  // The current source migrations folder is empty (KVI-24 is foundations
-  // only), so the migrator is a no-op and the test passes when the path
-  // resolves correctly.
+  // The source migrations folder is empty (KVI-24 is foundations only),
+  // so the migrator is a no-op and the test passes when the default
+  // path resolves correctly.
   const dbFile = join(dir, "default.db");
   const db = Database.open(dbFile);
   expect(db.drizzle).toBeDefined();
@@ -65,8 +59,8 @@ test("an empty migrations folder is a no-op, just creates the bookkeeping table"
   const dbFile = join(dir, "test.db");
   const db = Database.open(dbFile, migDir);
 
-  // `__drizzle_migrations` is the migrator's bookkeeping; the app schema
-  // is empty for KVI-24 by design, so it is the only table.
+  // `__drizzle_migrations` is the migrator's bookkeeping; the app
+  // schema is empty for KVI-24 by design.
   const names = db.drizzle.all<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
   );
@@ -81,14 +75,13 @@ test("a real migration creates the table and is idempotent across re-opens", () 
   );
   const dbFile = join(dir, "test.db");
 
-  // First open: the migration runs.
   const first = Database.open(dbFile, migDir);
   first.drizzle.insert(widgets).values({ id: 1, name: "spinner" }).run();
   expect(first.drizzle.select().from(widgets).all()).toEqual([{ id: 1, name: "spinner" }]);
   first.close();
 
-  // Second open on the same file: the migration is a no-op (the bookkeeping
-  // table records it), and the data we wrote before is still there.
+  // The bookkeeping table records the migration, so re-opening is a
+  // no-op for the SQL but the data we wrote is still on disk.
   const second = Database.open(dbFile, migDir);
   expect(second.drizzle.select().from(widgets).all()).toEqual([{ id: 1, name: "spinner" }]);
   second.close();
@@ -117,7 +110,6 @@ test("the parent directory is created on first open", () => {
 test("close is idempotent", () => {
   const db = Database.open(join(dir, "test.db"), migDir);
   db.close();
-  // A second close is a no-op rather than a throw, so a teardown double-fire
-  // (a test's afterEach and a `will-quit` listener, say) does not blow up.
+  // Idempotent so a teardown double-fire (test afterEach + will-quit) does not blow up.
   expect(() => db.close()).not.toThrow();
 });
