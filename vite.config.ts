@@ -137,40 +137,48 @@ export default defineConfig({
   },
   plugins: [
     svelte(),
-    // Copies `src/main/db/migrations/` into `dist/main/migrations/` after the
-    // main bundle builds. The runtime migrator reads from there (the same
-    // `import.meta.url`-relative path it uses in dev), and the bundle
-    // itself stays free of the SQL — the contents change with the schema,
-    // not with the code that runs them.
-    {
-      name: "kvist-db-migrations",
-      apply: "build",
-      enforce: "post",
-      closeBundle: {
-        order: "pre",
-        handler() {
-          return copyDir("src/main/db/migrations", "dist/main/migrations");
-        },
-      },
-    },
     electron({
       main: {
         entry: "src/main/index.ts",
         vite: {
+          plugins: [
+            // Copies `src/main/db/migrations/` into `dist/main/migrations/`
+            // after the main bundle builds. Lives inside the main sub-build
+            // because vite-plugin-electron does not propagate root plugins
+            // to its sub-builds — a root-level copy hook would run for the
+            // renderer only, and `pnpm dev` would never see the
+            // migrations. In dev the runtime resolves to the source tree
+            // directly, so this plugin only matters in build mode.
+            {
+              name: "kvist-db-migrations",
+              apply: "build",
+              enforce: "post",
+              closeBundle: {
+                order: "pre",
+                handler() {
+                  return copyDir("src/main/db/migrations", "dist/main/migrations");
+                },
+              },
+            },
+          ],
           build: {
             outDir: "dist/main",
             // Each entry below resolves at runtime rather than through the
             // bundler: the adblocker has a `require.resolve` that breaks once
             // it leaves its package directory, and the Drizzle / node-sqlite
             // stack is pinned to a 1.0 RC line where letting the bundler pick
-            // a version would silently shadow the lockfile. Node's built-in
-            // `node:sqlite` is auto-externalized by the plugin.
+            // a version would silently shadow the lockfile. `arktype` and
+            // the `drizzle-orm/*` subpaths are externalized as a unit so
+            // there is one module instance at runtime — a copy embedded
+            // here and a peer-dep-resolved copy in `drizzle-arktype` would
+            // fail the `instanceof ArkErrors` check in `parse()`. Node's
+            // built-in `node:sqlite` is auto-externalized by the plugin.
             rolldownOptions: {
               external: [
                 "@ghostery/adblocker-electron",
+                "arktype",
+                /^drizzle-orm\//,
                 "drizzle-orm",
-                "drizzle-orm/node-sqlite",
-                "drizzle-orm/node-sqlite/migrator",
                 "drizzle-arktype",
               ],
             },

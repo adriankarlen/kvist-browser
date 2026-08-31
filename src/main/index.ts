@@ -366,7 +366,20 @@ void app.whenReady().then(async () => {
   // history/bookmarks/session tables, all run against this same instance.
   // For KVI-24 the DB has no tables yet, so it sits idle until the first
   // consumer lands.
-  const db = Database.open(dbPath);
+  //
+  // A failure here is a real one (bad migration, corrupted DB, missing
+  // migrations folder) and the browser cannot run without storage. Log
+  // and quit rather than leave the user staring at a window that never
+  // appears, which is what would happen if this threw into an unhandled
+  // promise rejection.
+  let db: Database;
+  try {
+    db = Database.open(dbPath);
+  } catch (error) {
+    console.error("kvist: could not open the storage layer:", error);
+    app.quit();
+    return;
+  }
   const config = createConfigStore();
   const loaded = await loadConfig(config);
   reportProblems(loaded);

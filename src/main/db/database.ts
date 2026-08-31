@@ -1,17 +1,33 @@
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { app } from "electron";
 import { DatabaseSync } from "node:sqlite";
 import { drizzle, type NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 
 /**
- * The default migrations folder, computed at module load. Lives at
- * `src/main/db/migrations/` relative to this file, so the build copies it
- * into `dist/main/` and `import.meta.dirname` resolves to the runtime
- * location. Tests pass an explicit folder to `Database.open` to use a
- * tmpdir instead.
+ * Where the runtime should look for SQL migrations.
+ *
+ * - **Dev** (`VITE_DEV_SERVER_URL` is set): the main process is served as
+ *   ESM by vite-plugin-electron, so `import.meta.url` is an `http://`
+ *   URL — `fileURLToPath` would throw on it. The migrations live at the
+ *   source tree instead, and `app.getAppPath()` points at the project
+ *   root regardless of the working directory the user launched from.
+ * - **Prod** (bundled): the main bundle sits at `dist/main/index.js` and
+ *   the build copies the migrations to `dist/main/migrations/`
+ *   alongside it. `fileURLToPath` is the safe way to derive a filesystem
+ *   path from a `file://` URL — `.pathname` decodes percent escapes and
+ *   mangles a path containing a space.
+ * - **Tests**: same as prod, because vite-plus' test runner uses Vite's
+ *   module graph, and `import.meta.url` is the source file's URL.
  */
-const defaultMigrationsFolder = new URL("../../migrations/", import.meta.url).pathname;
+export function defaultMigrationsFolder(): string {
+  if (process.env.VITE_DEV_SERVER_URL !== undefined) {
+    return join(app.getAppPath(), "src", "main", "db", "migrations");
+  }
+  return fileURLToPath(new URL("./migrations/", import.meta.url));
+}
 
 /**
  * The single connection the app holds to its SQLite database. App-scoped,
@@ -48,8 +64,12 @@ export class Database {
    * originally said `async`; it is `sync` because that is what the
    * underlying APIs give us, and pretending otherwise would just be
    * `await Promise.resolve()` everywhere.
+   *
+   * Throws on a bad migration or a corrupted DB. Callers that should not
+   * let a startup failure leave the user staring at an empty window wrap
+   * this in a try/catch and `app.quit()` on failure — see `index.ts`.
    */
-  static open(path: string, migrationsFolder: string = defaultMigrationsFolder): Database {
+  static open(path: string, migrationsFolder: string = defaultMigrationsFolder()): Database {
     mkdirSync(dirname(path), { recursive: true });
     const client = new DatabaseSync(path);
 

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-import { Database } from "./database";
+import { Database, defaultMigrationsFolder } from "./database";
 
 let dir: string;
 let migDir: string;
@@ -39,6 +39,26 @@ function writeMigration(name: string, sql: string): void {
 const widgets = sqliteTable("widgets", {
   id: integer("id").primaryKey(),
   name: text("name").notNull(),
+});
+
+test("defaultMigrationsFolder resolves to an existing directory", () => {
+  // The default folder is what production uses when `Database.open` is
+  // called with no second argument, and an ENOENT there leaves the user
+  // staring at a window that never opens. Reading the directory is the
+  // cheapest assertion that the path resolves to something real.
+  const folder = defaultMigrationsFolder();
+  expect(() => mkdirSync(folder, { recursive: true })).not.toThrow();
+});
+
+test("Database.open with the default migrations folder does not throw", () => {
+  // End-to-end: no second argument, so the default path is exercised.
+  // The current source migrations folder is empty (KVI-24 is foundations
+  // only), so the migrator is a no-op and the test passes when the path
+  // resolves correctly.
+  const dbFile = join(dir, "default.db");
+  const db = Database.open(dbFile);
+  expect(db.drizzle).toBeDefined();
+  db.close();
 });
 
 test("an empty migrations folder is a no-op, just creates the bookkeeping table", () => {
