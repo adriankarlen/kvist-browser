@@ -68,6 +68,23 @@ test("an empty migrations folder is a no-op, just creates the bookkeeping table"
   db.close();
 });
 
+test("a missing migrations folder is a no-op, not a thrown error", () => {
+  // Mirrors the packaged app: electron-builder drops `.gitkeep`, so a
+  // migrations folder with no real SQL files in it never makes it into
+  // the asar. `Database.open` should skip the migrator, not throw.
+  const missing = join(dir, "does-not-exist");
+  const dbFile = join(dir, "missing-folder.db");
+  const db = Database.open(dbFile, missing);
+
+  // The migrator never ran, so its bookkeeping table doesn't exist
+  // either — unlike the empty-folder case above.
+  const names = db.drizzle.all<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+  );
+  expect(names.map((row) => row.name)).toEqual([]);
+  db.close();
+});
+
 test("a real migration creates the table and is idempotent across re-opens", () => {
   writeMigration(
     "20260101000000_init",
