@@ -223,7 +223,12 @@ export function createActions(
 
   return {
     tabs: {
-      create: (arg) => tabs.create(arg ? resolveUrl(arg, getSearchUrl()) : undefined),
+      create: (arg) => {
+        // Discard the returned id — the `Action` contract is `void`, and
+        // the only caller that needs an id is session restore, which
+        // reaches `tabs.create` directly rather than through this layer.
+        tabs.create(arg ? resolveUrl(arg, getSearchUrl()) : undefined);
+      },
       close: () => tabs.closeActive(),
       next: () => tabs.step(1),
       prev: () => tabs.step(-1),

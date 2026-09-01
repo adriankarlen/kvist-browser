@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 import { app, BrowserWindow, session, shell } from "electron";
-import type { UserConfig } from "../shared/config";
+import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
   applySettings as applyLocalPageSettings,
@@ -11,11 +11,13 @@ import { createActions } from "./actions";
 import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { History } from "./history";
+import { Session, type SessionState } from "./session";
 import {
   fromPage,
   type PermissionAnswer,
   type Point,
   senders,
+  type TabId,
   toChrome,
   toMain,
 } from "../shared/ipc";
@@ -173,15 +175,30 @@ function isPermissionAnswer(value: unknown): value is PermissionAnswer {
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
-function createWindow(zoom: ZoomStore, history: History): void {
+function createWindow(
+  zoom: ZoomStore,
+  history: History,
+  sessions: Session,
+  saved: SessionState | null,
+): void {
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: saved?.width ?? 1280,
+    height: saved?.height ?? 800,
+    x: saved?.x ?? undefined,
+    y: saved?.y ?? undefined,
     frame: false,
     backgroundColor: "#1d1d1d",
     icon: iconPath,
     webPreferences: { preload },
   });
+
+  /**
+   * The chrome's runtime orientation override, kept here so it can be saved
+   * with the rest of the session state on `win.on("close")`. The chrome
+   * pushes it via `toMain.orientationOverride` whenever the override
+   * changes — `null` means "no override, follow the config".
+   */
+  let orientationOverride: TabOrientation | null = saved?.orientation ?? null;
 
   const chrome = senders(toChrome, (channel, payload) => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
@@ -311,6 +328,38 @@ function createWindow(zoom: ZoomStore, history: History): void {
     }
   };
 
+  // Saves before `closed` because `getBounds` on a destroyed window is
+  // undefined. `close` fires on every close path (user click, app quit,
+  // macOS reopen-by-relaunch) — last-write-wins on the singleton row, so the
+  // most recently closed window is what the next launch restores.
+  win.on("close", () => {
+    if (win.isDestroyed()) return;
+    const snapshot = tabs.urlsForSession();
+    if (snapshot === null) {
+      // No tabs at close time means the user closed everything
+      // deliberately (the last tab close triggers `#window.close()` via
+      // `#forget`). The saved row must go too, or the next launch
+      // resurrects tabs the user has done with — restoring an empty
+      // session is indistinguishable from a fresh launch only when the
+      // row is actually empty.
+      sessions.clear();
+      return;
+    }
+    const bounds = win.getBounds();
+    sessions.save(
+      {
+        tabs: snapshot.urls,
+        activeIndex: snapshot.activeIndex,
+        width: bounds.width,
+        height: bounds.height,
+        x: bounds.x,
+        y: bounds.y,
+        orientation: orientationOverride,
+      },
+      Date.now(),
+    );
+  });
+
   win.on("closed", () => {
     windows.delete(applyToWindow);
     tabManagers.delete(tabs);
@@ -330,7 +379,33 @@ function createWindow(zoom: ZoomStore, history: History): void {
     // was loading is still waiting for its answer.
     chrome.permission(permissions.pending[0] ?? null);
     vim.setPromptPending(permissions.pending.length > 0);
-    tabs.create();
+    if (saved !== null) {
+      // The chrome seeds its orientation override from the saved flip
+      // before any tabs are created, so the very first paint shows the
+      // saved layout, not a horizontal default that flashes before being
+      // overridden. Main owns the tab restore below — the URL list and
+      // bounds never need to leave main.
+      chrome.restoreSession({ orientation: saved.orientation });
+      // `background: true` keeps the chrome on whatever tab it already
+      // shows; the final `activate` is what lands on the saved one.
+      let activeId: TabId | null = null;
+      let firstCreatedId: TabId | null = null;
+      for (let i = 0; i < saved.tabs.length; i++) {
+        const url = saved.tabs[i]!;
+        const id = tabs.create(url, { background: true });
+        if (id === null) continue;
+        if (firstCreatedId === null) firstCreatedId = id;
+        if (i === saved.activeIndex) activeId = id;
+      }
+      // An external-protocol URL at the saved active index (a hand-edited
+      // or partially corrupt row) leaves no activated tab and every view
+      // hidden — a window of chrome over nothing. Fall back to the first
+      // created tab so something is on screen.
+      if (activeId === null) activeId = firstCreatedId;
+      if (activeId !== null) tabs.activate(activeId);
+    } else {
+      tabs.create();
+    }
   });
 
   const releaseChrome = handle(
@@ -351,6 +426,14 @@ function createWindow(zoom: ZoomStore, history: History): void {
       cancelDownload: (id) => downloads.cancel(id),
       answerPermission: (answer) => {
         if (isPermissionAnswer(answer)) permissions.answer(answer.id, answer.allow);
+      },
+      orientationOverride: (value) => {
+        // The chrome is the source of truth for the override; main only
+        // mirrors it so the close handler can persist it with the rest of
+        // the session. Bad input is ignored — the next valid push wins.
+        if (value === "horizontal" || value === "vertical" || value === null) {
+          orientationOverride = value;
+        }
       },
       runCommand: (line) => {
         runCommand(line);
@@ -398,7 +481,13 @@ void app.whenReady().then(async () => {
   reportStyleProblems(userStyles.setSources(await readStyleFiles()));
 
   const zoom = await ZoomStore.load();
-  createWindow(zoom, history);
+  // `sessions.load()` is forgiving: missing or malformed row collapses to
+  // null, which is indistinguishable from a fresh first launch — the right
+  // answer when an old build has never written the table or when a corrupt
+  // row is left behind by a crash.
+  const sessions = new Session(db);
+  const saved = sessions.load();
+  createWindow(zoom, history, sessions, saved);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
@@ -421,7 +510,11 @@ void app.whenReady().then(async () => {
   flushOnQuit(app, zoom);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom, history);
+    // macOS reopen: a re-launched app with no windows restores the last
+    // session, same as cold start. Re-reading from the store is cheap and
+    // avoids the alternative of carrying the row across the app's lifetime.
+    if (BrowserWindow.getAllWindows().length === 0)
+      createWindow(zoom, history, sessions, sessions.load());
   });
 });
 

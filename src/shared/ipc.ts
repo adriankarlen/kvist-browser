@@ -1,4 +1,4 @@
-import type { UserConfig } from "./config";
+import type { TabOrientation, UserConfig } from "./config";
 
 export type TabId = number;
 
@@ -108,6 +108,18 @@ export interface Point {
 export type PromptablePermission = "media" | "geolocation" | "notifications" | "clipboard-read";
 
 /**
+ * What `toChrome.restoreSession` carries on startup when a saved session
+ * exists. Only the orientation reaches the chrome: main owns the tab
+ * restore (creating tabs in order, activating the saved one) and reads the
+ * URL list and bounds from its local SessionState — the IPC channel exists
+ * only so the chrome can seed its orientation override from the saved
+ * flip before the first paint. `null` means "follow config".
+ */
+export interface RestoreSessionState {
+  orientation: TabOrientation | null;
+}
+
+/**
  * The question at the head of the permission queue, which is all the chrome
  * ever shows: one line, answered, replaced by whatever is next.
  */
@@ -213,6 +225,15 @@ export const toMain = table({
   cancelDownload: channel<number>(),
   /** Answers the permission prompt carrying the id; anything else is stale and ignored. */
   answerPermission: channel<PermissionAnswer>(),
+  /**
+   * The chrome's current orientation override — null when the chrome is
+   * following the config default. Mirrored on every flip and on every
+   * config-driven clear so main can persist it as part of the session and
+   * replay it on relaunch. The `null` case is sent explicitly: a fresh
+   * window that has never flipped must not be confused with a window whose
+   * override has been cleared.
+   */
+  orientationOverride: channel<TabOrientation | null>(),
 });
 
 /** Main → chrome. Full snapshots, never diffs. */
@@ -230,6 +251,14 @@ export const toChrome = table({
   message: channel<Message | null>(),
   /** The permission question waiting for an answer, or null when none is. */
   permission: channel<PermissionPromptState | null>(),
+  /**
+   * A saved session exists. Sent once, after the chrome finishes loading,
+   * when the `session` table has a row. The chrome seeds its orientation
+   * override from the payload; main owns the tab restore itself, so the
+   * URL list and bounds never need to leave main. Not sent when the row
+   * is missing or malformed — those cases look like a fresh first launch.
+   */
+  restoreSession: channel<RestoreSessionState>(),
 });
 
 /**
