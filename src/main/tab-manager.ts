@@ -131,7 +131,7 @@ export class TabManager {
   }
 
   /** The tab a webContents belongs to; the sender check for every tab channel. */
-  tabFor(sender: WebContents): Tab | undefined {
+  tabFor(sender: PageContents): Tab | undefined {
     return [...this.#tabs.values()].find((tab) => tab.contents === sender);
   }
 

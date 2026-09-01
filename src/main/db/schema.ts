@@ -6,4 +6,4 @@
  *   4. Check the generated SQL in — it is the source of truth for what
  *      `Database.open` will apply.
  */
-export {};
+export * from "./schema/history";
