@@ -46,8 +46,8 @@ function table(actions: Actions) {
 
     // No alias: a short form that forgot its argument would answer the wrong
     // way, and these exist for the prompt-mode keys rather than for typing.
-    "permission.allow": actions.permissions.allow,
-    "permission.deny": actions.permissions.deny,
+    "prompt.allow": actions.prompts.allow,
+    "prompt.deny": actions.prompts.deny,
 
     "clipboard.yank": actions.clipboard.yank,
     "clipboard.open": actions.clipboard.open,

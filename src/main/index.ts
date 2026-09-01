@@ -11,11 +11,12 @@ import { createActions } from "./actions";
 import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { History } from "./history";
+import { Prompts } from "./prompts";
 import { Session, type SessionState } from "./session";
 import {
   fromPage,
-  type PermissionAnswer,
   type Point,
+  type PromptState,
   senders,
   type TabId,
   toChrome,
@@ -168,10 +169,10 @@ function isPoint(value: unknown): value is Point {
 }
 
 /** Same lesson as isPoint: a payload that is not an answer is ignored, not destructured. */
-function isPermissionAnswer(value: unknown): value is PermissionAnswer {
+function isPromptAnswer(value: unknown): value is { id: number; allow: boolean } {
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: just checked value is a non-null object; id and allow are validated below.
-  const { id, allow } = value as PermissionAnswer;
+  const { id, allow } = value as { id: number; allow: boolean };
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
@@ -180,6 +181,7 @@ function createWindow(
   history: History,
   sessions: Session,
   saved: SessionState | null,
+  prompts: Prompts<PromptState>,
 ): void {
   const win = new BrowserWindow({
     width: saved?.width ?? 1280,
@@ -227,7 +229,7 @@ function createWindow(
   const actions = createActions(
     tabs,
     downloads,
-    permissions,
+    prompts,
     zoom,
     win,
     messages,
@@ -253,10 +255,11 @@ function createWindow(
 
   // The prompt the window shows and the mode the keyboard is in both follow
   // the one queue: a pending question captures normal mode, and answering it
-  // hands normal back.
-  const releasePermissions = permissions.observe((pending) => {
-    chrome.permission(pending[0] ?? null);
-    vim.setPromptPending(pending.length > 0);
+  // hands normal back. Permissions' queue is a slice of `prompts` — the
+  // session-restore ask goes through the same plumbing on relaunch.
+  const releasePermissions = prompts.observe((head) => {
+    chrome.prompt(head);
+    vim.setPromptPending(head !== null);
   });
 
   // Any key at all ends whatever the echo area is showing, wherever it came
@@ -334,6 +337,16 @@ function createWindow(
   // most recently closed window is what the next launch restores.
   win.on("close", () => {
     if (win.isDestroyed()) return;
+    // A window closed mid-prompt, with no answer, is the same as deny. A
+    // session-restore ask left dangling would either auto-restore on the
+    // next launch (if the chrome didn't render long enough for the user
+    // to answer) or resurrect tabs the user closed. Either way, the
+    // question has no one to answer it — cancel it without firing the
+    // callback. The queue is app-scoped, but session-restore is only ever
+    // one-at-a-time, so a wholesale sweep is safe.
+    for (const pending of prompts.pending) {
+      if (pending.state.kind === "session-restore") prompts.cancel(pending.id);
+    }
     const snapshot = tabs.urlsForSession();
     if (snapshot === null) {
       // No tabs at close time means the user closed everything
@@ -375,34 +388,47 @@ function createWindow(
     // Same for anything already said: a config the user has broken is found
     // while the window is still loading, and the echo area was not there yet.
     chrome.message(messages.current);
-    // Nor could the prompt line have been: a question asked while the window
-    // was loading is still waiting for its answer.
-    chrome.permission(permissions.pending[0] ?? null);
-    vim.setPromptPending(permissions.pending.length > 0);
+    // The observer already wired `chrome.prompt` to the queue head on
+    // subscribe, and a question asked during page load (none today, but
+    // possible) would already have reached the chrome by the time we get
+    // here. Nothing else to push.
     if (saved !== null) {
-      // The chrome seeds its orientation override from the saved flip
-      // before any tabs are created, so the very first paint shows the
-      // saved layout, not a horizontal default that flashes before being
-      // overridden. Main owns the tab restore below — the URL list and
-      // bounds never need to leave main.
-      chrome.restoreSession({ orientation: saved.orientation });
-      // `background: true` keeps the chrome on whatever tab it already
-      // shows; the final `activate` is what lands on the saved one.
-      let activeId: TabId | null = null;
-      let firstCreatedId: TabId | null = null;
-      for (let i = 0; i < saved.tabs.length; i++) {
-        const url = saved.tabs[i]!;
-        const id = tabs.create(url, { background: true });
-        if (id === null) continue;
-        if (firstCreatedId === null) firstCreatedId = id;
-        if (i === saved.activeIndex) activeId = id;
-      }
-      // An external-protocol URL at the saved active index (a hand-edited
-      // or partially corrupt row) leaves no activated tab and every view
-      // hidden — a window of chrome over nothing. Fall back to the first
-      // created tab so something is on screen.
-      if (activeId === null) activeId = firstCreatedId;
-      if (activeId !== null) tabs.activate(activeId);
+      // Ask before restoring: a relaunch with a saved session used to
+      // resurrect tabs the user had no chance to discard, and the prompt
+      // would not be dismissed except by answering it. Asking makes
+      // "discard" reachable and gives the user a clear exit from the
+      // last session. Permission prompts go through the same queue, so the
+      // chrome line is one component and y/n/Escape one keybind set.
+      prompts.ask({ kind: "session-restore", tabCount: saved.tabs.length }, (allow) => {
+        if (!allow) {
+          // Same path as a fresh launch: one homepage tab.
+          tabs.create();
+          return;
+        }
+        // The chrome seeds its orientation override from the saved flip
+        // before any tabs are created, so the very first paint shows the
+        // saved layout, not a horizontal default that flashes before
+        // being overridden. Main owns the tab restore — the URL list and
+        // bounds never need to leave main.
+        chrome.restoreSession({ orientation: saved.orientation });
+        // `background: true` keeps the chrome on whatever tab it already
+        // shows; the final `activate` is what lands on the saved one.
+        let activeId: TabId | null = null;
+        let firstCreatedId: TabId | null = null;
+        for (let i = 0; i < saved.tabs.length; i++) {
+          const url = saved.tabs[i]!;
+          const id = tabs.create(url, { background: true });
+          if (id === null) continue;
+          if (firstCreatedId === null) firstCreatedId = id;
+          if (i === saved.activeIndex) activeId = id;
+        }
+        // An external-protocol URL at the saved active index (a
+        // hand-edited or partially corrupt row) leaves no activated tab
+        // and every view hidden — a window of chrome over nothing. Fall
+        // back to the first created tab so something is on screen.
+        if (activeId === null) activeId = firstCreatedId;
+        if (activeId !== null) tabs.activate(activeId);
+      });
     } else {
       tabs.create();
     }
@@ -424,8 +450,8 @@ function createWindow(
       stopFind: () => tabs.active?.stopFind(),
       setMode: (mode) => vim.requestMode(mode),
       cancelDownload: (id) => downloads.cancel(id),
-      answerPermission: (answer) => {
-        if (isPermissionAnswer(answer)) permissions.answer(answer.id, answer.allow);
+      answerPrompt: (answer) => {
+        if (isPromptAnswer(answer)) prompts.answer(answer.id, answer.allow);
       },
       orientationOverride: (value) => {
         // The chrome is the source of truth for the override; main only
@@ -481,13 +507,19 @@ void app.whenReady().then(async () => {
   reportStyleProblems(userStyles.setSources(await readStyleFiles()));
 
   const zoom = await ZoomStore.load();
+  // The single prompt queue: permission asks and the session-restore ask
+  // share one mechanism, one observer wiring, one keybind set, one IPC
+  // channel. App-scoped because the chrome renders one line at a time and
+  // a permission prompt outliving its tab is the only cross-window concern
+  // — already handled inside `Permissions` via `Prompts.cancel`.
+  const prompts = new Prompts<PromptState>();
   // `sessions.load()` is forgiving: missing or malformed row collapses to
   // null, which is indistinguishable from a fresh first launch — the right
   // answer when an old build has never written the table or when a corrupt
   // row is left behind by a crash.
   const sessions = new Session(db);
   const saved = sessions.load();
-  createWindow(zoom, history, sessions, saved);
+  createWindow(zoom, history, sessions, saved, prompts);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
@@ -514,7 +546,7 @@ void app.whenReady().then(async () => {
     // session, same as cold start. Re-reading from the store is cheap and
     // avoids the alternative of carrying the row across the app's lifetime.
     if (BrowserWindow.getAllWindows().length === 0)
-      createWindow(zoom, history, sessions, sessions.load());
+      createWindow(zoom, history, sessions, sessions.load(), prompts);
   });
 });
 

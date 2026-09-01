@@ -6,7 +6,7 @@ import { createActions, type ZoomStoreAccess } from "./actions";
 import { createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
-import type { Permissions } from "./permissions";
+import type { Prompts } from "./prompts";
 import type { TabManager } from "./tab-manager";
 
 // A spy left in place would silence the next test's console; a failed
@@ -60,7 +60,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     cancelNth: vi.fn<(row?: number) => void>(),
     clear: vi.fn(),
   };
-  const permissions = {
+  const prompts = {
     answerHead: vi.fn<(allow: boolean) => void>(),
   };
   const zoom = {
@@ -86,7 +86,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const actions = createActions(
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,
-    permissions as unknown as Permissions,
+    prompts as unknown as Prompts<{ id: number }>,
     zoom as unknown as ZoomStoreAccess,
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
@@ -101,7 +101,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     tabs,
     active,
     downloads,
-    permissions,
+    prompts,
     zoom,
     sent,
     win,
@@ -127,7 +127,7 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, permissions, sent, win, clipboard, userStyles, quit } =
+  const { commands, tabs, active, downloads, prompts, sent, win, clipboard, userStyles, quit } =
     createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
@@ -160,8 +160,8 @@ test("every command reaches the thing it names", () => {
     ["downloads.toggle", () => sent.some(({ channel }) => channel === wire("downloadsToggle"))],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
-    ["permission.allow", () => permissions.answerHead.mock.calls.some(([a]) => a === true)],
-    ["permission.deny", () => permissions.answerHead.mock.calls.some(([a]) => a === false)],
+    ["prompt.allow", () => prompts.answerHead.mock.calls.some(([a]) => a === true)],
+    ["prompt.deny", () => prompts.answerHead.mock.calls.some(([a]) => a === false)],
     ["clipboard.yank", () => clipboard.write.mock.calls.length === 1],
     // Both reads need their own focused tests; here only the dispatch is
     // covered, so an action wired to nothing fails the row rather than

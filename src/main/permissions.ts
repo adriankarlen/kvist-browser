@@ -1,5 +1,14 @@
 import type { Session, WebContents } from "electron";
-import type { PermissionPromptState, PromptablePermission } from "../shared/ipc";
+import type { PromptablePermission, PromptState } from "../shared/ipc";
+import { Prompts } from "./prompts";
+
+/**
+ * The head of the prompts queue, formatted the way the IPC channel expects
+ * it: a flat pair of id and state. Permissions' state carries no id of its
+ * own (the queue owns it), so `head` here is `{id, state}` and the IPC
+ * sender just passes it through.
+ */
+type PromptHead = { id: number; state: PromptState };
 
 /**
  * What a permission gets without anyone being asked. `grant` is for what
@@ -72,22 +81,18 @@ interface Waiter {
   release: () => void;
 }
 
+/**
+ * A coalesced entry: one prompt for the chrome to show, plus every
+ * webContents waiting on its answer. The `promptsId` is what `Prompts`
+ * generated for the entry's IPC state, and what `prompts.cancel(...)`
+ * needs if every waiter goes away before the user answers.
+ */
 interface PendingRequest {
-  id: number;
+  promptsId: number;
   origin: string;
   permission: PromptablePermission;
   mediaTypes?: ("video" | "audio")[];
-  /**
-   * One per tab asking about the same question, tracked with its own
-   * webContents: two tabs on one origin can both ask, and one of them
-   * closing must not strand the other's callback unanswered.
-   */
   waiters: Waiter[];
-}
-
-function toState(entry: PendingRequest): PermissionPromptState {
-  const { id, origin, permission, mediaTypes } = entry;
-  return { id, origin, permission, mediaTypes };
 }
 
 /**
@@ -99,12 +104,17 @@ function toState(entry: PendingRequest): PermissionPromptState {
  * Answers are remembered per origin for the session — both ways, or a denied
  * site would re-ask on every click. Persistence is Phase 6's to add; until
  * then a restart is how a decision is revoked.
+ *
+ * The queue, observer, and answer mechanics live in `Prompts`. This class
+ * keeps only the policy: coalescing matches, per-origin decisions, and the
+ * waiter list whose lifecycle is owned by Chromium (a destroyed tab must
+ * not strand a callback).
  */
 export class Permissions {
+  #prompts = new Prompts<PromptState>();
   #decisions = new Map<string, boolean>();
+  /** Active coalesced entries, keyed by the tuple Permissions merges on. */
   #pending: PendingRequest[] = [];
-  #observers = new Set<(pending: PermissionPromptState[]) => void>();
-  #nextId = 1;
 
   /**
    * Both handlers, or the two answer inconsistently: the check handler fields
@@ -123,19 +133,33 @@ export class Permissions {
     );
   }
 
-  /** Windows subscribe; a full snapshot, never a diff. */
-  observe(observer: (pending: PermissionPromptState[]) => void): () => void {
-    this.#observers.add(observer);
-    return () => void this.#observers.delete(observer);
-  }
-
-  /** The queue as it stands, for a window that finished loading after it formed. */
-  get pending(): PermissionPromptState[] {
-    return this.#pending.map(toState);
+  /**
+   * Windows subscribe to the head of the prompt queue. The full-snapshot
+   * shape Permissions used to ship was load-bearing for nothing — the
+   * chrome renders one prompt line at a time, so the head is enough.
+   */
+  observe(observer: (head: PromptHead | null) => void): () => void {
+    return this.#prompts.observe(observer);
   }
 
   /**
-   * The synchronous probe. There is no "prompt" answer here, only granted or
+   * The coalesced permission entries, in queue order. Exposed for tests and
+   * diagnostics — the chrome reads the head through `observe`, never this.
+   * Each entry's id matches what `Prompts` generated for the IPC state.
+   */
+  get pending(): PromptHead[] {
+    return this.#pending.map((entry) => ({
+      id: entry.promptsId,
+      state: {
+        kind: "permission" as const,
+        origin: entry.origin,
+        permission: entry.permission,
+        mediaTypes: entry.mediaTypes,
+      },
+    }));
+  }
+
+  /** The synchronous probe. There is no "prompt" answer here, only granted or
    * not, so an unknown origin reads as denied — a site that wants the
    * permission then makes the request, which is where the asking happens.
    */
@@ -238,43 +262,42 @@ export class Permissions {
         sameMediaTypes(entry.mediaTypes, mediaTypes),
     );
     if (waiting !== undefined) {
-      waiting.waiters.push(this.#waiterFor(waiting.id, contents, callback));
+      waiting.waiters.push(this.#waiterFor(waiting.promptsId, contents, callback));
       return;
     }
 
-    const id = this.#nextId++;
-    const entry: PendingRequest = {
-      id,
-      origin,
-      permission,
-      mediaTypes,
-      waiters: [],
-    };
-    entry.waiters.push(this.#waiterFor(id, contents, callback));
+    const promptsId = this.#prompts.ask(
+      { kind: "permission", origin, permission, mediaTypes },
+      (allow) => this.#settle(promptsId, allow, true),
+    );
+    const entry: PendingRequest = { promptsId, origin, permission, mediaTypes, waiters: [] };
+    entry.waiters.push(this.#waiterFor(promptsId, contents, callback));
     this.#pending.push(entry);
-    this.#notify();
   }
 
   /** Acquires the `destroyed` listener a waiter needs, paired with its release. */
-  #waiterFor(id: number, contents: WebContents, callback: (granted: boolean) => void): Waiter {
-    const onDestroyed = (): void => this.#dropWaiter(id, contents);
+  #waiterFor(
+    promptsId: number,
+    contents: WebContents,
+    callback: (granted: boolean) => void,
+  ): Waiter {
+    const onDestroyed = (): void => this.#dropWaiter(promptsId, contents);
     contents.once("destroyed", onDestroyed);
     return { contents, callback, release: () => contents.removeListener("destroyed", onDestroyed) };
   }
 
   /** The chrome answering the prompt it is showing; a stale id is a no-op. */
   answer(id: number, allow: boolean): void {
-    this.#settle(id, allow, true);
+    this.#prompts.answer(id, allow);
   }
 
   /** A y or an n from the mode machine, which answers whatever is up. */
   answerHead(allow: boolean): void {
-    const head = this.#pending[0];
-    if (head !== undefined) this.#settle(head.id, allow, true);
+    this.#prompts.answerHead(allow);
   }
 
-  #settle(id: number, allow: boolean, remember: boolean): void {
-    const index = this.#pending.findIndex((entry) => entry.id === id);
+  #settle(promptsId: number, allow: boolean, remember: boolean): void {
+    const index = this.#pending.findIndex((entry) => entry.promptsId === promptsId);
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
 
@@ -296,28 +319,24 @@ export class Permissions {
       waiter.release();
       if (!waiter.contents.isDestroyed()) waiter.callback(allow);
     }
-    this.#notify();
   }
 
   /**
-   * A tab that dies with its question unanswered is a denial, but not one to
-   * remember: nobody answered anything. Only that tab's own wait ends here —
-   * a second tab that coalesced onto the same question is still waiting, and
-   * the prompt stays up until every waiter is gone.
+   * A tab that dies with its question unanswered is not a denial: nobody
+   * answered anything, so the per-origin decision stays untouched. Only
+   * that tab's own wait ends here — a second tab that coalesced onto the
+   * same question is still waiting, and the prompt stays up until every
+   * waiter is gone. With no waiters left the prompt is removed without
+   * firing its callback, which is `cancel` on the queue.
    */
-  #dropWaiter(id: number, contents: WebContents): void {
-    const entry = this.#pending.find((candidate) => candidate.id === id);
+  #dropWaiter(promptsId: number, contents: WebContents): void {
+    const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);
     if (entry === undefined) return;
 
     entry.waiters = entry.waiters.filter((waiter) => waiter.contents !== contents);
     if (entry.waiters.length > 0) return;
 
-    this.#pending = this.#pending.filter((candidate) => candidate.id !== id);
-    this.#notify();
-  }
-
-  #notify(): void {
-    const snapshot = this.pending;
-    for (const observer of this.#observers) observer(snapshot);
+    this.#pending = this.#pending.filter((candidate) => candidate.promptsId !== promptsId);
+    this.#prompts.cancel(promptsId);
   }
 }

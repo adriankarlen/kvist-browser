@@ -1,0 +1,39 @@
+@layer kvist.components {
+  .kv-prompt {
+    --kv-line-fg: var(--kv-prompt-fg);
+    --kv-line-prompt-fg: var(--kv-prompt-prompt-fg);
+  }
+
+  .kv-prompt__text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kv-prompt__hint {
+    flex: none;
+    color: var(--kv-prompt-hint-fg);
+  }
+
+  .kv-prompt__answer {
+    flex: none;
+  }
+
+  .kv-prompt__answer.is-allow {
+    color: var(--kv-prompt-allow-fg);
+  }
+
+  .kv-prompt__answer.is-allow:hover {
+    color: var(--kv-prompt-allow-hover-fg);
+  }
+
+  .kv-prompt__answer.is-deny {
+    color: var(--kv-prompt-deny-fg);
+  }
+
+  .kv-prompt__answer.is-deny:hover {
+    color: var(--kv-prompt-deny-hover-fg);
+  }
+}

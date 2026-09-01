@@ -3,7 +3,6 @@ import { senders, toChrome } from "../shared/ipc";
 import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
-import type { Permissions } from "./permissions";
 import type { TabManager } from "./tab-manager";
 import { clamp, STEP } from "./zoom";
 
@@ -47,6 +46,16 @@ export interface StyleFileLookup {
 export interface ZoomStoreAccess {
   get(origin: string): number;
   set(origin: string, level: number): void;
+}
+
+/**
+ * What the action layer actually needs from a prompt queue: the ability to
+ * answer whatever the chrome is showing. Anything richer (the head's
+ * shape, individual answer by id, cancellation) belongs in the layer that
+ * queues the prompt, not in the layer that answers one.
+ */
+interface PromptAnswerer {
+  answerHead(allow: boolean): void;
 }
 
 /**
@@ -103,8 +112,12 @@ export interface Actions {
     /** The nth row as the panel shows it, or the newest live transfer. */
     cancel: Action;
   };
-  permissions: {
-    /** Answer the question the prompt line is showing. */
+  prompts: {
+    /**
+     * Answer the question the prompt line is showing. Permission prompts
+     * remember the answer per origin; session-restore prompts do not
+     * remember at all — `prompts.answerHead` is the only handle either way.
+     */
     allow: Action;
     deny: Action;
   };
@@ -146,7 +159,7 @@ export interface Actions {
 export function createActions(
   tabs: TabManager,
   downloads: Downloads,
-  permissions: Permissions,
+  prompts: PromptAnswerer,
   zoom: ZoomStoreAccess,
   win: BrowserWindow,
   messages: Messages,
@@ -301,9 +314,9 @@ export function createActions(
         downloads.cancelNth(row);
       },
     },
-    permissions: {
-      allow: () => permissions.answerHead(true),
-      deny: () => permissions.answerHead(false),
+    prompts: {
+      allow: () => prompts.answerHead(true),
+      deny: () => prompts.answerHead(false),
     },
     clipboard: {
       // The snapshot already strips the kvist://error wrapper off, so what

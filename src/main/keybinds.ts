@@ -51,7 +51,7 @@ export const DEFAULT_KEYBINDS: readonly Keybind[] = [
   // ── prompt mode ──────────────────────────────────────────────
   // No `enter`: the mode outlives one answer while the queue has another
   // question behind it, so leaving is driven by the queue draining.
-  { mode: "prompt", keys: "y", command: "permission.allow" },
-  { mode: "prompt", keys: "n", command: "permission.deny" },
-  { mode: "prompt", keys: "Escape", command: "permission.deny" },
+  { mode: "prompt", keys: "y", command: "prompt.allow" },
+  { mode: "prompt", keys: "n", command: "prompt.deny" },
+  { mode: "prompt", keys: "Escape", command: "prompt.deny" },
 ];

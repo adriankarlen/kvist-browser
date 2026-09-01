@@ -1,14 +1,29 @@
 <script lang="ts">
   import "./App.css";
-  import { browser, contentRect, downloads, find, messages, permissions, ui, vim } from "./lib/stores.svelte";
+  import { browser, contentRect, downloads, find, messages, prompts, ui, vim } from "./lib/stores.svelte";
   import CommandLine from "./lib/CommandLine.svelte";
   import DownloadsPanel from "./lib/DownloadsPanel.svelte";
   import FindLine from "./lib/FindLine.svelte";
   import MessageLine from "./lib/MessageLine.svelte";
   import Omnibox from "./lib/Omnibox.svelte";
-  import PermissionLine from "./lib/PermissionLine.svelte";
+  import PromptLine from "./lib/PromptLine.svelte";
   import TabStrip from "./lib/TabStrip.svelte";
+
+  /**
+   * Click anywhere in the chrome outside the prompt line dismisses it as a
+   * deny. The prompt's own container stops propagation so clicks on its
+   * buttons (which answer before the stop) and on its text don't trigger
+   * this. The same semantics as `Escape`, which already denies.
+   *
+   * Page clicks live in a separate webContents and don't bubble into the
+   * chrome's DOM, so they don't dismiss — that's a deliberate scope cut.
+   */
+  function onWindowClick(): void {
+    if (prompts.current) prompts.answer(false);
+  }
 </script>
+
+<svelte:window {onWindowClick} />
 
 <div class="kv-shell" class:is-sidebar={ui.tabOrientation === "vertical"}>
   <TabStrip orientation={ui.tabOrientation} />
@@ -27,8 +42,8 @@
     <!-- The echo area shares the command line's row: a prompt is what main is
          asking, a message is what it has to say, and never both at once. -->
     {#if vim.mode !== "command"}
-      {#if permissions.current}
-        <PermissionLine />
+      {#if prompts.current}
+        <PromptLine />
       {:else if messages.current}
         <MessageLine />
       {/if}

@@ -327,13 +327,13 @@ test("y, n and Escape answer the question", () => {
   vim.setPromptPending(true);
 
   expect(key("y")).toBe(true);
-  expect(execute).toHaveBeenCalledWith("permission.allow");
+  expect(execute).toHaveBeenCalledWith("prompt.allow");
 
   expect(key("n")).toBe(true);
-  expect(execute).toHaveBeenCalledWith("permission.deny");
+  expect(execute).toHaveBeenCalledWith("prompt.deny");
 
   expect(key("Escape")).toBe(true);
-  expect(execute).toHaveBeenCalledWith("permission.deny");
+  expect(execute).toHaveBeenCalledWith("prompt.deny");
   // No command runs focus.page or the like: the mode outlives one answer
   // while the queue has another question behind it.
   expect(vim.mode).toBe("prompt");
@@ -376,7 +376,7 @@ test("a question arriving at the command line does not take its keys", () => {
   vim.setPromptPending(true);
   expect(vim.mode).toBe("command");
   expect(chromeKey("y")).toBe(false);
-  expect(execute).not.toHaveBeenCalledWith("permission.allow");
+  expect(execute).not.toHaveBeenCalledWith("prompt.allow");
 
   // Escaping the command line lands on the prompt, not on normal.
   vim.requestMode("normal");

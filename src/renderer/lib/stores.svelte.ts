@@ -2,7 +2,7 @@ import { createBrowser, createContentRect } from "./browser.svelte";
 import { createDownloads } from "./downloads.svelte";
 import { createFind } from "./find.svelte";
 import { createMessages } from "./messages.svelte";
-import { createPermissions } from "./permissions.svelte";
+import { createPrompts } from "./prompts.svelte";
 import { createUi, injectUserCss } from "./settings.svelte";
 import { createVim } from "./vim.svelte";
 
@@ -18,6 +18,6 @@ export const contentRect = createContentRect(bridge);
 export const downloads = createDownloads(bridge);
 export const find = createFind(bridge);
 export const messages = createMessages(bridge);
-export const permissions = createPermissions(bridge);
+export const prompts = createPrompts(bridge);
 export const ui = createUi(bridge, injectUserCss);
 export const vim = createVim(bridge);
