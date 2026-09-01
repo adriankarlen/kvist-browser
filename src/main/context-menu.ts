@@ -13,9 +13,6 @@ import type { ContextMenuItem } from "../shared/ipc";
 import menuCss from "../shared/styles/menu.css?raw";
 import tokensCss from "../shared/styles/tokens.css?raw";
 
-/**
- * Creates a context menu item with the given id, label, and enabled state.
- */
 const item = (id: string, label: string, enabled = true): ContextMenuItem => ({
   type: "item",
   id,
@@ -23,16 +20,8 @@ const item = (id: string, label: string, enabled = true): ContextMenuItem => ({
   enabled,
 });
 
-/**
- * Creates a separator menu item.
- */
 const separator = (): ContextMenuItem => ({ type: "separator" });
 
-/**
- * Builds the context menu items based on what was right-clicked (link, image,
- * editable field, selection, or plain page) and the current navigation state.
- * Returns a flat array of items with separators between sections.
- */
 export function buildContextMenuItems(
   params: ContextMenuParams,
   nav: { canGoBack: boolean; canGoForward: boolean },

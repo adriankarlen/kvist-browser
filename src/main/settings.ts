@@ -19,21 +19,10 @@ export interface ParsedSettings {
   problems: Problem[];
 }
 
-/**
- * The rule every field follows: an absent value is not a problem, it is the
- * default. Only a value the user actually wrote and we could not use is worth
- * telling them about.
- */
-/**
- * Type guard to check if a value is a string.
- */
 function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
-/**
- * Type guard to check if a value is a boolean.
- */
 function isBoolean(value: unknown): value is boolean {
   return typeof value === "boolean";
 }
@@ -44,8 +33,9 @@ function isTable(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Reads a string value from TOML, falling back to a default if absent or invalid.
- * Records a problem if the value is present but not a string.
+ * The rule every read* function below follows: an absent value is not a
+ * problem, it is the default. Only a value the user actually wrote and we
+ * could not use is worth telling them about.
  */
 function readString<T extends string | undefined>(
   value: unknown,
@@ -59,10 +49,6 @@ function readString<T extends string | undefined>(
   return fallback;
 }
 
-/**
- * Reads a boolean value from TOML, falling back to a default if absent or invalid.
- * Records a problem if the value is present but not a boolean.
- */
 function readBoolean(
   value: unknown,
   field: string,
@@ -75,10 +61,6 @@ function readBoolean(
   return fallback;
 }
 
-/**
- * Reads a value from TOML that must be one of a set of allowed strings.
- * Falls back to a default if absent or not in the allowed set.
- */
 function readOption<T extends string>(
   value: unknown,
   field: string,
@@ -94,10 +76,6 @@ function readOption<T extends string>(
   return fallback;
 }
 
-/**
- * Converts a value to a table if it is one, or returns an empty object otherwise.
- * Used to safely access nested fields without throwing.
- */
 function asTable(value: unknown): Record<string, unknown> {
   return isTable(value) ? value : {};
 }
@@ -115,9 +93,8 @@ function section(value: unknown, field: string, problems: Problem[]): Record<str
 }
 
 /**
- * Parses the newtab.links array from TOML. Each entry must be a table with
- * "name" and "url" string fields. Falls back to defaults if any entry is
- * malformed (all-or-nothing).
+ * The newtab.links array from TOML: each entry must be a table with "name"
+ * and "url" string fields.
  */
 function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
   if (value === undefined) return DEFAULT_SETTINGS.newtabLinks;
@@ -142,11 +119,6 @@ function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
 // Intl only accepts IANA names; "UTC±n" is handled by the clock itself.
 const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
-/**
- * Parses the newtab.timezone field. Accepts IANA timezone names or "UTC±n"
- * notation. Validates IANA names via Intl.DateTimeFormat and records a problem
- * if the value is invalid.
- */
 function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
   const named = readString(value, "newtab.timezone", undefined, problems);
   if (named === undefined) return undefined;

@@ -97,11 +97,6 @@ const HEADLINES = new Map([
   [-324, "empty response"],
 ]);
 
-/**
- * Returns a short human-readable headline for a Chromium error code. Falls
- * back to a generic description for unknown codes. Null code indicates a
- * renderer crash rather than a network error.
- */
 export function describeError(code: number | null): string {
   if (code === null) return "renderer gone";
   return HEADLINES.get(code) ?? `error ${code}`;

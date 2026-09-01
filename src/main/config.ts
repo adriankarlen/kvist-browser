@@ -23,9 +23,6 @@ export interface ConfigStore {
   lastGood: Settings;
 }
 
-/**
- * Creates a new config store with default settings as the initial state.
- */
 export function createConfigStore(): ConfigStore {
   return { lastGood: DEFAULT_SETTINGS };
 }

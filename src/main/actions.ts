@@ -143,11 +143,6 @@ export interface Actions {
   };
 }
 
-/**
- * Creates the action handlers for all browser commands. Each action is a
- * function that interprets command arguments and orchestrates the tab manager,
- * downloads, permissions, and other subsystems to carry out the user's intent.
- */
 export function createActions(
   tabs: TabManager,
   downloads: Downloads,
@@ -165,9 +160,6 @@ export function createActions(
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
 
-  /**
-   * Focuses the browser chrome window, if it has not been destroyed.
-   */
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
   };
@@ -226,10 +218,7 @@ export function createActions(
     messages.say("zoom 100%");
   };
 
-  /**
-   * Converts a zoom level to a percentage string for display. Level 0 is 100%,
-   * and each ±1 is a 20% step (factor = 1.2^level).
-   */
+  /** Level 0 is 100%, and each ±1 is a 20% step (factor = 1.2^level). */
   const zoomPercent = (level: number): string => `${Math.round(100 * 1.2 ** level)}%`;
 
   return {

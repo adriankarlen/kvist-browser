@@ -4,11 +4,6 @@ import { app } from "electron";
 
 const APP_DIR = "kvist";
 
-/**
- * Resolves an XDG base directory path, falling back to the conventional
- * location under $HOME if the environment variable is unset or empty.
- * Appends the Kvist app directory to the resolved base.
- */
 function xdg(variable: string, fallback: string): string {
   const base = process.env[variable];
   return join(base && base !== "" ? base : join(homedir(), fallback), APP_DIR);

@@ -49,15 +49,15 @@ const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 /**
- * Session-scoped, so it is attached once and outlives every window; a window
- * only subscribes. Must be in place before the first tab can start a transfer.
- */
-/**
  * The echo area, app-scoped like the downloads: what main has to say outlives
  * any one window, and a window subscribes while it is open.
  */
 const messages = new Messages();
 
+/**
+ * Session-scoped, so it is attached once and outlives every window; a window
+ * only subscribes. Must be in place before the first tab can start a transfer.
+ */
 const downloads = new Downloads((text) => messages.warn(text));
 
 /**
@@ -101,12 +101,6 @@ let current: UserConfig;
 let applying: Promise<void> = Promise.resolve();
 
 /**
- * Fans a config change out to everything that cares. The order is
- * load-bearing: blocking attaches to the session before the first tab can
- * load, and the local pages are configured before one can be served. Startup
- * and reload are the same call.
- */
-/**
  * Everything wrong with the file, as one line. The echo area holds one message,
  * so the first problem is shown and the rest are counted; the log has them all.
  */
@@ -134,6 +128,12 @@ function reportStyleProblems(problems: UserStyleProblem[]): void {
   messages.warn(`${basename(first.id)}: ${first.reason}${more}`);
 }
 
+/**
+ * Fans a config change out to everything that cares. The order is
+ * load-bearing: blocking attaches to the session before the first tab can
+ * load, and the local pages are configured before one can be served. Startup
+ * and reload are the same call.
+ */
 function applyConfig(config: UserConfig): Promise<void> {
   applying = applying
     .then(async () => {

@@ -46,17 +46,17 @@ export class Downloads {
     this.#report = report;
   }
 
+  /** Where transfers are saved; the next one picks it up. */
+  applySettings(config: { settings: Pick<Settings, "downloadDir"> }): void {
+    this.#configuredDir = config.settings.downloadDir;
+  }
+
   /**
    * Must be attached before the first tab can start a transfer, and only once:
    * a second handler would fight this one over the save path. The list is
    * session-scoped and outlives any window, which is why this is not the
    * window's to attach — the observers below are.
    */
-  /** Where transfers are saved; the next one picks it up. */
-  applySettings(config: { settings: Pick<Settings, "downloadDir"> }): void {
-    this.#configuredDir = config.settings.downloadDir;
-  }
-
   attach(session: Session): void {
     session.on("will-download", (_event, item, webContents) => {
       this.#adopt(item);

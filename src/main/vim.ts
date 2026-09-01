@@ -104,7 +104,6 @@ export class Vim {
       if (this.#prompting) return false;
     }
 
-    // Try keybind dispatch.
     const dispatched = this.#dispatch(input.key);
     if (dispatched) return true;
 

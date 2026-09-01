@@ -233,6 +233,26 @@ right now, not a resumed backlog item. Revisit as a fresh initiative later.
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
 
+## Comments
+
+A comment is a liability: the code changes and the comment does not, so it
+rots into something false next to something true. Before writing one, look
+for a way to make the code state its own intent — a renamed variable, an
+extracted function with a name that carries the reasoning, a type that makes
+an invalid state unrepresentable. Reach for a comment only once that search
+comes up empty.
+
+When a comment is the right call, it earns its place by saying something the
+code cannot: why this exists, why the obvious alternative was rejected, what
+breaks if it is removed, what invariant a caller must not violate. It never
+narrates what the code already says — that's the copy that goes stale first.
+Write it to ISO 24495-1:2023 plain language: short sentences, common words,
+active voice, one idea per sentence.
+
+This is not a one-time filter. Re-examine every comment a change touches —
+if the code around it moved, the comment's reason to exist may have moved
+with it, or vanished.
+
 ## Tracking
 
 Work is tracked in Linear: team `KVI`, project "Kvist Browser", with the
