@@ -9,9 +9,10 @@
   /**
    * Stop propagation on the container so window-level click-outside
    * dismissal in `App.svelte` does not fire on clicks inside. Button
-   * onclick handlers still call `prompts.answer(allow)` and run before the
-   * stop. Keyboard events get the same treatment for the same reason — a
-   * `Tab` focused inside the prompt should not be a window dismissal.
+   * onclick handlers still call `prompts.answer(allow)` and run before
+   * the stop, so answering clicks dismiss. The click handler is purely
+   * defensive (no user-facing behaviour), so the a11y rule about
+   * keyboard handlers does not apply.
    */
   function stopBubble(event: Event): void {
     event.stopPropagation();
@@ -19,11 +20,11 @@
 </script>
 
 {#if prompt && labels}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="kv-panel kv-line kv-prompt"
     data-label={prompt.kind}
     onclick={stopBubble}
-    onkeydown={stopBubble}
     role="alertdialog"
     tabindex="-1"
   >

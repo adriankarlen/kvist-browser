@@ -421,7 +421,12 @@ function createWindow(
       // chrome line is one component and y/n/Escape one keybind set.
       prompts.ask({ kind: "session-restore", tabCount: saved.tabs.length }, (allow) => {
         if (!allow) {
-          // Same path as a fresh launch: one homepage tab.
+          // Same path as a fresh launch: one homepage tab. The mirror
+          // has to follow: the saved flip never reached the chrome in
+          // this branch (no restoreSession broadcast), so persisting it
+          // onto the new homepage session would survive until the user
+          // explicitly re-flipped the orientation.
+          orientationOverride = null;
           tabs.create();
           return;
         }

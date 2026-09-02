@@ -11,15 +11,20 @@
 
   /**
    * Click anywhere in the chrome outside the prompt line dismisses it as a
-   * deny. The prompt's own container stops propagation so clicks on its
-   * buttons (which answer before the stop) and on its text don't trigger
-   * this. The same semantics as `Escape`, which already denies.
+   * deny — the same semantics as `Escape`. Restricted to permission
+   * prompts because a session-restore deny is destructive: the callback
+   * creates a homepage tab and the next close overwrites the saved row
+   * with just that homepage. A stray click on a restore prompt would
+   * discard the user's saved tabs without warning. The prompt's own
+   * container stops propagation so clicks on its buttons (which answer
+   * before the stop) and on its text don't trigger this.
    *
    * Page clicks live in a separate webContents and don't bubble into the
    * chrome's DOM, so they don't dismiss — that's a deliberate scope cut.
    */
   function onWindowClick(): void {
-    if (prompts.current) prompts.answer(false);
+    const head = prompts.current;
+    if (head?.state.kind === "permission") prompts.answer(false);
   }
 </script>
 

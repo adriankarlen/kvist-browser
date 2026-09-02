@@ -278,7 +278,7 @@ export class Permissions {
 
     const promptsId = this.#prompts.ask(
       { kind: "permission", origin, permission, mediaTypes },
-      (allow) => this.#settle(promptsId, allow, true),
+      (allow) => this.#settle(promptsId, allow),
     );
     const entry: PendingRequest = { promptsId, origin, permission, mediaTypes, waiters: [] };
     entry.waiters.push(this.#waiterFor(promptsId, contents, callback));
@@ -306,18 +306,16 @@ export class Permissions {
     this.#prompts.answerHead(allow);
   }
 
-  #settle(promptsId: number, allow: boolean, remember: boolean): void {
+  #settle(promptsId: number, allow: boolean): void {
     const index = this.#pending.findIndex((entry) => entry.promptsId === promptsId);
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
 
-    if (remember) {
-      if (entry.permission === "media" && entry.mediaTypes) {
-        for (const type of entry.mediaTypes)
-          this.#decisions.set(keyOf(entry.origin, "media", type), allow);
-      } else {
-        this.#decisions.set(keyOf(entry.origin, entry.permission), allow);
-      }
+    if (entry.permission === "media" && entry.mediaTypes) {
+      for (const type of entry.mediaTypes)
+        this.#decisions.set(keyOf(entry.origin, "media", type), allow);
+    } else {
+      this.#decisions.set(keyOf(entry.origin, entry.permission), allow);
     }
 
     // Calling Chromium's callback into a destroyed contents is the one way
