@@ -64,11 +64,23 @@ const messages = new Messages();
 const downloads = new Downloads((text) => messages.warn(text));
 
 /**
+ * The single prompt queue: permission asks and the session-restore ask
+ * share one mechanism, one observer wiring, one keybind set, one IPC
+ * channel. App-scoped because the chrome renders one line at a time and
+ * a permission prompt outliving its tab is the only cross-window concern
+ * — already handled inside `Permissions` via `Prompts.cancel`. Created at
+ * module load so `Permissions` can queue through the same instance from
+ * its first request handler.
+ */
+const prompts = new Prompts<PromptState>();
+
+/**
  * Permission prompts, session-scoped like the downloads: the session allows
  * only one handler pair, a remembered answer belongs to no window, and a
- * window only subscribes to the queue.
+ * window only subscribes to the queue. Shares the app-wide `prompts` queue
+ * with the session-restore ask — one observer, one chrome line.
  */
-const permissions = new Permissions();
+const permissions = new Permissions(prompts);
 
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
@@ -181,7 +193,6 @@ function createWindow(
   history: History,
   sessions: Session,
   saved: SessionState | null,
-  prompts: Prompts<PromptState>,
 ): void {
   const win = new BrowserWindow({
     width: saved?.width ?? 1280,
@@ -337,25 +348,34 @@ function createWindow(
   // most recently closed window is what the next launch restores.
   win.on("close", () => {
     if (win.isDestroyed()) return;
-    // A window closed mid-prompt, with no answer, is the same as deny. A
-    // session-restore ask left dangling would either auto-restore on the
-    // next launch (if the chrome didn't render long enough for the user
-    // to answer) or resurrect tabs the user closed. Either way, the
-    // question has no one to answer it — cancel it without firing the
-    // callback. The queue is app-scoped, but session-restore is only ever
-    // one-at-a-time, so a wholesale sweep is safe.
+    // A window closed mid-prompt, with no answer, is not a decision.
+    // The chrome rendered the prompt, the user dismissed the window
+    // without clicking restore or discard, and the saved row must
+    // survive — the next launch should re-prompt. Cancelling removes
+    // the entry without firing its callback, so the queue stops showing
+    // a question that nobody answered.
     for (const pending of prompts.pending) {
       if (pending.state.kind === "session-restore") prompts.cancel(pending.id);
     }
     const snapshot = tabs.urlsForSession();
     if (snapshot === null) {
-      // No tabs at close time means the user closed everything
-      // deliberately (the last tab close triggers `#window.close()` via
-      // `#forget`). The saved row must go too, or the next launch
-      // resurrects tabs the user has done with — restoring an empty
-      // session is indistinguishable from a fresh launch only when the
-      // row is actually empty.
-      sessions.clear();
+      // No tabs at close time has two meanings now: the user closed
+      // every tab they had open, or the prompt was never answered
+      // (no tabs were ever created). Distinguish by asking the queue —
+      // a still-pending session-restore means the user closed mid-
+      // prompt, and the saved row must survive so the next launch can
+      // ask again.
+      const promptStillPending = prompts.pending.some(
+        (entry) => entry.state.kind === "session-restore",
+      );
+      if (!promptStillPending) {
+        // The prompt was answered and the user closed what they had —
+        // either their only tab (the discard branch's homepage) or
+        // every tab of a restored session. Wiping the row makes the
+        // next launch look like a fresh first launch, which is what
+        // closing everything means.
+        sessions.clear();
+      }
       return;
     }
     const bounds = win.getBounds();
@@ -512,14 +532,13 @@ void app.whenReady().then(async () => {
   // channel. App-scoped because the chrome renders one line at a time and
   // a permission prompt outliving its tab is the only cross-window concern
   // — already handled inside `Permissions` via `Prompts.cancel`.
-  const prompts = new Prompts<PromptState>();
   // `sessions.load()` is forgiving: missing or malformed row collapses to
   // null, which is indistinguishable from a fresh first launch — the right
   // answer when an old build has never written the table or when a corrupt
   // row is left behind by a crash.
   const sessions = new Session(db);
   const saved = sessions.load();
-  createWindow(zoom, history, sessions, saved, prompts);
+  createWindow(zoom, history, sessions, saved);
   const releaseConfig = await watchConfig(config, (next) => {
     reportProblems(next);
     void applyConfig(next.config);
@@ -546,7 +565,7 @@ void app.whenReady().then(async () => {
     // session, same as cold start. Re-reading from the store is cheap and
     // avoids the alternative of carrying the row across the app's lifetime.
     if (BrowserWindow.getAllWindows().length === 0)
-      createWindow(zoom, history, sessions, sessions.load(), prompts);
+      createWindow(zoom, history, sessions, sessions.load());
   });
 });
 

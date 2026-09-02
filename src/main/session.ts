@@ -153,6 +153,11 @@ export class Session {
  * both pass through `externalProtocolTarget` for mailto/tel — so a non-empty
  * string array is sufficient at this seam; deeper URL parsing is the loader's
  * job and outside this layer's scope.
+ *
+ * The cross-field narrow matches what `load()` already enforces: empty tab
+ * entries and `activeIndex >= tabs.length` would otherwise produce a row the
+ * load path later drops, leaving the user staring at a "no session" launch
+ * for a session they thought was saved.
  */
 const inputValidator = type({
   tabs: "string[] > 0",
@@ -163,6 +168,14 @@ const inputValidator = type({
   y: "number.integer | null",
   orientation: "'horizontal' | 'vertical' | null",
   savedAt: "number.integer >= 0",
+}).narrow((value, ctx) => {
+  if (value.tabs.some((entry) => entry === "")) {
+    return ctx.mustBe("non-empty tab URL");
+  }
+  if (value.activeIndex >= value.tabs.length) {
+    return ctx.mustBe("activeIndex within tabs.length");
+  }
+  return true;
 });
 
 /**

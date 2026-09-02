@@ -85,6 +85,25 @@ test("save drops input with zero window dimensions", () => {
   expect(session.load()).toBeNull();
 });
 
+test("save drops input with an empty string in the tab list", () => {
+  // An empty URL would silently turn into about:blank on restore, which
+  // the load side already rejects — the save side has to reject too,
+  // otherwise the user gets a "no session" launch for a row they
+  // thought they saved.
+  const withEmpty = { ...baseState, tabs: ["https://ok.example", ""] };
+  expect(session.save(withEmpty, 1)).toBe(false);
+  expect(session.load()).toBeNull();
+});
+
+test("save drops input with activeIndex beyond tabs.length", () => {
+  // Symmetric with load: a row whose activeIndex points past the tab list
+  // would not survive load's range check, so the save side has to reject
+  // it up front rather than plant a row that disappears on the next
+  // launch.
+  expect(session.save({ ...baseState, activeIndex: 5 }, 1)).toBe(false);
+  expect(session.load()).toBeNull();
+});
+
 test("save drops input with an unknown orientation string", () => {
   // The renderer's setter only ever sends 'horizontal' | 'vertical' | null,
   // but the validator is the layer that protects against drift.

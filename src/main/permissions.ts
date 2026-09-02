@@ -111,10 +111,20 @@ interface PendingRequest {
  * not strand a callback).
  */
 export class Permissions {
-  #prompts = new Prompts<PromptState>();
+  #prompts: Prompts<PromptState>;
   #decisions = new Map<string, boolean>();
   /** Active coalesced entries, keyed by the tuple Permissions merges on. */
   #pending: PendingRequest[] = [];
+
+  /**
+   * The queue is shared with the rest of the app — the session-restore ask
+   * uses the same `Prompts<PromptState>`, so permission prompts and the
+   * restore ask reach one observer and one chrome line. Permissions owns
+   * nothing about the queue's lifecycle; it only owns the policy on top.
+   */
+  constructor(prompts: Prompts<PromptState>) {
+    this.#prompts = prompts;
+  }
 
   /**
    * Both handlers, or the two answer inconsistently: the check handler fields

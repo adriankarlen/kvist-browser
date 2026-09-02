@@ -2,6 +2,7 @@ import { expect, test, vi } from "vite-plus/test";
 import type { WebContents } from "electron";
 import type { PromptState } from "../shared/ipc";
 import { Permissions } from "./permissions";
+import { Prompts } from "./prompts";
 
 type PromptHead = { id: number; state: PromptState };
 
@@ -34,10 +35,13 @@ function fakeContents() {
 }
 
 function createPermissions() {
-  const permissions = new Permissions();
+  // Permissions now shares the queue with the rest of the app — the test
+  // owns its own Prompts so each test starts with a fresh queue.
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
   const seen: (PromptHead | null)[] = [];
   permissions.observe((head) => seen.push(head));
-  return { permissions, seen };
+  return { permissions, seen, prompts };
 }
 
 const at = (url: string) => ({ requestingUrl: url });
@@ -263,7 +267,8 @@ test("the check handler grants only what policy or a remembered answer allows", 
 });
 
 test("an observer that leaves is not told", () => {
-  const permissions = new Permissions();
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
   const seen: (PromptHead | null)[] = [];
   const release = permissions.observe((head) => seen.push(head));
   const { contents } = fakeContents();
@@ -409,4 +414,26 @@ test("denying a combined ask does not revoke an already-granted kind", () => {
     mediaTypes: ["video"],
   });
   expect(video).toHaveBeenCalledWith(true);
+});
+
+test("permission asks reach observers on the shared Prompts, not just Permissions' wrapper", () => {
+  // The bug this guards against: Permissions used to construct its own
+  // Prompts internally, so observers wired to the app-wide queue never
+  // saw permission asks — the chrome's prompt line was blind to
+  // permissions entirely. Now the queue is shared, and an external
+  // observer sees the same prompt the Permissions-wrapped observer does.
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
+  const externalSeen: (PromptHead | null)[] = [];
+  prompts.observe((head) => externalSeen.push(head));
+  const { contents } = fakeContents();
+
+  permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
+
+  // Subscribe with null, then the permission ask — the external observer
+  // saw the same prompt the chrome would render.
+  expect(externalSeen).toHaveLength(2);
+  expect(externalSeen.at(-1)).toMatchObject({
+    state: { kind: "permission", origin: "https://a.example.com" },
+  });
 });
