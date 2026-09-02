@@ -507,72 +507,102 @@ function createWindow(
   });
 }
 
-void app.whenReady().then(async () => {
-  downloads.attach(session.defaultSession);
-  permissions.attach(session.defaultSession);
-  // A bad migration, corrupted DB, or missing migrations folder is a
-  // real failure — log and quit rather than leave the user staring at
-  // a window that never appears, which is what an unhandled rejection
-  // here would do.
-  let db: Database;
-  try {
-    db = Database.open(dbPath);
-  } catch (error) {
-    console.error("kvist: could not open the storage layer:", error);
-    app.quit();
-    return;
-  }
-  const config = createConfigStore();
-  const history = new History(db);
-  const loaded = await loadConfig(config);
-  reportProblems(loaded);
-  await applyConfig(loaded.config);
-  registerKvistProtocol();
-
-  reportStyleProblems(userStyles.setSources(await readStyleFiles()));
-
-  const zoom = await ZoomStore.load();
-  // The single prompt queue: permission asks and the session-restore ask
-  // share one mechanism, one observer wiring, one keybind set, one IPC
-  // channel. App-scoped because the chrome renders one line at a time and
-  // a permission prompt outliving its tab is the only cross-window concern
-  // — already handled inside `Permissions` via `Prompts.cancel`.
-  // `sessions.load()` is forgiving: missing or malformed row collapses to
-  // null, which is indistinguishable from a fresh first launch — the right
-  // answer when an old build has never written the table or when a corrupt
-  // row is left behind by a crash.
-  const sessions = new Session(db);
-  const saved = sessions.load();
-  createWindow(zoom, history, sessions, saved);
-  const releaseConfig = await watchConfig(config, (next) => {
-    reportProblems(next);
-    void applyConfig(next.config);
-  });
-  const releaseStyleFiles = await watchStyleFiles((sources) => {
-    reportStyleProblems(userStyles.setSources(sources));
-    // A rescan otherwise only reaches a page on its next navigation — an edit
-    // or a removed file has to take effect on what is already open, not just
-    // on what loads afterward.
-    for (const tabs of tabManagers) {
-      tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+/**
+ * A second launch of the app is a relaunch, not a new instance: the OS
+ * reuses the running process when the user clicks the dock icon, but only
+ * if the process holds the single-instance lock. Without this, every
+ * "Cmd+Q doesn't actually quit" complaint cascades into a `DrizzleQueryError`
+ * on the next launch, because two processes open the same SQLite file and
+ * the second one hits the busy timeout.
+ *
+ * On macOS, Cmd+Q is the standard quit — but `app.quit` can hang in our
+ * flush-on-quit dance, leaving the process alive with no windows. The lock
+ * here turns the resulting "dock icon click" into a no-op focus of the
+ * still-running instance rather than a fresh second process contending
+ * for the database.
+ */
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // The OS already tried to launch a second copy; it now exits and we
+    // refocus whatever window the user is likely after.
+    const windows = BrowserWindow.getAllWindows();
+    const target = windows[0];
+    if (target !== undefined) {
+      if (target.isMinimized()) target.restore();
+      target.focus();
     }
   });
-  // The config watcher and the zoom store are both acquired once and released
-  // on quit. The store additionally holds the quit until its queued write has
-  // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
-  app.on("will-quit", releaseConfig);
-  app.on("will-quit", releaseStyleFiles);
-  app.on("will-quit", () => db.close());
-  flushOnQuit(app, zoom);
 
-  app.on("activate", () => {
-    // macOS reopen: a re-launched app with no windows restores the last
-    // session, same as cold start. Re-reading from the store is cheap and
-    // avoids the alternative of carrying the row across the app's lifetime.
-    if (BrowserWindow.getAllWindows().length === 0)
-      createWindow(zoom, history, sessions, sessions.load());
+  void app.whenReady().then(async () => {
+    downloads.attach(session.defaultSession);
+    permissions.attach(session.defaultSession);
+    // A bad migration, corrupted DB, or missing migrations folder is a
+    // real failure — log and quit rather than leave the user staring at
+    // a window that never appears, which is what an unhandled rejection
+    // here would do.
+    let db: Database;
+    try {
+      db = Database.open(dbPath);
+    } catch (error) {
+      console.error("kvist: could not open the storage layer:", error);
+      app.quit();
+      return;
+    }
+    const config = createConfigStore();
+    const history = new History(db);
+    const loaded = await loadConfig(config);
+    reportProblems(loaded);
+    await applyConfig(loaded.config);
+    registerKvistProtocol();
+
+    reportStyleProblems(userStyles.setSources(await readStyleFiles()));
+
+    const zoom = await ZoomStore.load();
+    // The single prompt queue: permission asks and the session-restore ask
+    // share one mechanism, one observer wiring, one keybind set, one IPC
+    // channel. App-scoped because the chrome renders one line at a time and
+    // a permission prompt outliving its tab is the only cross-window concern
+    // — already handled inside `Permissions` via `Prompts.cancel`.
+    // `sessions.load()` is forgiving: missing or malformed row collapses to
+    // null, which is indistinguishable from a fresh first launch — the right
+    // answer when an old build has never written the table or when a corrupt
+    // row is left behind by a crash.
+    const sessions = new Session(db);
+    const saved = sessions.load();
+    createWindow(zoom, history, sessions, saved);
+    const releaseConfig = await watchConfig(config, (next) => {
+      reportProblems(next);
+      void applyConfig(next.config);
+    });
+    const releaseStyleFiles = await watchStyleFiles((sources) => {
+      reportStyleProblems(userStyles.setSources(sources));
+      // A rescan otherwise only reaches a page on its next navigation — an edit
+      // or a removed file has to take effect on what is already open, not just
+      // on what loads afterward.
+      for (const tabs of tabManagers) {
+        tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+      }
+    });
+    // The config watcher and the zoom store are both acquired once and released
+    // on quit. The store additionally holds the quit until its queued write has
+    // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
+    app.on("will-quit", releaseConfig);
+    app.on("will-quit", releaseStyleFiles);
+    app.on("will-quit", () => db.close());
+    flushOnQuit(app, zoom);
+
+    app.on("activate", () => {
+      // macOS reopen: a re-launched app with no windows restores the last
+      // session, same as cold start. Re-reading from the store is cheap and
+      // avoids the alternative of carrying the row across the app's lifetime.
+      if (BrowserWindow.getAllWindows().length === 0)
+        createWindow(zoom, history, sessions, sessions.load());
+    });
   });
-});
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
