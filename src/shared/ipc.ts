@@ -1,4 +1,4 @@
-import type { UserConfig } from "./config";
+import type { TabOrientation, UserConfig } from "./config";
 
 export type TabId = number;
 
@@ -108,23 +108,39 @@ export interface Point {
 export type PromptablePermission = "media" | "geolocation" | "notifications" | "clipboard-read";
 
 /**
- * The question at the head of the permission queue, which is all the chrome
- * ever shows: one line, answered, replaced by whatever is next.
+ * What `toChrome.restoreSession` carries on startup when a saved session
+ * exists. Only the orientation reaches the chrome: main owns the tab
+ * restore (creating tabs in order, activating the saved one) and reads the
+ * URL list and bounds from its local SessionState — the IPC channel exists
+ * only so the chrome can seed its orientation override from the saved
+ * flip before the first paint. `null` means "follow config".
  */
-export interface PermissionPromptState {
-  /** Ours — answers carry it so a stale click cannot settle a newer request. */
-  id: number;
-  /** The asking site's origin, which is also what the answer is remembered under. */
-  origin: string;
-  permission: PromptablePermission;
-  /** Which of camera and microphone a `media` request covers, when Chromium said. */
-  mediaTypes?: ("video" | "audio")[];
+export interface RestoreSessionState {
+  orientation: TabOrientation | null;
 }
 
-/** What a click on allow or deny sends back; the id guards against a stale click. */
-export interface PermissionAnswer {
+/**
+ * A question the chrome renders as a one-line prompt. Two kinds ship today;
+ * the union leaves room for future ones without a channel change. The id
+ * travels separately over the wire (see `toChrome.prompt`) so the queue
+ * owns it end-to-end and the asker never invents or strips one.
+ */
+export type PromptState =
+  | {
+      kind: "permission";
+      origin: string;
+      permission: PromptablePermission;
+      mediaTypes?: ("video" | "audio")[];
+    }
+  | {
+      kind: "session-restore";
+      tabCount: number;
+    };
+
+/** The wire shape of a queued prompt: the state plus the id the queue stamped. */
+export interface PromptWire {
   id: number;
-  allow: boolean;
+  state: PromptState;
 }
 
 /**
@@ -211,8 +227,17 @@ export const toMain = table({
   stopFind: channel<void>(),
   /** Stops one transfer; anything that has already stopped is left alone. */
   cancelDownload: channel<number>(),
-  /** Answers the permission prompt carrying the id; anything else is stale and ignored. */
-  answerPermission: channel<PermissionAnswer>(),
+  /** Answers the prompt carrying the id; anything else is stale and ignored. */
+  answerPrompt: channel<{ id: number; allow: boolean }>(),
+  /**
+   * The chrome's current orientation override — null when the chrome is
+   * following the config default. Mirrored on every flip and on every
+   * config-driven clear so main can persist it as part of the session and
+   * replay it on relaunch. The `null` case is sent explicitly: a fresh
+   * window that has never flipped must not be confused with a window whose
+   * override has been cleared.
+   */
+  orientationOverride: channel<TabOrientation | null>(),
 });
 
 /** Main → chrome. Full snapshots, never diffs. */
@@ -228,8 +253,16 @@ export const toChrome = table({
   downloadsToggle: channel<void>(),
   /** The echo area: what to show, or null to clear it. */
   message: channel<Message | null>(),
-  /** The permission question waiting for an answer, or null when none is. */
-  permission: channel<PermissionPromptState | null>(),
+  /** The prompt waiting for an answer, or null when none is. */
+  prompt: channel<PromptWire | null>(),
+  /**
+   * A saved session exists. Sent once, after the chrome finishes loading,
+   * when the `session` table has a row. The chrome seeds its orientation
+   * override from the payload; main owns the tab restore itself, so the
+   * URL list and bounds never need to leave main. Not sent when the row
+   * is missing or malformed — those cases look like a fresh first launch.
+   */
+  restoreSession: channel<RestoreSessionState>(),
 });
 
 /**

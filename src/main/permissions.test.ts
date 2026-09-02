@@ -1,7 +1,10 @@
 import { expect, test, vi } from "vite-plus/test";
 import type { WebContents } from "electron";
-import type { PermissionPromptState } from "../shared/ipc";
+import type { PromptState } from "../shared/ipc";
 import { Permissions } from "./permissions";
+import { Prompts } from "./prompts";
+
+type PromptHead = { id: number; state: PromptState };
 
 /** A stand-in tab: a real enough store of `destroyed` listeners to test both acquiring one and releasing it. */
 function fakeContents() {
@@ -32,13 +35,25 @@ function fakeContents() {
 }
 
 function createPermissions() {
-  const permissions = new Permissions();
-  const seen: PermissionPromptState[][] = [];
-  permissions.observe((pending) => seen.push(pending));
-  return { permissions, seen };
+  // Permissions now shares the queue with the rest of the app — the test
+  // owns its own Prompts so each test starts with a fresh queue.
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
+  const seen: (PromptHead | null)[] = [];
+  permissions.observe((head) => seen.push(head));
+  return { permissions, seen, prompts };
 }
 
 const at = (url: string) => ({ requestingUrl: url });
+
+/** Pulls the permission-shaped {id, state} out of the prompts queue for assertions. */
+function permissionsPending(permissions: Permissions): PromptHead[] {
+  const pending = permissions.pending;
+  // SAFETY: Permissions#pending is typed as the broad head pair; the
+  // test only ever pushes permission-kind states through this instance,
+  // so the assertion narrows without runtime risk.
+  return pending as PromptHead[];
+}
 
 test("an unlisted permission is denied without asking anyone", () => {
   const { permissions } = createPermissions();
@@ -49,7 +64,7 @@ test("an unlisted permission is denied without asking anyone", () => {
   permissions.request(contents, "openExternal", callback, at("https://example.com"));
 
   expect(callback.mock.calls).toEqual([[false], [false]]);
-  expect(permissions.pending).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
 });
 
 test("fullscreen, pointer lock and sanitized writes are granted silently", () => {
@@ -62,7 +77,7 @@ test("fullscreen, pointer lock and sanitized writes are granted silently", () =>
   permissions.request(contents, "clipboard-sanitized-write", callback, at("https://example.com"));
 
   expect(callback.mock.calls).toEqual([[true], [true], [true]]);
-  expect(permissions.pending).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
 });
 
 test("an askable permission queues a prompt and waits", () => {
@@ -73,10 +88,19 @@ test("an askable permission queues a prompt and waits", () => {
   permissions.request(contents, "geolocation", callback, at("https://maps.example.com/there"));
 
   expect(callback).not.toHaveBeenCalled();
-  expect(permissions.pending).toEqual([
-    { id: 1, origin: "https://maps.example.com", permission: "geolocation", mediaTypes: undefined },
+  expect(permissionsPending(permissions)).toEqual([
+    {
+      id: 1,
+      state: {
+        kind: "permission",
+        origin: "https://maps.example.com",
+        permission: "geolocation",
+        mediaTypes: undefined,
+      },
+    },
   ]);
-  expect(seen).toHaveLength(1);
+  // Subscribe fires with null immediately, then again on the ask.
+  expect(seen).toHaveLength(2);
 });
 
 test("a media request says which of camera and microphone it wants", () => {
@@ -88,9 +112,8 @@ test("a media request says which of camera and microphone it wants", () => {
     mediaTypes: ["video", "audio"],
   });
 
-  expect(permissions.pending[0]).toMatchObject({
-    permission: "media",
-    mediaTypes: ["video", "audio"],
+  expect(permissionsPending(permissions)[0]).toMatchObject({
+    state: { kind: "permission", permission: "media", mediaTypes: ["video", "audio"] },
   });
 });
 
@@ -104,7 +127,7 @@ test("an allow is remembered: the next request resolves without a prompt", () =>
   const callback = vi.fn();
   permissions.request(contents, "notifications", callback, at("https://example.com/other/page"));
   expect(callback).toHaveBeenCalledWith(true);
-  expect(permissions.pending).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
 });
 
 test("a denial is remembered too, or the site would re-ask on every click", () => {
@@ -117,7 +140,7 @@ test("a denial is remembered too, or the site would re-ask on every click", () =
   const callback = vi.fn();
   permissions.request(contents, "notifications", callback, at("https://example.com"));
   expect(callback).toHaveBeenCalledWith(false);
-  expect(permissions.pending).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
 });
 
 test("decisions are per origin and per permission", () => {
@@ -134,7 +157,7 @@ test("decisions are per origin and per permission", () => {
   permissions.request(contents, "geolocation", callback, at("https://example.com"));
 
   expect(callback).not.toHaveBeenCalled();
-  expect(permissions.pending).toHaveLength(2);
+  expect(permissionsPending(permissions)).toHaveLength(2);
 });
 
 test("a repeated request joins the prompt already up rather than stacking", () => {
@@ -146,8 +169,10 @@ test("a repeated request joins the prompt already up rather than stacking", () =
   permissions.request(contents, "media", first, at("https://meet.example.com"));
   permissions.request(contents, "media", second, at("https://meet.example.com"));
 
-  expect(permissions.pending).toHaveLength(1);
-  expect(seen).toHaveLength(1);
+  expect(permissionsPending(permissions)).toHaveLength(1);
+  // Subscribe with null, then the first ask. The second ask joined an
+  // existing prompt without changing the head — no observer fire.
+  expect(seen).toHaveLength(2);
 
   permissions.answer(1, true);
   expect(first).toHaveBeenCalledWith(true);
@@ -162,11 +187,16 @@ test("the queue drains one answer at a time, head first", () => {
   permissions.request(contents, "notifications", () => {}, at("https://b.example.com"));
 
   permissions.answerHead(true);
-  expect(permissions.pending.map((entry) => entry.origin)).toEqual(["https://b.example.com"]);
+  expect(
+    permissionsPending(permissions).map((entry) =>
+      entry.state.kind === "permission" ? entry.state.origin : null,
+    ),
+  ).toEqual(["https://b.example.com"]);
 
   permissions.answerHead(false);
-  expect(permissions.pending).toEqual([]);
-  // One notification per queue change: two arrivals, two settles.
+  expect(permissionsPending(permissions)).toEqual([]);
+  // One notification per queue change: subscribe (null), first ask
+  // (geolocation), answer (notifications promotes to head), answer (null).
   expect(seen).toHaveLength(4);
 });
 
@@ -177,7 +207,7 @@ test("answering a stale id settles nothing", () => {
   permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
   permissions.answer(999, true);
 
-  expect(permissions.pending).toHaveLength(1);
+  expect(permissionsPending(permissions)).toHaveLength(1);
 
   // And the real prompt did not inherit the stale answer.
   const callback = vi.fn();
@@ -195,15 +225,15 @@ test("a tab that dies mid-prompt is a denial nobody decided", () => {
   destroy();
 
   // The prompt is gone, the callback is resolved...
-  expect(permissions.pending).toEqual([]);
-  expect(seen.at(-1)).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
+  expect(seen.at(-1)).toBeNull();
 
   // ...but nothing was remembered, so the next visit asks again.
   const { contents: revived } = fakeContents();
   const again = vi.fn();
   permissions.request(revived, "geolocation", again, at("https://a.example.com"));
   expect(again).not.toHaveBeenCalled();
-  expect(permissions.pending).toHaveLength(1);
+  expect(permissionsPending(permissions)).toHaveLength(1);
 });
 
 test("only http(s) pages may be asked about", () => {
@@ -216,7 +246,7 @@ test("only http(s) pages may be asked about", () => {
   }
 
   expect(callback.mock.calls).toEqual([[false], [false], [false], [false]]);
-  expect(permissions.pending).toEqual([]);
+  expect(permissionsPending(permissions)).toEqual([]);
 });
 
 test("the check handler grants only what policy or a remembered answer allows", () => {
@@ -237,16 +267,19 @@ test("the check handler grants only what policy or a remembered answer allows", 
 });
 
 test("an observer that leaves is not told", () => {
-  const permissions = new Permissions();
-  const seen: PermissionPromptState[][] = [];
-  const release = permissions.observe((pending) => seen.push(pending));
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
+  const seen: (PromptHead | null)[] = [];
+  const release = permissions.observe((head) => seen.push(head));
   const { contents } = fakeContents();
 
   permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
   release();
   permissions.answerHead(true);
 
-  expect(seen).toHaveLength(1);
+  // Subscribe fires immediately with null, then the ask fires with the head.
+  // After release the answer does not fire.
+  expect(seen).toHaveLength(2);
 });
 
 test("answering releases the destroyed listener it no longer needs", () => {
@@ -292,7 +325,9 @@ test("a camera grant does not silently cover the microphone too", () => {
   });
 
   expect(callback).not.toHaveBeenCalled();
-  expect(permissions.pending).toMatchObject([{ mediaTypes: ["audio"] }]);
+  expect(permissionsPending(permissions)[0]).toMatchObject({
+    state: { kind: "permission", mediaTypes: ["audio"] },
+  });
 });
 
 test("the check handler remembers the camera and the microphone separately", () => {
@@ -320,11 +355,11 @@ test("one tab dying does not strand another tab's coalesced question", () => {
 
   permissions.request(first.contents, "geolocation", firstCallback, at("https://a.example.com"));
   permissions.request(second.contents, "geolocation", secondCallback, at("https://a.example.com"));
-  expect(permissions.pending).toHaveLength(1);
+  expect(permissionsPending(permissions)).toHaveLength(1);
 
   // The tab that asked first closes; the second tab is still waiting.
   first.destroy();
-  expect(permissions.pending).toHaveLength(1);
+  expect(permissionsPending(permissions)).toHaveLength(1);
 
   permissions.answerHead(true);
   expect(secondCallback).toHaveBeenCalledWith(true);
@@ -344,7 +379,7 @@ test("a combined ask and a camera-only ask do not merge into one question", () =
     mediaTypes: ["video"],
   });
 
-  expect(permissions.pending).toHaveLength(2);
+  expect(permissionsPending(permissions)).toHaveLength(2);
 });
 
 test("denying a combined ask does not revoke an already-granted kind", () => {
@@ -365,7 +400,9 @@ test("denying a combined ask does not revoke an already-granted kind", () => {
     requestingUrl: "https://meet.example.com",
     mediaTypes: ["video", "audio"],
   });
-  expect(permissions.pending).toMatchObject([{ mediaTypes: ["audio"] }]);
+  expect(permissionsPending(permissions)[0]).toMatchObject({
+    state: { kind: "permission", mediaTypes: ["audio"] },
+  });
 
   // Denying it settles the microphone only; the camera grant survives.
   permissions.answerHead(false);
@@ -377,4 +414,26 @@ test("denying a combined ask does not revoke an already-granted kind", () => {
     mediaTypes: ["video"],
   });
   expect(video).toHaveBeenCalledWith(true);
+});
+
+test("permission asks reach observers on the shared Prompts, not just Permissions' wrapper", () => {
+  // The bug this guards against: Permissions used to construct its own
+  // Prompts internally, so observers wired to the app-wide queue never
+  // saw permission asks — the chrome's prompt line was blind to
+  // permissions entirely. Now the queue is shared, and an external
+  // observer sees the same prompt the Permissions-wrapped observer does.
+  const prompts = new Prompts<PromptState>();
+  const permissions = new Permissions(prompts);
+  const externalSeen: (PromptHead | null)[] = [];
+  prompts.observe((head) => externalSeen.push(head));
+  const { contents } = fakeContents();
+
+  permissions.request(contents, "geolocation", () => {}, at("https://a.example.com"));
+
+  // Subscribe with null, then the permission ask — the external observer
+  // saw the same prompt the chrome would render.
+  expect(externalSeen).toHaveLength(2);
+  expect(externalSeen.at(-1)).toMatchObject({
+    state: { kind: "permission", origin: "https://a.example.com" },
+  });
 });

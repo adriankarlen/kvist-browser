@@ -7,3 +7,4 @@
  *      `Database.open` will apply.
  */
 export * from "./schema/history";
+export * from "./schema/session";

@@ -172,14 +172,16 @@ export class TabManager {
     this.activate(this.#order[next]!);
   }
 
-  create(url: string = this.#homepage, options: CreateOptions = {}): void {
+  create(url: string = this.#homepage, options: CreateOptions = {}): TabId | null {
     // A scheme the desktop owns never becomes a tab: window.open and
     // target="_blank" arrive here through openRequest, so intercepting here —
     // rather than in the window-open handler — covers :tabnew and the context
     // menu's open-in-new-tab too, and no uncommitted tab is left behind.
+    // Returning null lets session restore map its saved active index to a
+    // real id without a special case for external-protocol URLs.
     if (externalProtocolTarget(url) !== null) {
       this.#onExternal(url);
-      return;
+      return null;
     }
     const tab = this.#adopt(url, options.after);
     this.#window.contentView.addChildView(this.#viewOf(tab));
@@ -187,6 +189,24 @@ export class TabManager {
     tab.navigate(url);
     if (options.background) this.#publish();
     else this.activate(tab.id);
+    return tab.id;
+  }
+
+  /**
+   * The ordered URLs and the active tab's position, in one walk over
+   * `#tabs`/`#order`. Used by the session-save path so the close handler
+   * does not have to reach through the tabs to ask each one for its URL.
+   * Returns null when the user has closed every tab (the last close
+   * triggers `#window.close()` via `#forget`) — the close handler treats
+   * that as "clear the saved row" rather than "leave the previous
+   * session in place", because resurrecting tabs the user has done with
+   * is the wrong answer.
+   */
+  urlsForSession(): { urls: string[]; activeIndex: number } | null {
+    if (this.#order.length === 0) return null;
+    const urls = this.#order.map((id) => this.#tabs.get(id)!.snapshot().url);
+    const activeIndex = this.#activeId === null ? 0 : this.#order.indexOf(this.#activeId);
+    return { urls, activeIndex };
   }
 
   close(id: TabId): void {

@@ -53,6 +53,13 @@ constrains.
 
 ## Resource lifetimes
 
+Nothing may cancel a quit. `will-quit` is cancellable, and Electron drops an
+`app.quit()` that lands on the same tick as the `will-quit` that cancelled it
+— so the "preventDefault, finish the work, re-arm the quit" shape leaves the
+app alive in the dock with its teardown already run. Quit-time work is
+synchronous (`ZoomStore.release`), and anything that must not be torn down
+early hangs off `quit` rather than `will-quit` (the `Database`).
+
 Anything acquired with a lifetime past the call that acquired it — a
 listener, a timer, a filesystem watcher, a reservation, an IPC subscription
 — returns or is paired with a `release`, not a fire-and-forget. Pair it at
@@ -86,7 +93,9 @@ is ArkType 2.x — the pins are intentional, so the eventual bump to
 stable is a version change rather than a rewrite.
 
 - The single `Database` instance is opened in `app.whenReady` and released
-  on `will-quit`. Consumers take the same instance and call `db.drizzle`
+  on `quit`, not `will-quit`: `will-quit` is cancellable, and an app that
+  keeps running with a closed connection throws out of every later query.
+  Consumers take the same instance and call `db.drizzle`
   to query. One process, one connection; WAL mode is on, but readers and
   writers are not a concurrency story Kvist needs.
 - Schemas live in `src/main/db/schema.ts` and migrations in

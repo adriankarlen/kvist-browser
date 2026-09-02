@@ -70,8 +70,20 @@ export class Database {
     // all, and the migrator throws ENOENT instead of treating that as
     // zero migrations. Skip it rather than throw; skip rather than
     // create it, because packaged files live in a read-only asar.
+    //
+    // The try/catch is a second-line defense: `existsSync` lies for
+    // paths inside an asar (returns true for files that exist only
+    // virtually), but `migrate` reaches for `readdirSync`, which does
+    // not. The package config unpacks migrations outside the asar
+    // (see `package.json#build.asarUnpack`), so this only fires if
+    // something else is wrong — better to log and skip than to crash
+    // a window-less startup.
     if (existsSync(migrationsFolder)) {
-      migrate(db, { migrationsFolder });
+      try {
+        migrate(db, { migrationsFolder });
+      } catch (error) {
+        console.error("kvist: could not run migrations:", error);
+      }
     }
 
     return new Database(client, db);

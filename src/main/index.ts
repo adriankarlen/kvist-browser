@@ -1,6 +1,6 @@
 import { basename, join } from "node:path";
 import { app, BrowserWindow, session, shell } from "electron";
-import type { UserConfig } from "../shared/config";
+import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
   applySettings as applyLocalPageSettings,
@@ -11,11 +11,14 @@ import { createActions } from "./actions";
 import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { History } from "./history";
+import { Prompts } from "./prompts";
+import { Session, type SessionState } from "./session";
 import {
   fromPage,
-  type PermissionAnswer,
   type Point,
+  type PromptState,
   senders,
+  type TabId,
   toChrome,
   toMain,
 } from "../shared/ipc";
@@ -61,11 +64,23 @@ const messages = new Messages();
 const downloads = new Downloads((text) => messages.warn(text));
 
 /**
+ * The single prompt queue: permission asks and the session-restore ask
+ * share one mechanism, one observer wiring, one keybind set, one IPC
+ * channel. App-scoped because the chrome renders one line at a time and
+ * a permission prompt outliving its tab is the only cross-window concern
+ * — already handled inside `Permissions` via `Prompts.cancel`. Created at
+ * module load so `Permissions` can queue through the same instance from
+ * its first request handler.
+ */
+const prompts = new Prompts<PromptState>();
+
+/**
  * Permission prompts, session-scoped like the downloads: the session allows
  * only one handler pair, a remembered answer belongs to no window, and a
- * window only subscribes to the queue.
+ * window only subscribes to the queue. Shares the app-wide `prompts` queue
+ * with the session-restore ask — one observer, one chrome line.
  */
-const permissions = new Permissions();
+const permissions = new Permissions(prompts);
 
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
@@ -166,22 +181,37 @@ function isPoint(value: unknown): value is Point {
 }
 
 /** Same lesson as isPoint: a payload that is not an answer is ignored, not destructured. */
-function isPermissionAnswer(value: unknown): value is PermissionAnswer {
+function isPromptAnswer(value: unknown): value is { id: number; allow: boolean } {
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: just checked value is a non-null object; id and allow are validated below.
-  const { id, allow } = value as PermissionAnswer;
+  const { id, allow } = value as { id: number; allow: boolean };
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
-function createWindow(zoom: ZoomStore, history: History): void {
+function createWindow(
+  zoom: ZoomStore,
+  history: History,
+  sessions: Session,
+  saved: SessionState | null,
+): void {
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: saved?.width ?? 1280,
+    height: saved?.height ?? 800,
+    x: saved?.x ?? undefined,
+    y: saved?.y ?? undefined,
     frame: false,
     backgroundColor: "#1d1d1d",
     icon: iconPath,
     webPreferences: { preload },
   });
+
+  /**
+   * The chrome's runtime orientation override, kept here so it can be saved
+   * with the rest of the session state on `win.on("close")`. The chrome
+   * pushes it via `toMain.orientationOverride` whenever the override
+   * changes — `null` means "no override, follow the config".
+   */
+  let orientationOverride: TabOrientation | null = saved?.orientation ?? null;
 
   const chrome = senders(toChrome, (channel, payload) => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
@@ -210,7 +240,7 @@ function createWindow(zoom: ZoomStore, history: History): void {
   const actions = createActions(
     tabs,
     downloads,
-    permissions,
+    prompts,
     zoom,
     win,
     messages,
@@ -236,10 +266,11 @@ function createWindow(zoom: ZoomStore, history: History): void {
 
   // The prompt the window shows and the mode the keyboard is in both follow
   // the one queue: a pending question captures normal mode, and answering it
-  // hands normal back.
-  const releasePermissions = permissions.observe((pending) => {
-    chrome.permission(pending[0] ?? null);
-    vim.setPromptPending(pending.length > 0);
+  // hands normal back. Permissions' queue is a slice of `prompts` — the
+  // session-restore ask goes through the same plumbing on relaunch.
+  const releasePermissions = prompts.observe((head) => {
+    chrome.prompt(head);
+    vim.setPromptPending(head !== null);
   });
 
   // Any key at all ends whatever the echo area is showing, wherever it came
@@ -311,6 +342,57 @@ function createWindow(zoom: ZoomStore, history: History): void {
     }
   };
 
+  // Saves before `closed` because `getBounds` on a destroyed window is
+  // undefined. `close` fires on every close path (user click, app quit,
+  // macOS reopen-by-relaunch) — last-write-wins on the singleton row, so the
+  // most recently closed window is what the next launch restores.
+  win.on("close", () => {
+    if (win.isDestroyed()) return;
+    // A window closed mid-prompt, with no answer, is not a decision.
+    // The chrome rendered the prompt, the user dismissed the window
+    // without clicking restore or discard, and the saved row must
+    // survive — the next launch should re-prompt. Cancelling removes
+    // the entry without firing its callback, so the queue stops showing
+    // a question that nobody answered.
+    for (const pending of prompts.pending) {
+      if (pending.state.kind === "session-restore") prompts.cancel(pending.id);
+    }
+    const snapshot = tabs.urlsForSession();
+    if (snapshot === null) {
+      // No tabs at close time has two meanings now: the user closed
+      // every tab they had open, or the prompt was never answered
+      // (no tabs were ever created). Distinguish by asking the queue —
+      // a still-pending session-restore means the user closed mid-
+      // prompt, and the saved row must survive so the next launch can
+      // ask again.
+      const promptStillPending = prompts.pending.some(
+        (entry) => entry.state.kind === "session-restore",
+      );
+      if (!promptStillPending) {
+        // The prompt was answered and the user closed what they had —
+        // either their only tab (the discard branch's homepage) or
+        // every tab of a restored session. Wiping the row makes the
+        // next launch look like a fresh first launch, which is what
+        // closing everything means.
+        sessions.clear();
+      }
+      return;
+    }
+    const bounds = win.getBounds();
+    sessions.save(
+      {
+        tabs: snapshot.urls,
+        activeIndex: snapshot.activeIndex,
+        width: bounds.width,
+        height: bounds.height,
+        x: bounds.x,
+        y: bounds.y,
+        orientation: orientationOverride,
+      },
+      Date.now(),
+    );
+  });
+
   win.on("closed", () => {
     windows.delete(applyToWindow);
     tabManagers.delete(tabs);
@@ -326,11 +408,55 @@ function createWindow(zoom: ZoomStore, history: History): void {
     // Same for anything already said: a config the user has broken is found
     // while the window is still loading, and the echo area was not there yet.
     chrome.message(messages.current);
-    // Nor could the prompt line have been: a question asked while the window
-    // was loading is still waiting for its answer.
-    chrome.permission(permissions.pending[0] ?? null);
-    vim.setPromptPending(permissions.pending.length > 0);
-    tabs.create();
+    // The observer already wired `chrome.prompt` to the queue head on
+    // subscribe, and a question asked during page load (none today, but
+    // possible) would already have reached the chrome by the time we get
+    // here. Nothing else to push.
+    if (saved !== null) {
+      // Ask before restoring: a relaunch with a saved session used to
+      // resurrect tabs the user had no chance to discard, and the prompt
+      // would not be dismissed except by answering it. Asking makes
+      // "discard" reachable and gives the user a clear exit from the
+      // last session. Permission prompts go through the same queue, so the
+      // chrome line is one component and y/n/Escape one keybind set.
+      prompts.ask({ kind: "session-restore", tabCount: saved.tabs.length }, (allow) => {
+        if (!allow) {
+          // Same path as a fresh launch: one homepage tab. The mirror
+          // has to follow: the saved flip never reached the chrome in
+          // this branch (no restoreSession broadcast), so persisting it
+          // onto the new homepage session would survive until the user
+          // explicitly re-flipped the orientation.
+          orientationOverride = null;
+          tabs.create();
+          return;
+        }
+        // The chrome seeds its orientation override from the saved flip
+        // before any tabs are created, so the very first paint shows the
+        // saved layout, not a horizontal default that flashes before
+        // being overridden. Main owns the tab restore — the URL list and
+        // bounds never need to leave main.
+        chrome.restoreSession({ orientation: saved.orientation });
+        // `background: true` keeps the chrome on whatever tab it already
+        // shows; the final `activate` is what lands on the saved one.
+        let activeId: TabId | null = null;
+        let firstCreatedId: TabId | null = null;
+        for (let i = 0; i < saved.tabs.length; i++) {
+          const url = saved.tabs[i]!;
+          const id = tabs.create(url, { background: true });
+          if (id === null) continue;
+          if (firstCreatedId === null) firstCreatedId = id;
+          if (i === saved.activeIndex) activeId = id;
+        }
+        // An external-protocol URL at the saved active index (a
+        // hand-edited or partially corrupt row) leaves no activated tab
+        // and every view hidden — a window of chrome over nothing. Fall
+        // back to the first created tab so something is on screen.
+        if (activeId === null) activeId = firstCreatedId;
+        if (activeId !== null) tabs.activate(activeId);
+      });
+    } else {
+      tabs.create();
+    }
   });
 
   const releaseChrome = handle(
@@ -349,8 +475,16 @@ function createWindow(zoom: ZoomStore, history: History): void {
       stopFind: () => tabs.active?.stopFind(),
       setMode: (mode) => vim.requestMode(mode),
       cancelDownload: (id) => downloads.cancel(id),
-      answerPermission: (answer) => {
-        if (isPermissionAnswer(answer)) permissions.answer(answer.id, answer.allow);
+      answerPrompt: (answer) => {
+        if (isPromptAnswer(answer)) prompts.answer(answer.id, answer.allow);
+      },
+      orientationOverride: (value) => {
+        // The chrome is the source of truth for the override; main only
+        // mirrors it so the close handler can persist it with the rest of
+        // the session. Bad input is ignored — the next valid push wins.
+        if (value === "horizontal" || value === "vertical" || value === null) {
+          orientationOverride = value;
+        }
       },
       runCommand: (line) => {
         runCommand(line);
@@ -373,57 +507,104 @@ function createWindow(zoom: ZoomStore, history: History): void {
   });
 }
 
-void app.whenReady().then(async () => {
-  downloads.attach(session.defaultSession);
-  permissions.attach(session.defaultSession);
-  // A bad migration, corrupted DB, or missing migrations folder is a
-  // real failure — log and quit rather than leave the user staring at
-  // a window that never appears, which is what an unhandled rejection
-  // here would do.
-  let db: Database;
-  try {
-    db = Database.open(dbPath);
-  } catch (error) {
-    console.error("kvist: could not open the storage layer:", error);
-    app.quit();
-    return;
-  }
-  const config = createConfigStore();
-  const history = new History(db);
-  const loaded = await loadConfig(config);
-  reportProblems(loaded);
-  await applyConfig(loaded.config);
-  registerKvistProtocol();
-
-  reportStyleProblems(userStyles.setSources(await readStyleFiles()));
-
-  const zoom = await ZoomStore.load();
-  createWindow(zoom, history);
-  const releaseConfig = await watchConfig(config, (next) => {
-    reportProblems(next);
-    void applyConfig(next.config);
-  });
-  const releaseStyleFiles = await watchStyleFiles((sources) => {
-    reportStyleProblems(userStyles.setSources(sources));
-    // A rescan otherwise only reaches a page on its next navigation — an edit
-    // or a removed file has to take effect on what is already open, not just
-    // on what loads afterward.
-    for (const tabs of tabManagers) {
-      tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+/**
+ * A second launch of the app is a relaunch, not a new instance: the OS
+ * reuses the running process when the user clicks the dock icon, but only
+ * if the process holds the single-instance lock. Without this, two processes
+ * open the same kvist.db. SQLite's WAL allows concurrent readers but not
+ * concurrent writers, so the second one waits out the busy timeout on any
+ * transaction the first holds and then fails the query.
+ *
+ * `requestSingleInstanceLock` returns false on the second copy, which quits
+ * immediately. The first copy gets a `second-instance` event and refocuses
+ * its window — a dock click opens the app, not a second one.
+ */
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // The OS already tried to launch a second copy; it now exits and we
+    // refocus whatever window the user is likely after.
+    const windows = BrowserWindow.getAllWindows();
+    const target = windows[0];
+    if (target !== undefined) {
+      if (target.isMinimized()) target.restore();
+      target.focus();
     }
   });
-  // The config watcher and the zoom store are both acquired once and released
-  // on quit. The store additionally holds the quit until its queued write has
-  // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
-  app.on("will-quit", releaseConfig);
-  app.on("will-quit", releaseStyleFiles);
-  app.on("will-quit", () => db.close());
-  flushOnQuit(app, zoom);
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow(zoom, history);
+  void app.whenReady().then(async () => {
+    downloads.attach(session.defaultSession);
+    permissions.attach(session.defaultSession);
+    // A bad migration, corrupted DB, or missing migrations folder is a
+    // real failure — log and quit rather than leave the user staring at
+    // a window that never appears, which is what an unhandled rejection
+    // here would do.
+    let db: Database;
+    try {
+      db = Database.open(dbPath);
+    } catch (error) {
+      console.error("kvist: could not open the storage layer:", error);
+      app.quit();
+      return;
+    }
+    const config = createConfigStore();
+    const history = new History(db);
+    const loaded = await loadConfig(config);
+    reportProblems(loaded);
+    await applyConfig(loaded.config);
+    registerKvistProtocol();
+
+    reportStyleProblems(userStyles.setSources(await readStyleFiles()));
+
+    const zoom = await ZoomStore.load();
+    // The single prompt queue: permission asks and the session-restore ask
+    // share one mechanism, one observer wiring, one keybind set, one IPC
+    // channel. App-scoped because the chrome renders one line at a time and
+    // a permission prompt outliving its tab is the only cross-window concern
+    // — already handled inside `Permissions` via `Prompts.cancel`.
+    // `sessions.load()` is forgiving: missing or malformed row collapses to
+    // null, which is indistinguishable from a fresh first launch — the right
+    // answer when an old build has never written the table or when a corrupt
+    // row is left behind by a crash.
+    const sessions = new Session(db);
+    const saved = sessions.load();
+    createWindow(zoom, history, sessions, saved);
+    const releaseConfig = await watchConfig(config, (next) => {
+      reportProblems(next);
+      void applyConfig(next.config);
+    });
+    const releaseStyleFiles = await watchStyleFiles((sources) => {
+      reportStyleProblems(userStyles.setSources(sources));
+      // A rescan otherwise only reaches a page on its next navigation — an edit
+      // or a removed file has to take effect on what is already open, not just
+      // on what loads afterward.
+      for (const tabs of tabManagers) {
+        tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+      }
+    });
+    // The config watcher and the zoom store are both acquired once and released
+    // on quit. The store additionally holds the quit until its queued write has
+    // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
+    app.on("will-quit", releaseConfig);
+    app.on("will-quit", releaseStyleFiles);
+    // `quit` rather than `will-quit`: `will-quit` is cancellable, and an app
+    // that keeps running with a closed database throws out of every later
+    // query — `activate` calling `Session.load` is the one that surfaced.
+    // `quit` only fires once the app is definitely going.
+    app.on("quit", () => db.close());
+    flushOnQuit(app, zoom);
+
+    app.on("activate", () => {
+      // macOS reopen: a re-launched app with no windows restores the last
+      // session, same as cold start. Re-reading from the store is cheap and
+      // avoids the alternative of carrying the row across the app's lifetime.
+      if (BrowserWindow.getAllWindows().length === 0)
+        createWindow(zoom, history, sessions, sessions.load());
+    });
   });
-});
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
