@@ -35,7 +35,7 @@ export interface SessionState {
  * `save` validates the input and silently drops failures rather than
  * throwing — the throw site is `win.on("close")`, where an exception would
  * surface to the user as a quit that takes down the window with no session
- * to restore.
+ * to restore. A failed query is dropped the same way, for the same reason.
  */
 export class Session {
   #db: Database;
@@ -49,22 +49,11 @@ export class Session {
     if (validated.problem !== undefined) return false;
     const value = validated.value;
 
-    this.#db.drizzle
-      .insert(session)
-      .values({
-        id: 1,
-        tabsJson: JSON.stringify(value.tabs),
-        activeIndex: value.activeIndex,
-        width: value.width,
-        height: value.height,
-        x: value.x,
-        y: value.y,
-        orientation: value.orientation,
-        savedAt: value.savedAt,
-      })
-      .onConflictDoUpdate({
-        target: session.id,
-        set: {
+    try {
+      this.#db.drizzle
+        .insert(session)
+        .values({
+          id: 1,
           tabsJson: JSON.stringify(value.tabs),
           activeIndex: value.activeIndex,
           width: value.width,
@@ -73,9 +62,25 @@ export class Session {
           y: value.y,
           orientation: value.orientation,
           savedAt: value.savedAt,
-        },
-      })
-      .run();
+        })
+        .onConflictDoUpdate({
+          target: session.id,
+          set: {
+            tabsJson: JSON.stringify(value.tabs),
+            activeIndex: value.activeIndex,
+            width: value.width,
+            height: value.height,
+            x: value.x,
+            y: value.y,
+            orientation: value.orientation,
+            savedAt: value.savedAt,
+          },
+        })
+        .run();
+    } catch (error) {
+      console.error("kvist: could not save the session:", error);
+      return false;
+    }
     return true;
   }
 
@@ -87,30 +92,40 @@ export class Session {
    * the window is destroyed, so the DB is still open and writes are safe.
    */
   clear(): void {
-    this.#db.drizzle.delete(session).where(eq(session.id, 1)).run();
+    try {
+      this.#db.drizzle.delete(session).where(eq(session.id, 1)).run();
+    } catch (error) {
+      console.error("kvist: could not clear the saved session:", error);
+    }
   }
 
   /**
-   * Returns the persisted state, or `null` when no row exists, when the JSON
-   * column does not decode, when the URL list is empty, when the active
-   * index is out of range, or when the orientation string is not a known
-   * value. Each failure mode collapses to `null` so the startup path can
-   * treat "no session" uniformly.
+   * Returns the persisted state, or `null` when no row exists, when the query
+   * itself fails, when the JSON column does not decode, when the URL list is
+   * empty, when the active index is out of range, or when the orientation
+   * string is not a known value. Each failure mode collapses to `null` so the
+   * startup path can treat "no session" uniformly.
    */
   load(): SessionState | null {
-    const rows = this.#db.drizzle
-      .select({
-        tabsJson: session.tabsJson,
-        activeIndex: session.activeIndex,
-        width: session.width,
-        height: session.height,
-        x: session.x,
-        y: session.y,
-        orientation: session.orientation,
-      })
-      .from(session)
-      .where(eq(session.id, 1))
-      .all();
+    let rows;
+    try {
+      rows = this.#db.drizzle
+        .select({
+          tabsJson: session.tabsJson,
+          activeIndex: session.activeIndex,
+          width: session.width,
+          height: session.height,
+          x: session.x,
+          y: session.y,
+          orientation: session.orientation,
+        })
+        .from(session)
+        .where(eq(session.id, 1))
+        .all();
+    } catch (error) {
+      console.error("kvist: could not read the saved session:", error);
+      return null;
+    }
 
     const row = rows[0];
     if (row === undefined) return null;

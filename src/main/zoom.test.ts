@@ -102,9 +102,9 @@ test("writes are atomic, so a crash mid-write cannot corrupt the file", async ()
   store.release();
   await store.flushed();
 
-  // The temp file used during the write is gone after a successful rename.
-  const tmp = join(dir, "zoom.json.tmp");
-  await expect(readFile(tmp, "utf8")).rejects.toThrow();
+  // Neither write path leaves its temp file behind after a successful rename.
+  await expect(readFile(join(dir, "zoom.json.tmp"), "utf8")).rejects.toThrow();
+  await expect(readFile(join(dir, "zoom.json.quit.tmp"), "utf8")).rejects.toThrow();
 });
 
 test("clamp pins out-of-range values at the nearest edge", () => {
@@ -113,40 +113,41 @@ test("clamp pins out-of-range values at the nearest edge", () => {
   expect(clamp(99)).toBeCloseTo(5.7, 5);
 });
 
-test("an immediate quit after a set lands the write before quitting", async () => {
+test("a quit flushes a queued write without cancelling the quit", async () => {
   const store = await ZoomStore.load(dir);
-  const listeners: ((event: { preventDefault(): void }) => void)[] = [];
-  let prevented = 0;
-  let quits = 0;
-  // SAFETY: the fake implements exactly the on("will-quit")/quit surface
-  // flushOnQuit uses; quit() re-emits will-quit like the resumed quit does.
+  const listeners: (() => void)[] = [];
+  // SAFETY: the fake implements exactly the on("will-quit") surface flushOnQuit
+  // uses. There is deliberately no `quit` — re-arming the quit is the bug this
+  // replaced: Electron drops an `app.quit()` that lands on the same tick as the
+  // `will-quit` that cancelled it, so the app sat in the dock forever.
   const app = {
-    on: (_event: "will-quit", listener: (event: { preventDefault(): void }) => void): void => {
+    on: (_event: "will-quit", listener: () => void): void => {
       listeners.push(listener);
     },
-    quit: (): void => {
-      quits++;
-      for (const listener of listeners) listener({ preventDefault: () => void prevented++ });
-    },
-  } as unknown as Pick<App, "on" | "quit">;
+  } as unknown as Pick<App, "on">;
   flushOnQuit(app, store);
 
   store.set("https://a.example", 1);
-  for (const listener of listeners) listener({ preventDefault: () => void prevented++ });
+  for (const listener of listeners) listener();
 
-  // The first pass holds the quit until the write has landed.
-  expect(prevented).toBe(1);
-  expect(quits).toBe(0);
-
-  await store.flushed();
-  await new Promise((resolve) => setImmediate(resolve));
-
-  expect(quits).toBe(1);
-  // The resumed quit passes through: flushing is already true, so the second
-  // will-quit does not hold again.
-  expect(prevented).toBe(1);
+  // On disk by the time will-quit returns — no promise to await, so nothing
+  // has to hold the quit open.
   const raw = await readFile(join(dir, "zoom.json"), "utf8");
   expect(JSON.parse(raw)).toEqual({ "https://a.example": 1 });
+});
+
+test("a debounced write in flight cannot overwrite the quit-time flush", async () => {
+  const store = await ZoomStore.load(dir);
+  store.set("https://a.example", 1);
+  await store.flushed();
+
+  store.set("https://a.example", 2);
+  store.release();
+  // Whatever the async path had queued must not land on top of the flush.
+  await store.flushed();
+
+  const raw = await readFile(join(dir, "zoom.json"), "utf8");
+  expect(JSON.parse(raw)).toEqual({ "https://a.example": 2 });
 });
 
 test("a write failure is logged, not fatal, and does not poison later flushes", async () => {
@@ -156,10 +157,9 @@ test("a write failure is logged, not fatal, and does not poison later flushes", 
 
   const store = await ZoomStore.load(blocked);
   store.set("https://a.example", 1);
-  store.release();
-  // Before the fix, the mkdir rejection sat outside the try/catch and the
-  // fire-and-forget write in release() left it unhandled — and every later
-  // flushed() inherited the poisoned promise.
+  // release() runs inside will-quit, where a throw would take the quit down
+  // with it — the sync flush has to swallow what the async one swallows.
+  expect(() => store.release()).not.toThrow();
   await expect(store.flushed()).resolves.toBeUndefined();
   expect(console.error).toHaveBeenCalled();
 });

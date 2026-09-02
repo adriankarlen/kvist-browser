@@ -510,16 +510,14 @@ function createWindow(
 /**
  * A second launch of the app is a relaunch, not a new instance: the OS
  * reuses the running process when the user clicks the dock icon, but only
- * if the process holds the single-instance lock. Without this, every
- * "Cmd+Q doesn't actually quit" complaint cascades into a `DrizzleQueryError`
- * on the next launch, because two processes open the same SQLite file and
- * the second one hits the busy timeout.
+ * if the process holds the single-instance lock. Without this, two processes
+ * open the same kvist.db. SQLite's WAL allows concurrent readers but not
+ * concurrent writers, so the second one waits out the busy timeout on any
+ * transaction the first holds and then fails the query.
  *
- * On macOS, Cmd+Q is the standard quit — but `app.quit` can hang in our
- * flush-on-quit dance, leaving the process alive with no windows. The lock
- * here turns the resulting "dock icon click" into a no-op focus of the
- * still-running instance rather than a fresh second process contending
- * for the database.
+ * `requestSingleInstanceLock` returns false on the second copy, which quits
+ * immediately. The first copy gets a `second-instance` event and refocuses
+ * its window — a dock click opens the app, not a second one.
  */
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -591,7 +589,11 @@ if (!gotTheLock) {
     // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
     app.on("will-quit", releaseConfig);
     app.on("will-quit", releaseStyleFiles);
-    app.on("will-quit", () => db.close());
+    // `quit` rather than `will-quit`: `will-quit` is cancellable, and an app
+    // that keeps running with a closed database throws out of every later
+    // query — `activate` calling `Session.load` is the one that surfaced.
+    // `quit` only fires once the app is definitely going.
+    app.on("quit", () => db.close());
     flushOnQuit(app, zoom);
 
     app.on("activate", () => {
