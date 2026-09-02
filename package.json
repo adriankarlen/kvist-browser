@@ -47,6 +47,9 @@
       "dist/**/*",
       "images/kvist-logo.png"
     ],
+    "asarUnpack": [
+      "dist/main/migrations/**/*"
+    ],
     "directories": {
       "output": "release"
     },
