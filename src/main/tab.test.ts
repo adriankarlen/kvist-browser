@@ -470,8 +470,9 @@ test("an error page is reported as the wrapper it is, not the site that failed",
   expect(errorPageTarget(host.loaded[0]!)?.url).toBe("https://gone.example");
 });
 
-test("a link click with a scheme the desktop owns is handed off, with the page's origin", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+test("a link click with a scheme the desktop owns is handed off, with its scheme and the page's origin", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
   host.state.url = "https://example.com/signin";
 
@@ -483,13 +484,19 @@ test("a link click with a scheme the desktop owns is handed off, with the page's
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).toHaveBeenCalled();
-  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", "https://example.com");
+  expect(externalRequest).toHaveBeenCalledWith(
+    "mailto:foo@bar.com",
+    "mailto",
+    "https://example.com",
+    false,
+  );
   // The tab never starts navigating.
   expect(host.loaded).toEqual([]);
 });
 
-test("a non-http(s) page asking is not attributed to an origin", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+test("a non-http(s) page asking is not attributed to an origin, but is still a page asking", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
   host.state.url = "kvist://newtab/";
 
@@ -499,11 +506,15 @@ test("a non-http(s) page asking is not attributed to an origin", () => {
     preventDefault: vi.fn(),
   });
 
-  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", null);
+  // origin is null (unattributable), but selfInitiated is still false: a
+  // page asked, even if it cannot be named. Conflating the two would let an
+  // allow granted for the user's own typing silently cover this too.
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", "mailto", null, false);
 });
 
 test("a link click with a scheme this browser loads itself navigates as usual", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
 
   const details = {
@@ -518,7 +529,8 @@ test("a link click with a scheme this browser loads itself navigates as usual", 
 });
 
 test("a sub-frame navigation is not handed off, even for a scheme the desktop owns", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
 
   host.emit("will-navigate", {
@@ -531,19 +543,35 @@ test("a sub-frame navigation is not handed off, even for a scheme the desktop ow
 });
 
 test("navigate() hands off a scheme the desktop owns instead of loading it, with no origin", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("mailto:foo@bar.com");
 
   // Typed directly (or the omnibox reusing the tab), not a page redirecting
   // it — there is no asker to attribute this to.
-  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", null);
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", "mailto", null, true);
   expect(host.loaded).toEqual([]);
 });
 
+test("navigate() does not treat a typed host:port as a scheme to hand off", () => {
+  // resolveUrl passes "localhost:3000" through unchanged (its HAS_SCHEME
+  // regex treats the colon as a scheme marker), so without this guard a
+  // dev server address in the omnibox would offer to hand itself to the OS.
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("localhost:3000");
+
+  expect(externalRequest).not.toHaveBeenCalled();
+  expect(host.loaded).toEqual(["localhost:3000"]);
+});
+
 test("navigate() still loads a regular URL", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("https://example.com/page");
@@ -553,7 +581,8 @@ test("navigate() still loads a regular URL", () => {
 });
 
 test("a closed tab never reports an external handoff", () => {
-  const externalRequest = vi.fn<(url: string, origin: string | null) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab } = createTab({ externalRequest });
 
   tab.close();

@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
 import { httpOrigin } from "../shared/url";
 import { composeContextMenuCss } from "./context-menu";
-import { externalProtocolTarget } from "./external";
+import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { KeyInput, KeySource } from "./vim";
@@ -37,8 +37,13 @@ export class TabManager {
   #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
   #onNavigated: (page: PageContents, url: string) => void = () => {};
-  #onExternal: (url: string, origin: string | null, contents: PageContents | null) => void =
-    () => {};
+  #onExternal: (
+    url: string,
+    scheme: string,
+    origin: string | null,
+    selfInitiated: boolean,
+    contents: PageContents | null,
+  ) => void = () => {};
   #pagePreload: string;
   #zoom: ZoomStore;
   #tabs = new Map<TabId, Tab>();
@@ -139,7 +144,13 @@ export class TabManager {
    * reaches here, but whether it is actually opened is still to be decided.
    */
   observeExternal(
-    handler: (url: string, origin: string | null, contents: PageContents | null) => void,
+    handler: (
+      url: string,
+      scheme: string,
+      origin: string | null,
+      selfInitiated: boolean,
+      contents: PageContents | null,
+    ) => void,
   ): void {
     this.#onExternal = handler;
   }
@@ -193,9 +204,23 @@ export class TabManager {
     // menu's open-in-new-tab too, and no uncommitted tab is left behind.
     // Returning null lets session restore map its saved active index to a
     // real id without a special case for external-protocol URLs.
-    if (externalProtocolTarget(url) !== null) {
-      this.#onExternal(url, options.origin ?? null, options.contents ?? null);
-      return null;
+    const scheme = externalProtocolTarget(url);
+    if (scheme !== null) {
+      // No opener means this came from :tabnew, :open, the default homepage,
+      // or a saved session row — the same ambiguous, typed-not-authored
+      // input navigate() guards against, so a bare "localhost:3000" is not
+      // mistaken for a scheme here either.
+      const selfInitiated = options.contents === undefined;
+      if (!(selfInitiated && looksLikeHostPort(url))) {
+        this.#onExternal(
+          url,
+          scheme,
+          options.origin ?? null,
+          selfInitiated,
+          options.contents ?? null,
+        );
+        return null;
+      }
     }
     const tab = this.#adopt(url, options.after);
     this.#window.contentView.addChildView(this.#viewOf(tab));
@@ -314,8 +339,8 @@ export class TabManager {
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
-      externalRequest: (url, origin) =>
-        this.#onExternal(url, origin, this.#tabs.get(id)?.contents ?? null),
+      externalRequest: (url, scheme, origin, selfInitiated) =>
+        this.#onExternal(url, scheme, origin, selfInitiated, this.#tabs.get(id)?.contents ?? null),
     };
   }
 

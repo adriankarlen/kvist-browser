@@ -32,7 +32,7 @@ import {
   watchConfig,
 } from "./config";
 import { Downloads } from "./downloads";
-import { ExternalProtocols, externalProtocolTarget } from "./external";
+import { ExternalProtocols } from "./external";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths, dbPath } from "./paths";
@@ -90,9 +90,13 @@ const permissions = new Permissions(prompts);
  * makes it to `shell.openExternal` lives entirely here; every window just
  * hands it a URL, a scheme, and who asked.
  */
-const externalProtocols = new ExternalProtocols(prompts, (url) => {
-  void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
-});
+const externalProtocols = new ExternalProtocols(
+  prompts,
+  (url) => {
+    void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
+  },
+  (text) => messages.warn(text),
+);
 
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
@@ -301,9 +305,8 @@ function createWindow(
   // browser does not load itself. Whether it actually reaches the OS is
   // ExternalProtocols' call — ask once, remember the answer, and report a
   // rejection (no app registered, etc.) in the echo area, same as before.
-  tabs.observeExternal((url, origin, contents) => {
-    const scheme = externalProtocolTarget(url);
-    if (scheme !== null) externalProtocols.request(url, scheme, origin, contents);
+  tabs.observeExternal((url, scheme, origin, selfInitiated, contents) => {
+    externalProtocols.request(url, scheme, origin, selfInitiated, contents);
   });
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));

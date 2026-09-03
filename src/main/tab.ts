@@ -14,7 +14,7 @@ import {
 import { httpOrigin, originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
-import { externalProtocolTarget } from "./external";
+import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
 import type { KeyInput, KeySource } from "./vim";
@@ -48,11 +48,14 @@ export interface TabCallbacks {
   /** tokens + menu styles + the user's config.css, as they stand right now. */
   menuCss(): string;
   /**
-   * A URL the desktop, not the tab, should open — mailto: and kin. `origin`
-   * is the page that asked, or null when the tab itself is not the one
-   * asking (an omnibox-typed URL has no page behind it).
+   * A URL the desktop, not the tab, should open — mailto: and kin. `scheme`
+   * is `externalProtocolTarget(url)`'s own result, passed through rather
+   * than re-derived by the receiver. `origin` is the page that asked, or
+   * null when it named nothing nameable; `selfInitiated` is true when
+   * nothing asked on a page's behalf at all (an omnibox-typed URL has no
+   * page behind it).
    */
-  externalRequest(url: string, origin: string | null): void;
+  externalRequest(url: string, scheme: string, origin: string | null, selfInitiated: boolean): void;
 }
 
 /**
@@ -247,9 +250,14 @@ export class Tab {
     // will-navigate does not fire for loadURL, so a scheme the desktop owns
     // has to be intercepted here — an omnibox-typed mailto: would otherwise
     // fail as a navigation. Typed directly by the user, not a page, so no
-    // origin travels with it.
-    if (externalProtocolTarget(url) !== null) {
-      this.#on.externalRequest(url, null);
+    // origin travels with it. Guarded against looksLikeHostPort: typed text
+    // has already been through resolveUrl's HAS_SCHEME heuristic, which
+    // treats a bare "localhost:3000" as if it already had a scheme — a
+    // page's own href is never this ambiguous, so only the typed path needs
+    // the guard.
+    const scheme = externalProtocolTarget(url);
+    if (scheme !== null && !looksLikeHostPort(url)) {
+      this.#on.externalRequest(url, scheme, null, true);
       return;
     }
     void this.#page.loadURL(url);
@@ -552,9 +560,10 @@ export class Tab {
     // through `openRequest`; `loadURL` is intercepted in `navigate()`.
     webContents.on("will-navigate", (details) => {
       if (!details.isMainFrame) return;
-      if (externalProtocolTarget(details.url) !== null) {
+      const scheme = externalProtocolTarget(details.url);
+      if (scheme !== null) {
         details.preventDefault();
-        this.#on.externalRequest(details.url, httpOrigin(webContents.getURL()));
+        this.#on.externalRequest(details.url, scheme, httpOrigin(webContents.getURL()), false);
       }
     });
   }
