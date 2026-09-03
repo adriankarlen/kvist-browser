@@ -19,6 +19,23 @@ export function resolveUrl(input: string, searchUrl: string = DEFAULT_SEARCH_URL
 const PERSISTABLE = new Set(["http:", "https:", "kvist:", "file:"]);
 
 /**
+ * The origin a page may be asked about, or null. Narrower than `originOf`:
+ * a permission or an external-protocol ask ties a remembered decision to a
+ * site, and `kvist:`, `file:`, devtools and anything opaque all parse to
+ * the origin "null" — a prompt that cannot say who is asking is no prompt,
+ * so only http(s) origins qualify.
+ */
+export function httpOrigin(url: string): string | null {
+  let origin: string;
+  try {
+    origin = new URL(url).origin;
+  } catch {
+    return null;
+  }
+  return origin.startsWith("http://") || origin.startsWith("https://") ? origin : null;
+}
+
+/**
  * The origin a per-site preference (zoom level, etc.) is keyed under. Returns
  * null for opaque origins (`about:blank`, `data:`) and for schemes we do not
  * care to remember, so callers can skip persistence without an extra check.
