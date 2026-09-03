@@ -76,6 +76,16 @@ test("a real scheme's payload does not look like a host:port", () => {
   expect(looksLikeHostPort("ftp://example.com/file")).toBe(false);
 });
 
+test("a digits-only payload alone is not enough — the scheme word must look like a host", () => {
+  // tel:, sms:, and any other bare-word scheme parse with an empty hostname
+  // and can have an all-digit path too (a phone number, an emergency
+  // number) — indistinguishable from host:port on path shape alone. Only
+  // a dotted name or the literal "localhost" counts as host-shaped.
+  expect(looksLikeHostPort("tel:123")).toBe(false);
+  expect(looksLikeHostPort("tel:0701234567")).toBe(false);
+  expect(looksLikeHostPort("sms:112")).toBe(false);
+});
+
 test("a non-URL does not look like a host:port", () => {
   expect(looksLikeHostPort("not a url")).toBe(false);
 });

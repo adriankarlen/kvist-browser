@@ -48,19 +48,18 @@ export function externalProtocolTarget(raw: string): string | null {
 /**
  * Whether a URL is structurally indistinguishable from a typed `host:port`
  * — `localhost:3000`, `example.com:8080` — rather than a real scheme
- * invocation. Any bare word followed by `:` parses as a valid, if unusual,
- * scheme (`resolveUrl`'s `HAS_SCHEME` regex already treats it as "already a
- * URL"), and a non-special scheme's own URL has no `hostname` either way —
- * so a typed dev-server address parses exactly like a real external scheme
- * would, opaque path and all.
+ * invocation. A non-special scheme's own URL has no `hostname` regardless
+ * of what the "scheme" actually is (`resolveUrl`'s `HAS_SCHEME` regex
+ * already treats any `word:` prefix as "already a URL"), so an empty
+ * hostname and a digits-only path alone would also match `tel:123` or
+ * `sms:112` — real, if short, phone numbers. What a host:port has that
+ * those do not is a host-shaped word before the colon: a dotted name
+ * (`example.com`) or the one common bare hostname with no dot at all,
+ * `localhost`.
  *
  * Only ever call this for input that was not authored by a page: a page's
  * own `<a href>` is never ambiguous, but a person typing into the omnibox
- * (or `:tabnew`/`:open`) might mean either one. The one accepted false
- * positive is a domestic-format `tel:` number typed directly into the
- * omnibox (`tel:0701234567`, all digits, no `+`) — rare next to how common
- * typing a bare `host:port` to reach a local dev server is, and a page's
- * own `tel:` links (the common case) never go through this check at all.
+ * (or `:tabnew`/`:open`) might mean either one.
  */
 export function looksLikeHostPort(raw: string): boolean {
   let parsed: URL;
@@ -69,7 +68,9 @@ export function looksLikeHostPort(raw: string): boolean {
   } catch {
     return false;
   }
-  return parsed.hostname === "" && /^\d+(\/.*)?$/.test(parsed.pathname);
+  if (parsed.hostname !== "" || !/^\d+(\/.*)?$/.test(parsed.pathname)) return false;
+  const word = parsed.protocol.slice(0, -1);
+  return word === "localhost" || word.includes(".");
 }
 
 /**

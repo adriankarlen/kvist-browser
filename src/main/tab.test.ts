@@ -604,6 +604,20 @@ test("navigate() does not treat a typed host:port as a scheme to hand off", () =
   expect(host.loaded).toEqual(["localhost:3000"]);
 });
 
+test("navigate() still hands off tel: with a short, digits-only number", () => {
+  // A digits-only path alone is not enough to look like a host:port — tel:
+  // and sms: numbers (including short emergency ones) are digits-only too,
+  // and must still reach the external-protocol prompt.
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("tel:123");
+
+  expect(externalRequest).toHaveBeenCalledWith("tel:123", "tel", null, true);
+  expect(host.loaded).toEqual([]);
+});
+
 test("navigate() still loads a regular URL", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
