@@ -9,6 +9,11 @@ import type { WebContents } from "electron";
 export type PageContents = Pick<
   WebContents,
   | "on"
+  // `once`/`removeListener` back a `destroyed` watch: a still-pending
+  // external-protocol ask must not outlive the tab that made it, or a
+  // second window inherits a question about a page that is gone.
+  | "once"
+  | "removeListener"
   | "send"
   | "loadURL"
   | "getURL"

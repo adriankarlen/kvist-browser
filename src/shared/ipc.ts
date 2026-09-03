@@ -120,10 +120,10 @@ export interface RestoreSessionState {
 }
 
 /**
- * A question the chrome renders as a one-line prompt. Two kinds ship today;
- * the union leaves room for future ones without a channel change. The id
- * travels separately over the wire (see `toChrome.prompt`) so the queue
- * owns it end-to-end and the asker never invents or strips one.
+ * A question the chrome renders as a one-line prompt. Three kinds ship
+ * today; the union leaves room for future ones without a channel change.
+ * The id travels separately over the wire (see `toChrome.prompt`) so the
+ * queue owns it end-to-end and the asker never invents or strips one.
  */
 export type PromptState =
   | {
@@ -135,6 +135,18 @@ export type PromptState =
   | {
       kind: "session-restore";
       tabCount: number;
+    }
+  | {
+      kind: "external-protocol";
+      /**
+       * The page asking, or null when nothing asked on a page's behalf —
+       * an omnibox-typed URL, `:tabnew`, or a restored session tab. Those
+       * are the user's own choice rather than a site's, but still get
+       * asked once: the same scheme reaching the OS either way, and the
+       * answer is remembered so it is only ever asked once per scheme.
+       */
+      origin: string | null;
+      scheme: string;
     };
 
 /** The wire shape of a queued prompt: the state plus the id the queue stamped. */
