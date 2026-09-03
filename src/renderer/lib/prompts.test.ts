@@ -42,6 +42,16 @@ const restore = (id: number, tabCount: number): PromptWire => ({
   state: { kind: "session-restore", tabCount },
 });
 
+const externalProtocol = (
+  id: number,
+  origin: string | null,
+  scheme: string,
+  url: string,
+): PromptWire => ({
+  id,
+  state: { kind: "external-protocol", origin, scheme, url },
+});
+
 test("the question main asks is the one shown", () => {
   const { bridge, push } = createBridge();
   const prompts = createPrompts(bridge);
@@ -104,10 +114,37 @@ test("a session-restore question says how many tabs and nothing else", () => {
   expect(describePrompt(restore(1, 5).state)).toBe("Restore 5 tabs from your last session?");
 });
 
+test("an external-protocol question names the site and shows the URL", () => {
+  expect(
+    describePrompt(
+      externalProtocol(1, "https://id.example.com", "bankid", "bankid:///?autostarttoken=abc")
+        .state,
+    ),
+  ).toBe("id.example.com wants to open bankid:///?autostarttoken=abc");
+});
+
+test("an external-protocol question with no origin still shows the URL", () => {
+  expect(describePrompt(externalProtocol(1, null, "mailto", "mailto:foo@bar.com").state)).toBe(
+    "Open mailto:foo@bar.com?",
+  );
+});
+
+test("a long URL is truncated rather than wrapping the prompt line", () => {
+  const url = `bankid:///?autostarttoken=${"a".repeat(80)}`;
+  const described = describePrompt(externalProtocol(1, null, "bankid", url).state);
+  expect(described.startsWith("Open bankid:///?autostarttoken=")).toBe(true);
+  expect(described.includes("\u2026")).toBe(true);
+  expect(described.length).toBeLessThan(url.length);
+});
+
 test("button labels are per kind: allow/deny for permissions, restore/discard for restores", () => {
   expect(buttonLabels(permission(1, "geolocation").state)).toEqual({
     allow: "allow",
     deny: "deny",
   });
   expect(buttonLabels(restore(1, 3).state)).toEqual({ allow: "restore", deny: "discard" });
+  expect(buttonLabels(externalProtocol(1, null, "mailto", "mailto:foo@bar.com").state)).toEqual({
+    allow: "allow",
+    deny: "deny",
+  });
 });

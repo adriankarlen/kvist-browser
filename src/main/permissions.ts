@@ -1,5 +1,6 @@
 import type { Session, WebContents } from "electron";
 import type { PromptablePermission, PromptState } from "../shared/ipc";
+import { httpOrigin } from "../shared/url";
 import { Prompts } from "./prompts";
 
 /**
@@ -26,21 +27,6 @@ function policy(permission: string): Ruling {
   if (GRANT.has(permission)) return "grant";
   if (ASK.has(permission)) return "ask";
   return "deny";
-}
-
-/**
- * The key a decision is remembered under. Only http(s) origins may be asked
- * about: `kvist:` pages, `file:`, devtools and anything opaque all parse to
- * the origin "null", and a prompt that cannot say who is asking is no prompt.
- */
-function httpOrigin(url: string): string | null {
-  let origin: string;
-  try {
-    origin = new URL(url).origin;
-  } catch {
-    return null;
-  }
-  return origin.startsWith("http://") || origin.startsWith("https://") ? origin : null;
 }
 
 function keyOf(origin: string, permission: string, mediaType?: "video" | "audio"): string {

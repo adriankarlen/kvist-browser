@@ -11,10 +11,10 @@ import {
   type TabState,
   toPage,
 } from "../shared/ipc";
-import { originOf } from "../shared/url";
+import { httpOrigin, originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
-import { externalProtocolTarget } from "./external";
+import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
 import type { KeyInput, KeySource } from "./vim";
@@ -36,7 +36,7 @@ export interface TabCallbacks {
    */
   navigated(page: PageContents, url: string): void;
   /** `window.open` or `target="_blank"`, which wants a tab next to this one. */
-  openRequest(url: string, background: boolean): void;
+  openRequest(url: string, background: boolean, origin: string | null): void;
   found(result: FindResult | null): void;
   editable(editable: boolean): void;
   /** History-API navigation; anything keyed to the URL has to be reapplied. */
@@ -47,8 +47,15 @@ export interface TabCallbacks {
   copyText(text: string): void;
   /** tokens + menu styles + the user's config.css, as they stand right now. */
   menuCss(): string;
-  /** A URL the desktop, not the tab, should open — mailto: and kin. */
-  externalRequest(url: string): void;
+  /**
+   * A URL the desktop, not the tab, should open — mailto: and kin. `scheme`
+   * is `externalProtocolTarget(url)`'s own result, passed through rather
+   * than re-derived by the receiver. `origin` is the page that asked, or
+   * null when it named nothing nameable; `selfInitiated` is true when
+   * nothing asked on a page's behalf at all (an omnibox-typed URL has no
+   * page behind it).
+   */
+  externalRequest(url: string, scheme: string, origin: string | null, selfInitiated: boolean): void;
 }
 
 /**
@@ -242,9 +249,15 @@ export class Tab {
     if (this.#closed) return;
     // will-navigate does not fire for loadURL, so a scheme the desktop owns
     // has to be intercepted here — an omnibox-typed mailto: would otherwise
-    // fail as a navigation.
-    if (externalProtocolTarget(url) !== null) {
-      this.#on.externalRequest(url);
+    // fail as a navigation. Typed directly by the user, not a page, so no
+    // origin travels with it. Guarded against looksLikeHostPort: typed text
+    // has already been through resolveUrl's HAS_SCHEME heuristic, which
+    // treats a bare "localhost:3000" as if it already had a scheme — a
+    // page's own href is never this ambiguous, so only the typed path needs
+    // the guard.
+    const scheme = externalProtocolTarget(url);
+    if (scheme !== null && !looksLikeHostPort(url)) {
+      this.#on.externalRequest(url, scheme, null, true);
       return;
     }
     void this.#page.loadURL(url);
@@ -324,7 +337,10 @@ export class Tab {
       ["nav.forward", () => webContents.navigationHistory.goForward()],
       ["nav.reload", () => webContents.reload()],
       // Background, next to its opener — the same answer window.open gets.
-      ["link.open-in-new-tab", () => this.#on.openRequest(params.linkURL, true)],
+      [
+        "link.open-in-new-tab",
+        () => this.#on.openRequest(params.linkURL, true, httpOrigin(webContents.getURL())),
+      ],
       ["link.copy", () => this.#on.copyText(params.linkURL)],
       ["image.copy", () => this.#on.copyText(params.srcURL)],
       ["edit.cut", () => webContents.cut()],
@@ -402,11 +418,17 @@ export class Tab {
     // we deny, which is also why a `target="_blank"` POST loses its
     // `postBody`: the request never reaches the new tab.
     webContents.setWindowOpenHandler((details) => {
+      // Captured synchronously, not inside the deferral below: the opener
+      // page could navigate itself elsewhere in the same tick (window.open
+      // followed by location.href), and by the time setImmediate runs,
+      // webContents.getURL() would no longer be the origin that actually
+      // called window.open.
+      const origin = httpOrigin(webContents.getURL());
       // Denying is answered synchronously; the tab is not built until Chromium
       // has left window creation.
       setImmediate(() => {
         if (!this.#closed)
-          this.#on.openRequest(details.url, details.disposition === "background-tab");
+          this.#on.openRequest(details.url, details.disposition === "background-tab", origin);
       });
       return { action: "deny" };
     });
@@ -547,9 +569,10 @@ export class Tab {
     // through `openRequest`; `loadURL` is intercepted in `navigate()`.
     webContents.on("will-navigate", (details) => {
       if (!details.isMainFrame) return;
-      if (externalProtocolTarget(details.url) !== null) {
+      const scheme = externalProtocolTarget(details.url);
+      if (scheme !== null) {
         details.preventDefault();
-        this.#on.externalRequest(details.url);
+        this.#on.externalRequest(details.url, scheme, httpOrigin(webContents.getURL()), false);
       }
     });
   }

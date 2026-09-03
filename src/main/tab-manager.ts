@@ -2,7 +2,7 @@ import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "e
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
 import { composeContextMenuCss } from "./context-menu";
-import { externalProtocolTarget } from "./external";
+import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { KeyInput, KeySource } from "./vim";
@@ -12,6 +12,15 @@ interface CreateOptions {
   /** Open next to this tab rather than at the end, as a page-opened tab should. */
   after?: TabId;
   background?: boolean;
+  /**
+   * The page that asked for this tab, if any — `window.open`/`target="_blank"`
+   * and the context menu's "open in new tab" both name an opener; a saved
+   * session row, `:tabnew`, and the default homepage do not. Only read when
+   * the URL turns out to be an external-protocol one.
+   */
+  origin?: string | null;
+  /** The opener's webContents, paired with `origin` for the same reason. */
+  contents?: PageContents | null;
 }
 
 /**
@@ -27,7 +36,13 @@ export class TabManager {
   #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
   #onNavigated: (page: PageContents, url: string) => void = () => {};
-  #onExternal: (url: string) => void = () => {};
+  #onExternal: (
+    url: string,
+    scheme: string,
+    origin: string | null,
+    selfInitiated: boolean,
+    contents: PageContents | null,
+  ) => void = () => {};
   #pagePreload: string;
   #zoom: ZoomStore;
   #tabs = new Map<TabId, Tab>();
@@ -123,10 +138,19 @@ export class TabManager {
 
   /**
    * A URL the desktop, not a tab, should open — mailto: and kin. Wired once
-   * per window like the other observers; the URL has already been allowlisted
-   * before it reaches here.
+   * per window like the other observers; the URL has already been
+   * classified as a scheme this browser does not load itself before it
+   * reaches here, but whether it is actually opened is still to be decided.
    */
-  observeExternal(handler: (url: string) => void): void {
+  observeExternal(
+    handler: (
+      url: string,
+      scheme: string,
+      origin: string | null,
+      selfInitiated: boolean,
+      contents: PageContents | null,
+    ) => void,
+  ): void {
     this.#onExternal = handler;
   }
 
@@ -179,9 +203,23 @@ export class TabManager {
     // menu's open-in-new-tab too, and no uncommitted tab is left behind.
     // Returning null lets session restore map its saved active index to a
     // real id without a special case for external-protocol URLs.
-    if (externalProtocolTarget(url) !== null) {
-      this.#onExternal(url);
-      return null;
+    const scheme = externalProtocolTarget(url);
+    if (scheme !== null) {
+      // No opener means this came from :tabnew, :open, the default homepage,
+      // or a saved session row — the same ambiguous, typed-not-authored
+      // input navigate() guards against, so a bare "localhost:3000" is not
+      // mistaken for a scheme here either.
+      const selfInitiated = options.contents === undefined;
+      if (!(selfInitiated && looksLikeHostPort(url))) {
+        this.#onExternal(
+          url,
+          scheme,
+          options.origin ?? null,
+          selfInitiated,
+          options.contents ?? null,
+        );
+        return null;
+      }
     }
     const tab = this.#adopt(url, options.after);
     this.#window.contentView.addChildView(this.#viewOf(tab));
@@ -277,10 +315,15 @@ export class TabManager {
       died: () => {
         if (!this.#window.isDestroyed()) this.#forget(id);
       },
-      openRequest: (url, background) => {
-        if (this.#tabs.has(id) && !this.#window.isDestroyed()) {
-          this.create(url, { after: id, background });
-        }
+      openRequest: (url, background, origin) => {
+        const opener = this.#tabs.get(id);
+        if (!opener || this.#window.isDestroyed()) return;
+        this.create(url, {
+          after: id,
+          background,
+          origin,
+          contents: opener.contents,
+        });
       },
       // A background tab's matches are its own business until it is activated.
       found: (result) => {
@@ -294,7 +337,8 @@ export class TabManager {
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
-      externalRequest: (url) => this.#onExternal(url),
+      externalRequest: (url, scheme, origin, selfInitiated) =>
+        this.#onExternal(url, scheme, origin, selfInitiated, this.#tabs.get(id)?.contents ?? null),
     };
   }
 
@@ -317,11 +361,12 @@ export class TabManager {
       return;
     }
 
-    if (this.#activeId === id) {
-      this.activate(this.#order[Math.min(index, this.#order.length - 1)]!);
-    } else {
+    if (this.#activeId !== id) {
       this.#publish();
+      return;
     }
+
+    this.activate(this.#order[Math.min(index, this.#order.length - 1)]!);
   }
 
   #publish(): void {

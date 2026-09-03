@@ -17,6 +17,7 @@ export interface ButtonLabels {
 export function buttonLabels(prompt: PromptState): ButtonLabels {
   switch (prompt.kind) {
     case "permission":
+    case "external-protocol":
       return { allow: "allow", deny: "deny" };
     case "session-restore":
       return { allow: "restore", deny: "discard" };
@@ -32,7 +33,26 @@ export function describePrompt(prompt: PromptState): string {
       return prompt.tabCount === 1
         ? "Restore 1 tab from your last session?"
         : `Restore ${prompt.tabCount} tabs from your last session?`;
+    case "external-protocol": {
+      const target = truncate(prompt.url);
+      return prompt.origin === null
+        ? `Open ${target}?`
+        : `${hostOf(prompt.origin)} wants to open ${target}`;
+    }
   }
+}
+
+/**
+ * The scheme alone ("open bankid:") does not say what is actually being
+ * sent to the OS — the payload is the one thing that lets a user judge
+ * whether to trust it. Shown in full up to a point; past it, a truncated
+ * URL is still more informative than nothing, and the full one is not
+ * worth wrapping the prompt line for.
+ */
+const TRUNCATE_AT = 64;
+
+function truncate(url: string): string {
+  return url.length > TRUNCATE_AT ? `${url.slice(0, TRUNCATE_AT)}…` : url;
 }
 
 /** Who is asking, as shown: the host, with the scheme's noise left out. */

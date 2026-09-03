@@ -29,6 +29,9 @@ function createHost() {
 
   const webContents = {
     on: (event: string, listener: (...args: unknown[]) => void) => events.on(event, listener),
+    once: (event: string, listener: (...args: unknown[]) => void) => events.once(event, listener),
+    removeListener: (event: string, listener: (...args: unknown[]) => void) =>
+      events.removeListener(event, listener),
     send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
     loadURL: (url: string) => {
       loaded.push(url);
@@ -304,15 +307,39 @@ test("an emptied prompt stops the search", () => {
   expect(host.calls.stopFind).toBe(1);
 });
 
-test("window.open asks for a sibling once Chromium has left window creation", async () => {
-  const openRequest = vi.fn<(url: string, background: boolean) => void>();
+test("window.open asks for a sibling once Chromium has left window creation, with the opener's origin", async () => {
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
   const { host } = createTab({ openRequest });
+  host.state.url = "https://opener.example";
 
   expect(host.openWindow("https://opened.example", "background-tab")).toEqual({ action: "deny" });
   expect(openRequest).not.toHaveBeenCalled();
 
   await flush();
-  expect(openRequest).toHaveBeenCalledWith("https://opened.example", true);
+  expect(openRequest).toHaveBeenCalledWith(
+    "https://opened.example",
+    true,
+    "https://opener.example",
+  );
+});
+
+test("window.open's origin is read before the deferral, not after the opener navigates away", async () => {
+  // A page can call window.open and then navigate itself elsewhere in the
+  // same tick; the deferred openRequest must still attribute the ask to
+  // whoever actually called window.open, not whatever the tab shows later.
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
+  const { host } = createTab({ openRequest });
+  host.state.url = "https://opener.example";
+
+  host.openWindow("https://opened.example", "background-tab");
+  host.state.url = "https://attacker.example";
+
+  await flush();
+  expect(openRequest).toHaveBeenCalledWith(
+    "https://opened.example",
+    true,
+    "https://opener.example",
+  );
 });
 
 test("a page that closed itself is reported once", async () => {
@@ -397,6 +424,17 @@ test("a pick after the menu is gone does nothing", () => {
   expect(host.sent.filter(({ channel }) => channel === wire("contextMenu"))).toHaveLength(1);
 });
 
+test("opening a link in a new tab attributes it to this tab's own current page", () => {
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
+  const { tab, host } = createTab({ openRequest });
+  host.state.url = "https://page.example";
+
+  host.emit("context-menu", EVENT, menuParams({ linkURL: "https://link.example" }));
+  tab.pickContextMenu("link.open-in-new-tab");
+
+  expect(openRequest).toHaveBeenCalledWith("https://link.example", true, "https://page.example");
+});
+
 test("keys reach the mode machine, and a consumed key is swallowed", () => {
   const key = vi.fn(() => true);
   const { host } = createTab({ key });
@@ -467,9 +505,11 @@ test("an error page is reported as the wrapper it is, not the site that failed",
   expect(errorPageTarget(host.loaded[0]!)?.url).toBe("https://gone.example");
 });
 
-test("a link click with an allowlisted scheme is handed off to the desktop", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+test("a link click with a scheme the desktop owns is handed off, with its scheme and the page's origin", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
+  host.state.url = "https://example.com/signin";
 
   const details = {
     url: "mailto:foo@bar.com",
@@ -479,13 +519,37 @@ test("a link click with an allowlisted scheme is handed off to the desktop", () 
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).toHaveBeenCalled();
-  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com");
+  expect(externalRequest).toHaveBeenCalledWith(
+    "mailto:foo@bar.com",
+    "mailto",
+    "https://example.com",
+    false,
+  );
   // The tab never starts navigating.
   expect(host.loaded).toEqual([]);
 });
 
-test("a link click with a non-allowlisted scheme navigates as usual", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+test("a non-http(s) page asking is not attributed to an origin, but is still a page asking", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+  const { host } = createTab({ externalRequest });
+  host.state.url = "kvist://newtab/";
+
+  host.emit("will-navigate", {
+    url: "mailto:foo@bar.com",
+    isMainFrame: true,
+    preventDefault: vi.fn(),
+  });
+
+  // origin is null (unattributable), but selfInitiated is still false: a
+  // page asked, even if it cannot be named. Conflating the two would let an
+  // allow granted for the user's own typing silently cover this too.
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", "mailto", null, false);
+});
+
+test("a link click with a scheme this browser loads itself navigates as usual", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
 
   const details = {
@@ -499,8 +563,9 @@ test("a link click with a non-allowlisted scheme navigates as usual", () => {
   expect(externalRequest).not.toHaveBeenCalled();
 });
 
-test("a sub-frame navigation is not handed off, even for an allowlisted scheme", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+test("a sub-frame navigation is not handed off, even for a scheme the desktop owns", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { host } = createTab({ externalRequest });
 
   host.emit("will-navigate", {
@@ -512,18 +577,50 @@ test("a sub-frame navigation is not handed off, even for an allowlisted scheme",
   expect(externalRequest).not.toHaveBeenCalled();
 });
 
-test("navigate() hands off an allowlisted scheme instead of loading it", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+test("navigate() hands off a scheme the desktop owns instead of loading it, with no origin", () => {
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("mailto:foo@bar.com");
 
-  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com");
+  // Typed directly (or the omnibox reusing the tab), not a page redirecting
+  // it — there is no asker to attribute this to.
+  expect(externalRequest).toHaveBeenCalledWith("mailto:foo@bar.com", "mailto", null, true);
+  expect(host.loaded).toEqual([]);
+});
+
+test("navigate() does not treat a typed host:port as a scheme to hand off", () => {
+  // resolveUrl passes "localhost:3000" through unchanged (its HAS_SCHEME
+  // regex treats the colon as a scheme marker), so without this guard a
+  // dev server address in the omnibox would offer to hand itself to the OS.
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("localhost:3000");
+
+  expect(externalRequest).not.toHaveBeenCalled();
+  expect(host.loaded).toEqual(["localhost:3000"]);
+});
+
+test("navigate() still hands off tel: with a short, digits-only number", () => {
+  // A digits-only path alone is not enough to look like a host:port — tel:
+  // and sms: numbers (including short emergency ones) are digits-only too,
+  // and must still reach the external-protocol prompt.
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+  const { tab, host } = createTab({ externalRequest });
+
+  tab.navigate("tel:123");
+
+  expect(externalRequest).toHaveBeenCalledWith("tel:123", "tel", null, true);
   expect(host.loaded).toEqual([]);
 });
 
 test("navigate() still loads a regular URL", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("https://example.com/page");
@@ -533,7 +630,8 @@ test("navigate() still loads a regular URL", () => {
 });
 
 test("a closed tab never reports an external handoff", () => {
-  const externalRequest = vi.fn<(url: string) => void>();
+  const externalRequest =
+    vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
   const { tab } = createTab({ externalRequest });
 
   tab.close();
