@@ -17,6 +17,7 @@ export interface ButtonLabels {
 export function buttonLabels(prompt: PromptState): ButtonLabels {
   switch (prompt.kind) {
     case "permission":
+    case "external-protocol":
       return { allow: "allow", deny: "deny" };
     case "session-restore":
       return { allow: "restore", deny: "discard" };
@@ -32,6 +33,10 @@ export function describePrompt(prompt: PromptState): string {
       return prompt.tabCount === 1
         ? "Restore 1 tab from your last session?"
         : `Restore ${prompt.tabCount} tabs from your last session?`;
+    case "external-protocol":
+      return prompt.origin === null
+        ? `Open this with ${prompt.scheme}:?`
+        : `${hostOf(prompt.origin)} wants to open ${prompt.scheme}:`;
   }
 }
 
