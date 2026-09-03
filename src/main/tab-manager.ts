@@ -1,7 +1,6 @@
 import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
-import { httpOrigin } from "../shared/url";
 import { composeContextMenuCss } from "./context-menu";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageContents } from "./page-host";
@@ -316,13 +315,13 @@ export class TabManager {
       died: () => {
         if (!this.#window.isDestroyed()) this.#forget(id);
       },
-      openRequest: (url, background) => {
+      openRequest: (url, background, origin) => {
         const opener = this.#tabs.get(id);
         if (opener !== undefined && !this.#window.isDestroyed()) {
           this.create(url, {
             after: id,
             background,
-            origin: httpOrigin(opener.snapshot().url),
+            origin,
             contents: opener.contents,
           });
         }

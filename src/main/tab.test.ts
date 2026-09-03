@@ -307,15 +307,39 @@ test("an emptied prompt stops the search", () => {
   expect(host.calls.stopFind).toBe(1);
 });
 
-test("window.open asks for a sibling once Chromium has left window creation", async () => {
-  const openRequest = vi.fn<(url: string, background: boolean) => void>();
+test("window.open asks for a sibling once Chromium has left window creation, with the opener's origin", async () => {
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
   const { host } = createTab({ openRequest });
+  host.state.url = "https://opener.example";
 
   expect(host.openWindow("https://opened.example", "background-tab")).toEqual({ action: "deny" });
   expect(openRequest).not.toHaveBeenCalled();
 
   await flush();
-  expect(openRequest).toHaveBeenCalledWith("https://opened.example", true);
+  expect(openRequest).toHaveBeenCalledWith(
+    "https://opened.example",
+    true,
+    "https://opener.example",
+  );
+});
+
+test("window.open's origin is read before the deferral, not after the opener navigates away", async () => {
+  // A page can call window.open and then navigate itself elsewhere in the
+  // same tick; the deferred openRequest must still attribute the ask to
+  // whoever actually called window.open, not whatever the tab shows later.
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
+  const { host } = createTab({ openRequest });
+  host.state.url = "https://opener.example";
+
+  host.openWindow("https://opened.example", "background-tab");
+  host.state.url = "https://attacker.example";
+
+  await flush();
+  expect(openRequest).toHaveBeenCalledWith(
+    "https://opened.example",
+    true,
+    "https://opener.example",
+  );
 });
 
 test("a page that closed itself is reported once", async () => {
@@ -398,6 +422,17 @@ test("a pick after the menu is gone does nothing", () => {
   expect(copyText).not.toHaveBeenCalled();
   // The document is gone, so no hide is sent to it either.
   expect(host.sent.filter(({ channel }) => channel === wire("contextMenu"))).toHaveLength(1);
+});
+
+test("opening a link in a new tab attributes it to this tab's own current page", () => {
+  const openRequest = vi.fn<(url: string, background: boolean, origin: string | null) => void>();
+  const { tab, host } = createTab({ openRequest });
+  host.state.url = "https://page.example";
+
+  host.emit("context-menu", EVENT, menuParams({ linkURL: "https://link.example" }));
+  tab.pickContextMenu("link.open-in-new-tab");
+
+  expect(openRequest).toHaveBeenCalledWith("https://link.example", true, "https://page.example");
 });
 
 test("keys reach the mode machine, and a consumed key is swallowed", () => {

@@ -36,7 +36,7 @@ export interface TabCallbacks {
    */
   navigated(page: PageContents, url: string): void;
   /** `window.open` or `target="_blank"`, which wants a tab next to this one. */
-  openRequest(url: string, background: boolean): void;
+  openRequest(url: string, background: boolean, origin: string | null): void;
   found(result: FindResult | null): void;
   editable(editable: boolean): void;
   /** History-API navigation; anything keyed to the URL has to be reapplied. */
@@ -337,7 +337,10 @@ export class Tab {
       ["nav.forward", () => webContents.navigationHistory.goForward()],
       ["nav.reload", () => webContents.reload()],
       // Background, next to its opener — the same answer window.open gets.
-      ["link.open-in-new-tab", () => this.#on.openRequest(params.linkURL, true)],
+      [
+        "link.open-in-new-tab",
+        () => this.#on.openRequest(params.linkURL, true, httpOrigin(webContents.getURL())),
+      ],
       ["link.copy", () => this.#on.copyText(params.linkURL)],
       ["image.copy", () => this.#on.copyText(params.srcURL)],
       ["edit.cut", () => webContents.cut()],
@@ -415,11 +418,17 @@ export class Tab {
     // we deny, which is also why a `target="_blank"` POST loses its
     // `postBody`: the request never reaches the new tab.
     webContents.setWindowOpenHandler((details) => {
+      // Captured synchronously, not inside the deferral below: the opener
+      // page could navigate itself elsewhere in the same tick (window.open
+      // followed by location.href), and by the time setImmediate runs,
+      // webContents.getURL() would no longer be the origin that actually
+      // called window.open.
+      const origin = httpOrigin(webContents.getURL());
       // Denying is answered synchronously; the tab is not built until Chromium
       // has left window creation.
       setImmediate(() => {
         if (!this.#closed)
-          this.#on.openRequest(details.url, details.disposition === "background-tab");
+          this.#on.openRequest(details.url, details.disposition === "background-tab", origin);
       });
       return { action: "deny" };
     });
