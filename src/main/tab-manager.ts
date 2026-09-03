@@ -1,6 +1,7 @@
 import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
+import { httpOrigin } from "../shared/url";
 import { composeContextMenuCss } from "./context-menu";
 import { externalProtocolTarget } from "./external";
 import type { PageContents } from "./page-host";
@@ -12,6 +13,15 @@ interface CreateOptions {
   /** Open next to this tab rather than at the end, as a page-opened tab should. */
   after?: TabId;
   background?: boolean;
+  /**
+   * The page that asked for this tab, if any — `window.open`/`target="_blank"`
+   * and the context menu's "open in new tab" both name an opener; a saved
+   * session row, `:tabnew`, and the default homepage do not. Only read when
+   * the URL turns out to be an external-protocol one.
+   */
+  origin?: string | null;
+  /** The opener's webContents, paired with `origin` for the same reason. */
+  contents?: PageContents | null;
 }
 
 /**
@@ -27,7 +37,8 @@ export class TabManager {
   #onFind: (result: FindResult | null) => void = () => {};
   #onInPageNavigation: (page: PageContents, url: string) => void = () => {};
   #onNavigated: (page: PageContents, url: string) => void = () => {};
-  #onExternal: (url: string) => void = () => {};
+  #onExternal: (url: string, origin: string | null, contents: PageContents | null) => void =
+    () => {};
   #pagePreload: string;
   #zoom: ZoomStore;
   #tabs = new Map<TabId, Tab>();
@@ -123,10 +134,13 @@ export class TabManager {
 
   /**
    * A URL the desktop, not a tab, should open — mailto: and kin. Wired once
-   * per window like the other observers; the URL has already been allowlisted
-   * before it reaches here.
+   * per window like the other observers; the URL has already been
+   * classified as a scheme this browser does not load itself before it
+   * reaches here, but whether it is actually opened is still to be decided.
    */
-  observeExternal(handler: (url: string) => void): void {
+  observeExternal(
+    handler: (url: string, origin: string | null, contents: PageContents | null) => void,
+  ): void {
     this.#onExternal = handler;
   }
 
@@ -180,7 +194,7 @@ export class TabManager {
     // Returning null lets session restore map its saved active index to a
     // real id without a special case for external-protocol URLs.
     if (externalProtocolTarget(url) !== null) {
-      this.#onExternal(url);
+      this.#onExternal(url, options.origin ?? null, options.contents ?? null);
       return null;
     }
     const tab = this.#adopt(url, options.after);
@@ -278,8 +292,14 @@ export class TabManager {
         if (!this.#window.isDestroyed()) this.#forget(id);
       },
       openRequest: (url, background) => {
-        if (this.#tabs.has(id) && !this.#window.isDestroyed()) {
-          this.create(url, { after: id, background });
+        const opener = this.#tabs.get(id);
+        if (opener !== undefined && !this.#window.isDestroyed()) {
+          this.create(url, {
+            after: id,
+            background,
+            origin: httpOrigin(opener.snapshot().url),
+            contents: opener.contents,
+          });
         }
       },
       // A background tab's matches are its own business until it is activated.
@@ -294,7 +314,8 @@ export class TabManager {
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
-      externalRequest: (url) => this.#onExternal(url),
+      externalRequest: (url, origin) =>
+        this.#onExternal(url, origin, this.#tabs.get(id)?.contents ?? null),
     };
   }
 

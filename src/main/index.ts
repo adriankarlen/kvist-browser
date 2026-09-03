@@ -32,6 +32,7 @@ import {
   watchConfig,
 } from "./config";
 import { Downloads } from "./downloads";
+import { ExternalProtocols, externalProtocolTarget } from "./external";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths, dbPath } from "./paths";
@@ -81,6 +82,17 @@ const prompts = new Prompts<PromptState>();
  * with the session-restore ask — one observer, one chrome line.
  */
 const permissions = new Permissions(prompts);
+
+/**
+ * External-protocol asks, app-scoped for the same reason as Permissions: a
+ * remembered "always open bankid: links" belongs to no one window, and the
+ * session-restore ask shares the same queue. Deciding whether a scheme
+ * makes it to `shell.openExternal` lives entirely here; every window just
+ * hands it a URL, a scheme, and who asked.
+ */
+const externalProtocols = new ExternalProtocols(prompts, (url) => {
+  void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
+});
 
 /**
  * The user's own stylesheets, session-scoped for the same reason as the rest:
@@ -285,13 +297,13 @@ function createWindow(
   // webContents, so without this every key pressed while the chrome holds
   // focus is invisible to the mode machine.
   interceptKeys(win.webContents, "chrome", onKey);
-  // A scheme the desktop owns — already allowlisted by the time it arrives
-  // here — goes to the OS. A rejection (no app registered, etc.) is the
-  // echo area's to show: a message that disappears on its own can vanish
-  // before the user has read it, and the one thing worth saying is usually
-  // what they were trying to open.
-  tabs.observeExternal((url) => {
-    void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
+  // A page (or the user, via the omnibox / :tabnew) asked for a scheme the
+  // browser does not load itself. Whether it actually reaches the OS is
+  // ExternalProtocols' call — ask once, remember the answer, and report a
+  // rejection (no app registered, etc.) in the echo area, same as before.
+  tabs.observeExternal((url, origin, contents) => {
+    const scheme = externalProtocolTarget(url);
+    if (scheme !== null) externalProtocols.request(url, scheme, origin, contents);
   });
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));
