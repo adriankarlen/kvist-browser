@@ -317,14 +317,13 @@ export class TabManager {
       },
       openRequest: (url, background, origin) => {
         const opener = this.#tabs.get(id);
-        if (opener !== undefined && !this.#window.isDestroyed()) {
-          this.create(url, {
-            after: id,
-            background,
-            origin,
-            contents: opener.contents,
-          });
-        }
+        if (!opener || this.#window.isDestroyed()) return;
+        this.create(url, {
+          after: id,
+          background,
+          origin,
+          contents: opener.contents,
+        });
       },
       // A background tab's matches are its own business until it is activated.
       found: (result) => {
@@ -362,11 +361,12 @@ export class TabManager {
       return;
     }
 
-    if (this.#activeId === id) {
-      this.activate(this.#order[Math.min(index, this.#order.length - 1)]!);
-    } else {
+    if (this.#activeId !== id) {
       this.#publish();
+      return;
     }
+
+    this.activate(this.#order[Math.min(index, this.#order.length - 1)]!);
   }
 
   #publish(): void {
