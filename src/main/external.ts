@@ -45,9 +45,44 @@ export function externalProtocolTarget(raw: string): string | null {
   return NATIVE_SCHEMES.has(scheme) ? null : scheme;
 }
 
-/** The key a decision is remembered under, scoped to no origin when none asked. */
-function keyOf(origin: string | null, scheme: string): string {
-  return `${origin ?? ""} ${scheme}`;
+/**
+ * Whether a URL is structurally indistinguishable from a typed `host:port`
+ * — `localhost:3000`, `example.com:8080` — rather than a real scheme
+ * invocation. Any bare word followed by `:` parses as a valid, if unusual,
+ * scheme (`resolveUrl`'s `HAS_SCHEME` regex already treats it as "already a
+ * URL"), and a non-special scheme's own URL has no `hostname` either way —
+ * so a typed dev-server address parses exactly like a real external scheme
+ * would, opaque path and all.
+ *
+ * Only ever call this for input that was not authored by a page: a page's
+ * own `<a href>` is never ambiguous, but a person typing into the omnibox
+ * (or `:tabnew`/`:open`) might mean either one. The one accepted false
+ * positive is a domestic-format `tel:` number typed directly into the
+ * omnibox (`tel:0701234567`, all digits, no `+`) — rare next to how common
+ * typing a bare `host:port` to reach a local dev server is, and a page's
+ * own `tel:` links (the common case) never go through this check at all.
+ */
+export function looksLikeHostPort(raw: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+  return parsed.hostname === "" && /^\d+(\/.*)?$/.test(parsed.pathname);
+}
+
+/**
+ * The key a decision is remembered under. `selfInitiated` keeps "the user
+ * typed this" and "a page asked but named no nameable origin" from sharing
+ * a bucket: both carry `origin: null`, but they are different levels of
+ * trust — an allow the user granted while typing a `mailto:` must not
+ * silently cover a `kvist:`/`file:`/opaque-origin page's own request for
+ * the same scheme.
+ */
+function keyOf(origin: string | null, scheme: string, selfInitiated: boolean): string {
+  const bucket = selfInitiated ? "self" : (origin ?? "page");
+  return `${bucket} ${scheme}`;
 }
 
 interface Watcher {
@@ -65,10 +100,18 @@ interface PendingExternal {
   promptsId: number;
   origin: string | null;
   scheme: string;
+  selfInitiated: boolean;
   /** Every URL waiting on this one decision, in case the same ask arrives twice before it settles. */
   urls: string[];
   /** Every tab that asked about this scheme, so one closing does not cancel a sibling's still-live question. */
   watchers: Watcher[];
+  /**
+   * Set once any request for this ask arrived with no tab to watch — a
+   * `:tabnew` or session-restore URL that has nothing tied to a tab's
+   * lifetime. `#dropWatcher` must not cancel the whole entry just because
+   * every *watched* request's tab died; this one is still owed an answer.
+   */
+  hasUnwatchedRequest: boolean;
 }
 
 /**
@@ -84,48 +127,86 @@ interface PendingExternal {
  * instead of Electron's grant-everything default. A scheme the browser
  * loads itself never reaches here at all; `externalProtocolTarget` filters
  * those out before a request is made.
+ *
+ * An ask with nothing watching it (`:tabnew mailto:x`, a saved session row,
+ * the default homepage) is app-scoped like `Permissions`' own decisions:
+ * there is no tab to tie its lifetime to, so it survives whatever window
+ * asked closing, the same deliberate exception `Downloads` and
+ * `Permissions` already are. A prompt with at least one watched tab is not
+ * — closing every tab that asked about it does cancel it.
  */
 export class ExternalProtocols {
   #prompts: Prompts<PromptState>;
   #open: (url: string) => void;
+  #warn: (text: string) => void;
   #decisions = new Map<string, boolean>();
   #pending: PendingExternal[] = [];
 
-  constructor(prompts: Prompts<PromptState>, open: (url: string) => void) {
+  constructor(
+    prompts: Prompts<PromptState>,
+    open: (url: string) => void,
+    warn: (text: string) => void,
+  ) {
     this.#prompts = prompts;
     this.#open = open;
+    this.#warn = warn;
   }
 
   /**
-   * A URL kvist has already recognised as a scheme it does not load itself.
-   * `origin` is the page that asked, or null for the user's own action
-   * (typed in the omnibox, `:tabnew`, a restored tab). `contents` is the
-   * tab behind the ask, or null when nothing was created for it (session
-   * restore, the default homepage) — every tab watching a still-pending
-   * ask closing is what cancels it, so a second window does not inherit a
-   * question about a page that is gone.
+   * A URL kvist has already recognised as a scheme it does not load itself,
+   * with its scheme already split out (recomputing it here, from the same
+   * URL, would just be a second parse that could disagree with the
+   * caller's). `origin` is the page that asked, or null when it named
+   * nothing nameable; `selfInitiated` is true when nothing asked on a
+   * page's behalf at all (typed in the omnibox, `:tabnew`, a restored
+   * tab) — see `keyOf`. `contents` is the tab behind the ask, or null when
+   * nothing was created for it.
    */
-  request(url: string, scheme: string, origin: string | null, contents: PageContents | null): void {
-    const key = keyOf(origin, scheme);
+  request(
+    url: string,
+    scheme: string,
+    origin: string | null,
+    selfInitiated: boolean,
+    contents: PageContents | null,
+  ): void {
+    const key = keyOf(origin, scheme, selfInitiated);
     const known = this.#decisions.get(key);
     if (known === true) return this.#open(url);
-    if (known === false) return;
+    if (known === false) {
+      // Silence here would be indistinguishable from a broken sign-in flow:
+      // the one thing worth saying is what was blocked and how to undo it.
+      const site = origin === null ? "" : ` for ${new URL(origin).host}`;
+      this.#warn(`${scheme}: is blocked${site} — restart kvist to ask again`);
+      return;
+    }
 
     const waiting = this.#pending.find(
-      (entry) => entry.origin === origin && entry.scheme === scheme,
+      (entry) =>
+        entry.origin === origin && entry.scheme === scheme && entry.selfInitiated === selfInitiated,
     );
     if (waiting !== undefined) {
       waiting.urls.push(url);
-      if (contents !== null && !waiting.watchers.some((watcher) => watcher.contents === contents)) {
+      if (contents === null) {
+        waiting.hasUnwatchedRequest = true;
+      } else if (!waiting.watchers.some((watcher) => watcher.contents === contents)) {
         waiting.watchers.push(this.#watch(waiting.promptsId, contents));
       }
       return;
     }
 
-    const promptsId = this.#prompts.ask({ kind: "external-protocol", origin, scheme }, (allow) =>
-      this.#settle(promptsId, allow),
+    const promptsId = this.#prompts.ask(
+      { kind: "external-protocol", origin, scheme, url },
+      (allow) => this.#settle(promptsId, allow),
     );
-    const entry: PendingExternal = { promptsId, origin, scheme, urls: [url], watchers: [] };
+    const entry: PendingExternal = {
+      promptsId,
+      origin,
+      scheme,
+      selfInitiated,
+      urls: [url],
+      watchers: [],
+      hasUnwatchedRequest: contents === null,
+    };
     if (contents !== null) entry.watchers.push(this.#watch(promptsId, contents));
     this.#pending.push(entry);
   }
@@ -139,7 +220,12 @@ export class ExternalProtocols {
   get pending(): { id: number; state: PromptState }[] {
     return this.#pending.map((entry) => ({
       id: entry.promptsId,
-      state: { kind: "external-protocol" as const, origin: entry.origin, scheme: entry.scheme },
+      state: {
+        kind: "external-protocol" as const,
+        origin: entry.origin,
+        scheme: entry.scheme,
+        url: entry.urls[0]!,
+      },
     }));
   }
 
@@ -162,16 +248,17 @@ export class ExternalProtocols {
   /**
    * The tab behind one of a pending ask's watchers has died. Only that
    * watcher's own wait ends here — a sibling tab that asked about the same
-   * scheme is still watching, and the prompt stays up until every watcher
-   * is gone. With none left the prompt is removed without answering it:
-   * nobody decided, so nothing is remembered either.
+   * scheme is still watching, and an unwatched request riding along
+   * (`hasUnwatchedRequest`) is still owed an answer regardless. With no
+   * watchers left and nothing unwatched, the prompt is removed without
+   * answering it: nobody decided, so nothing is remembered either.
    */
   #dropWatcher(promptsId: number, contents: PageContents): void {
     const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);
     if (entry === undefined) return;
 
     entry.watchers = entry.watchers.filter((watcher) => watcher.contents !== contents);
-    if (entry.watchers.length > 0) return;
+    if (entry.watchers.length > 0 || entry.hasUnwatchedRequest) return;
 
     this.#pending = this.#pending.filter((candidate) => candidate.promptsId !== promptsId);
     this.#prompts.cancel(promptsId);
@@ -183,7 +270,7 @@ export class ExternalProtocols {
     const [entry] = this.#pending.splice(index, 1);
 
     for (const watcher of entry.watchers) watcher.release();
-    this.#decisions.set(keyOf(entry.origin, entry.scheme), allow);
+    this.#decisions.set(keyOf(entry.origin, entry.scheme, entry.selfInitiated), allow);
     if (allow) for (const url of entry.urls) this.#open(url);
   }
 }

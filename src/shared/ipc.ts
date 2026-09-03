@@ -147,6 +147,8 @@ export type PromptState =
        */
       origin: string | null;
       scheme: string;
+      /** Shown truncated in the prompt line: the scheme alone does not say what is being sent to the OS. */
+      url: string;
     };
 
 /** The wire shape of a queued prompt: the state plus the id the queue stamped. */
