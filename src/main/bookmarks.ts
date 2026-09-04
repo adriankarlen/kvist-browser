@@ -77,7 +77,7 @@ export class Bookmarks {
    * observed, so making every caller pass it would just be a footgun.
    */
   add(input: AddInput): boolean {
-    const createdAt = input.createdAt ?? Date.now();
+    const createdAt = input.createdAt === undefined ? Date.now() : input.createdAt;
     const validated = parse(addValidator, { ...input, createdAt });
     if (validated.problem !== undefined) return false;
 

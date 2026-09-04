@@ -55,6 +55,23 @@ test("add drops inputs that fail validation", () => {
   expect(bookmarks.list()).toEqual([]);
 });
 
+test("add rejects an explicit null createdAt rather than defaulting it", () => {
+  // Only a missing createdAt (undefined) should fall back to Date.now().
+  // An explicit null is a malformed call the validator must catch, not a
+  // second spelling of "not provided".
+  // SAFETY: the cast widens null past AddInput's `number | undefined` so the
+  // validator has a chance to reject it — without it, TS would reject the
+  // object literal at compile time and the assertion under test would not
+  // exist.
+  const bad = {
+    url: "https://example.com/",
+    title: "Example",
+    createdAt: null as unknown as number,
+  };
+  expect(bookmarks.add(bad)).toBe(false);
+  expect(bookmarks.list()).toEqual([]);
+});
+
 test("add is not deduplicating: two adds for the same URL produce two rows", () => {
   expect(add("https://example.com/", "First", 1)).toBe(true);
   expect(add("https://example.com/", "Second", 2)).toBe(true);
@@ -188,13 +205,12 @@ test("search matches URL substrings", () => {
 });
 
 test("search matches title substrings", () => {
-  add("https://a.example/", "About Example", 1);
-  add("https://b.example/", "Unrelated", 2);
-  // Both URLs match the URL filter; the title-only match is the older one.
-  expect(bookmarks.search("example").map((row) => row.title)).toEqual([
-    "Unrelated",
-    "About Example",
-  ]);
+  add("https://a.test/", "About Example", 1);
+  add("https://b.test/", "Unrelated", 2);
+  // Neither URL contains "example", so a hit here can only come from the
+  // title predicate — unlike the previous fixture, this isolates it from
+  // the URL match instead of riding along with it.
+  expect(bookmarks.search("example").map((row) => row.title)).toEqual(["About Example"]);
 });
 
 test("search returns rows newest first", () => {
