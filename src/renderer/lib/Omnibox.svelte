@@ -2,6 +2,8 @@
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
   import { browser, ui, vim } from "./stores.svelte";
+  import CompletionMenu from "./CompletionMenu.svelte";
+  import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let draft = $state("");
@@ -10,6 +12,32 @@
   $effect(() => {
     const url = browser.active?.url ?? "";
     if (!focused) draft = url;
+  });
+
+  // Suggestions follow the draft while the omnibox has focus; blurring or an
+  // empty draft closes the list rather than leaving a stale query's answer
+  // on screen.
+  const completion = createCompletion(async (query) => {
+    const rows = await window.kvist.omniboxSuggestions(query);
+    return rows.map(
+      (row): Candidate => ({
+        label: row.label,
+        value: row.value,
+        kind: row.kind,
+        // A bookmark's title can differ from its URL; a history row's label
+        // is already the URL until KVI-43 backfills titles, so a hint there
+        // would just repeat the label.
+        hint: row.kind === "bookmark" ? row.value : undefined,
+      }),
+    );
+  });
+
+  $effect(() => {
+    if (!focused || draft.trim() === "") {
+      completion.close();
+      return;
+    }
+    void completion.update(draft);
   });
 
   // Zoom follows the active tab; the omnibox is just a mirror, so this is
@@ -28,7 +56,15 @@
     input?.blur();
   }
 
+  // A suggestion is already a concrete destination, not typed search text —
+  // accepting one skips resolveUrl and navigates straight to its URL.
+  function acceptSuggestion(candidate: Candidate): void {
+    window.kvist.navigate(candidate.value);
+    input?.blur();
+  }
+
   function onkeydown(event: KeyboardEvent): void {
+    if (handleCompletionKey(completion, event, acceptSuggestion)) return;
     if (event.key !== "Escape") return;
     event.preventDefault();
     input?.blur();
@@ -88,6 +124,7 @@
     {onblur}
     {onkeydown}
   />
+  <CompletionMenu {completion} onaccept={acceptSuggestion} />
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
   <button

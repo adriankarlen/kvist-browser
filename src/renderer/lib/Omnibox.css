@@ -4,6 +4,8 @@
     align-items: center;
     gap: 1ch;
     min-height: var(--kv-omnibox-height);
+    /* CompletionMenu's dropdown is `position: absolute`, anchored to this. */
+    position: relative;
   }
 
   .kv-mode {
