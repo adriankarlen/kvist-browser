@@ -92,6 +92,7 @@ export default defineConfig({
           "anti-slop/no-chained-type-assertions": "off",
           "anti-slop/no-known-value-widening": "off",
           "anti-slop/no-unknown-parameters": "off",
+          "anti-slop/no-unknown-returns": "off",
         },
       },
       {

@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { type KvistApi, listeners, senders, toChrome, toMain } from "../shared/ipc";
+import {
+  type KvistApi,
+  invokers,
+  listeners,
+  senders,
+  toChrome,
+  toMain,
+  toMainQueries,
+} from "../shared/ipc";
 
 /**
  * `window.kvist`, built from the channel tables rather than written out: every
@@ -13,6 +21,7 @@ const api: KvistApi = {
     ipcRenderer.on(channel, handler);
     return () => void ipcRenderer.off(channel, handler);
   }),
+  ...invokers(toMainQueries, (channel, request) => ipcRenderer.invoke(channel, request)),
 };
 
 contextBridge.exposeInMainWorld("kvist", api);

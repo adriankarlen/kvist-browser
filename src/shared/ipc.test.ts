@@ -2,11 +2,15 @@ import { expect, test, vi } from "vite-plus/test";
 import {
   type Channel,
   fromPage,
+  invokers,
   listeners,
+  type Query,
+  queryTable,
   senders,
   table,
   toChrome,
   toMain,
+  toMainQueries,
   toPage,
   wire,
 } from "./ipc";
@@ -21,6 +25,7 @@ test("no two channels claim the same wire name", () => {
   const names = [toMain, toChrome, fromPage, toPage].flatMap((channels) =>
     Object.keys(channels).map(wire),
   );
+  names.push(...Object.keys(toMainQueries).map(wire));
   expect(new Set(names).size).toBe(names.length);
 });
 
@@ -34,6 +39,29 @@ test("a table claiming a name another already has is refused", () => {
   expect(() => table({ probeChannel: {} as Channel<void> })).not.toThrow();
   // SAFETY: Channel's payload is phantom; an empty object is a valid channel at runtime.
   expect(() => table({ probeChannel: {} as Channel<void> })).toThrow("kvist:probe-channel");
+});
+
+test("a query table claiming a name a channel table already has is refused", () => {
+  // SAFETY: Query's request/response are phantom; an empty object is a valid query at runtime.
+  expect(() => queryTable({ find: {} as Query<string, string[]> })).toThrow("kvist:find");
+  // SAFETY: Query's request/response are phantom; an empty object is a valid query at runtime.
+  expect(() => queryTable({ probeQuery: {} as Query<string, string[]> })).not.toThrow();
+  // SAFETY: Query's request/response are phantom; an empty object is a valid query at runtime.
+  expect(() => queryTable({ probeQuery: {} as Query<string, string[]> })).toThrow(
+    "kvist:probe-query",
+  );
+});
+
+test("an invoker invokes its own channel and returns the response", async () => {
+  const invoke = vi.fn<(channel: string, request: unknown) => Promise<unknown>>(async () => [
+    { label: "a", value: "a", kind: "history" },
+  ]);
+  const api = invokers(toMainQueries, invoke);
+
+  const response = await api.omniboxSuggestions("a");
+
+  expect(invoke).toHaveBeenCalledWith("kvist:omnibox-suggestions", "a");
+  expect(response).toEqual([{ label: "a", value: "a", kind: "history" }]);
 });
 
 test("a sender sends its own channel and the payload it was given", () => {
