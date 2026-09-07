@@ -126,6 +126,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
     copyText: vi.fn(),
     menuCss: () => ".kv-menu {}",
     externalRequest: vi.fn(),
+    fullscreenChange: vi.fn(),
     ...overrides,
   };
   return {
@@ -767,4 +768,15 @@ test("syncZoom on a closed tab reaches for nothing", () => {
   const before = host.state.webContentsReads;
   tab.syncZoom();
   expect(host.state.webContentsReads).toBe(before);
+});
+
+test("entering and leaving the page's own HTML fullscreen reports both edges", () => {
+  const fullscreenChange = vi.fn();
+  const { host } = createTab({ fullscreenChange });
+
+  host.emit("enter-html-full-screen", EVENT);
+  expect(fullscreenChange).toHaveBeenCalledWith(true);
+
+  host.emit("leave-html-full-screen", EVENT);
+  expect(fullscreenChange).toHaveBeenCalledWith(false);
 });

@@ -59,6 +59,11 @@ export class TabManager {
   #order: TabId[] = [];
   #activeId: TabId | null = null;
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  /**
+   * The tab whose own HTML Fullscreen API request is currently honored, if
+   * any.
+   */
+  #fullscreenId: TabId | null = null;
   #nextId = 1;
   #homepage = DEFAULT_SETTINGS.homepage;
   #focusPage = DEFAULT_SETTINGS.tabFocusPage;
@@ -75,6 +80,27 @@ export class TabManager {
     this.#pagePreload = pagePreload;
     this.#zoom = zoom;
     this.#emit = emit;
+
+    // The single place fullscreen state resets, however the exit was
+    // triggered — the page's own script, our Escape handling below, or the
+    // window manager. `setFullScreen(false)` on a window that is HTML-
+    // fullscreen exits both levels together, so this always fires last.
+    this.#window.on("enter-full-screen", () => {
+      if (this.#fullscreenId !== null)
+        this.#tabs.get(this.#fullscreenId)?.setBounds(this.#windowRect());
+    });
+    this.#window.on("leave-full-screen", () => {
+      const id = this.#fullscreenId;
+      this.#fullscreenId = null;
+      if (id !== null) this.#tabs.get(id)?.setBounds(this.#contentRect);
+    });
+    // A display change, or the user resizing an already-fullscreen window
+    // (some window managers allow it), moves the window's own content
+    // bounds without ever firing enter/leave-full-screen again.
+    this.#window.on("resize", () => {
+      if (this.#fullscreenId !== null)
+        this.#tabs.get(this.#fullscreenId)?.setBounds(this.#windowRect());
+    });
   }
 
   /**
@@ -251,6 +277,12 @@ export class TabManager {
     const tab = this.#tabs.get(id);
     if (!tab) return;
 
+    // Closing the tab that owns fullscreen must not leave the window stuck
+    // fullscreen over a view that is about to be removed.
+    if (this.#fullscreenId === id) {
+      this.#fullscreenId = null;
+      if (!this.#window.isDestroyed()) this.#window.setFullScreen(false);
+    }
     this.#window.contentView.removeChildView(this.#viewOf(tab));
     tab.close();
     this.#forget(id);
@@ -260,13 +292,21 @@ export class TabManager {
     const target = this.#tabs.get(id);
     if (!target) return;
     this.active?.hideContextMenu();
+    // Switching tabs exits fullscreen, matching every other browser — the
+    // `leave-full-screen` listener restores the outgoing tab's bounds.
+    if (this.#fullscreenId !== null && this.#fullscreenId !== id && !this.#window.isDestroyed()) {
+      this.#window.setFullScreen(false);
+    }
     this.#activeId = id;
 
     for (const tab of this.#tabs.values()) {
       tab.setVisible(tab.id === id);
     }
 
-    target.setBounds(this.#contentRect);
+    // Reactivating the tab that already owns fullscreen (a redundant
+    // activateTab, say) must not shrink it back to the content rect — only
+    // an actual switch to a different tab leaves fullscreen, handled above.
+    target.setBounds(this.#fullscreenId === id ? this.#windowRect() : this.#contentRect);
     // Same-origin zoom propagates across tabs inside the session, so a hidden
     // tab's level can have moved with nothing for it to observe. Refresh the
     // mirror before the publish below, or the strip shows — and the next
@@ -286,7 +326,24 @@ export class TabManager {
 
   setContentRect(rect: Rect): void {
     this.#contentRect = rect;
-    this.active?.setBounds(rect);
+    // While a tab holds fullscreen, its view keeps the whole window's
+    // bounds — the content rect resumes governing it once fullscreen ends.
+    if (this.#fullscreenId === null) this.active?.setBounds(rect);
+  }
+
+  /** Whether some tab currently owns the window's native fullscreen. */
+  get isHtmlFullscreen(): boolean {
+    return this.#fullscreenId !== null;
+  }
+
+  /**
+   * Leaves fullscreen regardless of which tab owns it. The one caller today
+   * is Escape, which every other browser lets leave fullscreen before doing
+   * anything else.
+   */
+  leaveHtmlFullscreen(): void {
+    if (this.#fullscreenId === null || this.#window.isDestroyed()) return;
+    this.#window.setFullScreen(false);
   }
 
   /** Registers a page as a tab; the caller navigates it and decides visibility. */
@@ -307,6 +364,12 @@ export class TabManager {
   /** The views, kept beside the tabs: only the window needs the real thing. */
   #viewOf(tab: Tab): WebContentsView {
     return this.#views.get(tab.id)!;
+  }
+
+  /** The whole window's client area, in the coordinate frame `setBounds` takes. */
+  #windowRect(): Rect {
+    const { width, height } = this.#window.getContentBounds();
+    return { x: 0, y: 0, width, height };
   }
 
   #callbacks(id: TabId): TabCallbacks {
@@ -337,6 +400,35 @@ export class TabManager {
       key: (input, source) => this.#onKey(input, source),
       copyText: (text) => clipboard.writeText(text),
       menuCss: () => this.#menuCss,
+      fullscreenChange: (entering) => {
+        if (entering) {
+          // A duplicate or re-entrant claim from the tab that already owns
+          // fullscreen changes nothing — cancelling it here would call
+          // `document.exitFullscreen()` on a page that is genuinely and
+          // correctly fullscreen right now.
+          if (this.#fullscreenId === id) return;
+          // Only the active, visible tab may claim fullscreen; a hidden
+          // document has no business holding it, and a second claim while
+          // another tab already owns it is refused. A refusal has to say so
+          // back to the page — otherwise its own `fullscreenElement` state
+          // lies forever, since no `leave-html-full-screen` is coming to
+          // correct it.
+          if (this.#fullscreenId !== null || id !== this.#activeId || this.#window.isDestroyed()) {
+            this.#tabs.get(id)?.cancelFullscreen();
+            return;
+          }
+          this.#fullscreenId = id;
+          // Already fullscreen — a second HTML fullscreen request racing the
+          // first's own exit, say — is a no-op on the window, so the
+          // `enter-full-screen` event this otherwise waits for never fires.
+          // Apply the bounds directly rather than trust an event that isn't
+          // coming.
+          if (this.#window.isFullScreen()) this.#tabs.get(id)?.setBounds(this.#windowRect());
+          else this.#window.setFullScreen(true);
+        } else if (this.#fullscreenId === id && !this.#window.isDestroyed()) {
+          this.#window.setFullScreen(false);
+        }
+      },
       externalRequest: (url, scheme, origin, selfInitiated) =>
         this.#onExternal(url, scheme, origin, selfInitiated, this.#tabs.get(id)?.contents ?? null),
     };

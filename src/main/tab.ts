@@ -39,6 +39,13 @@ export interface TabCallbacks {
   openRequest(url: string, background: boolean, origin: string | null): void;
   found(result: FindResult | null): void;
   editable(editable: boolean): void;
+  /**
+   * The page entering or leaving its own HTML Fullscreen API request (a
+   * video's own fullscreen button, say). `true` on `enter-html-full-screen`,
+   * `false` on `leave-html-full-screen` — the collection decides whether
+   * that is honored and owns the window-level `setFullScreen` call.
+   */
+  fullscreenChange(entering: boolean): void;
   /** History-API navigation; anything keyed to the URL has to be reapplied. */
   inPageNavigation(page: PageContents, url: string): void;
   /** Synchronous, because `before-input-event` is: true swallows the key. */
@@ -202,6 +209,21 @@ export class Tab {
 
   setBounds(rect: Rect): void {
     if (!this.#closed) this.#host.setBounds(rect);
+  }
+
+  /**
+   * Tells the page to give up HTML fullscreen it asked for but this did
+   * not agree to honor — a second tab claiming it while another already
+   * owns the window's fullscreen, say. Without this the document's own
+   * `fullscreenElement`/`:fullscreen` state stays true forever: the tab's
+   * view never grows past its ordinary bounds, so the page paints its
+   * fullscreen layout squeezed into the content rect, and a later, genuine
+   * `leave-html-full-screen` never arrives to say otherwise. Best-effort:
+   * a page that never actually entered fullscreen just rejects the call.
+   */
+  cancelFullscreen(): void {
+    if (this.#closed) return;
+    void this.#page.executeJavaScript("document.exitFullscreen()").catch(() => {});
   }
 
   focus(): void {
@@ -454,6 +476,12 @@ export class Tab {
     });
 
     webContents.on("context-menu", (_event, params) => this.#openContextMenu(params));
+
+    // The page's own Fullscreen API (a video's own fullscreen button, a
+    // slideshow), not a window-manager gesture — the collection decides
+    // whether to honor it and drives the actual `setFullScreen` call.
+    webContents.on("enter-html-full-screen", () => this.#on.fullscreenChange(true));
+    webContents.on("leave-html-full-screen", () => this.#on.fullscreenChange(false));
 
     const failLoad = (
       code: number,

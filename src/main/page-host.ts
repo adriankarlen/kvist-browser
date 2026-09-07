@@ -39,6 +39,9 @@ export type PageContents = Pick<
   // The page's own stylesheet surface, which the cosmetic filters write to.
   | "insertCSS"
   | "removeInsertedCSS"
+  // Best-effort script injection: telling a refused fullscreen claim to
+  // give up the state it is holding.
+  | "executeJavaScript"
   // The zoom surface: setZoomLevel mutates, getZoomLevel reads. zoom-changed
   // is the only way the page can land a new level without us calling it.
   | "setZoomLevel"
