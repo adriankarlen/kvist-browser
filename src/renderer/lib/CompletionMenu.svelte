@@ -35,7 +35,7 @@
     off the owning input by handleCompletionKey, not by tabbing in here.
   -->
   <ul class="kv-completion" role="listbox" bind:this={list}>
-    {#each completion.candidates as candidate, index (candidate.value)}
+    {#each completion.candidates as candidate, index (index)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <li
         class="kv-completion__item"
