@@ -139,5 +139,20 @@
     --kv-omnibox-button-hover-fg: var(--kv-color-accent);
     --kv-omnibox-zoom-fg: var(--kv-color-subtle);
     --kv-omnibox-zoom-default-fg: var(--kv-color-muted);
+
+    /* the candidate dropdown under a text input (command line, omnibox) */
+    --kv-completion-bg: var(--kv-panel-bg);
+    --kv-completion-border: var(--kv-border-color);
+    --kv-completion-fg: var(--kv-color-text);
+    --kv-completion-hint-fg: var(--kv-color-muted);
+    --kv-completion-hover-bg: var(--kv-color-surface);
+    --kv-completion-hover-fg: var(--kv-color-accent);
+    /* Fallback badge colour for a candidate whose kind has no dedicated
+       --kv-completion-kind-<kind>-fg of its own. */
+    --kv-completion-badge-fg: var(--kv-color-muted);
+    /* How much of the badge colour bleeds into its own background. */
+    --kv-completion-badge-tint: 25%;
+    --kv-completion-badge-width: 2ch;
+    --kv-completion-max-height: 12lh;
   }
 }
