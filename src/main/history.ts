@@ -3,6 +3,7 @@ import { type } from "arktype";
 import { originOf } from "../shared/url";
 import type { Database } from "./db/database";
 import { history } from "./db/schema";
+import { clampLimit, DEFAULT_LIMIT, escapeLike } from "./db/query";
 import { epochMillis, nonEmptyString, parse, urlString } from "./db/validation";
 import { errorPageTarget } from "./error-page";
 
@@ -18,10 +19,6 @@ export interface HistoryRow {
   origin: string | null;
   visitedAt: number;
 }
-
-const DEFAULT_LIMIT = 50;
-/** The hard ceiling on a single search/recent call — a runaway limit would scan the whole table. */
-const MAX_LIMIT = 500;
 
 /**
  * Shape of `record`'s argument. Composed from the per-field validators so a
@@ -140,19 +137,4 @@ export class History {
       .limit(capped)
       .all();
   }
-}
-
-/** Clamps the limit to a sane range. A negative or zero limit means "no rows", which is rarely what the caller wanted. */
-function clampLimit(limit: number): number {
-  if (!Number.isInteger(limit) || limit < 1) return DEFAULT_LIMIT;
-  return Math.min(limit, MAX_LIMIT);
-}
-
-/**
- * Escapes the three LIKE metacharacters: the escape char itself, then `%`
- * and `_`. Order matters — backslash first, otherwise the escapes added
- * for `%` and `_` would themselves be re-escaped on a second pass.
- */
-function escapeLike(pattern: string): string {
-  return pattern.replace(/[\\%_]/g, "\\$&");
 }

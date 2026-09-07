@@ -6,5 +6,6 @@
  *   4. Check the generated SQL in — it is the source of truth for what
  *      `Database.open` will apply.
  */
+export * from "./schema/bookmarks";
 export * from "./schema/history";
 export * from "./schema/session";
