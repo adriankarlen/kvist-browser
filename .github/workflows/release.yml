@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+          - os: macos-latest
+            target: mac
+          - os: windows-latest
+            target: win
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: voidzero-dev/setup-vp@v1.17.0
+        with:
+          node-version-file: ".node-version"
+          cache: true
+
+      # `--publish never` keeps electron-builder from pushing artifacts
+      # anywhere on its own; the upload step below is the only place that
+      # talks to GitHub.
+      - run: pnpm exec electron-builder --${{ matrix.target }} --publish never
+        env:
+          # Code signing is intentionally a separate initiative; both
+          # platform vars stay unset so electron-builder produces unsigned
+          # artifacts. See the code-signing follow-up issue.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@65462800fd760344dadc7f6f57c64b352c555d8a
+        with:
+          name: kvist-${{ matrix.target }}-${{ github.ref_name }}
+          # electron-builder drops the unpacked dirs next to the artifacts;
+          # only the distributable files (dmg, zip, AppImage, deb, rpm,
+          # nsis exe) ship. `latest-*.yml` is the auto-updater manifest and
+          # is included for forward compatibility.
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/*.exe
+            release/latest-*.yml
+          if-no-files-found: error
