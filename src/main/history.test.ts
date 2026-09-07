@@ -1,39 +1,20 @@
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
-import { Database } from "./db/database";
+import type { Database } from "./db/database";
+import { closeTestDatabase, openTestDatabase } from "./db/test-database";
 import { formatErrorPageUrl } from "./error-page";
 import { History } from "./history";
 
-const REAL_MIGRATIONS = join(process.cwd(), "src/main/db/migrations");
-
 let dir: string;
-let migDir: string;
 let db: Database;
 let history: History;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "kvist-history-"));
-  migDir = join(dir, "migrations");
-  mkdirSync(migDir, { recursive: true });
-
-  // Copy the real migrations into the test folder so `Database.open` runs
-  // them and the `history` table exists before the test starts.
-  for (const entry of readdirSync(REAL_MIGRATIONS, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    cpSync(join(REAL_MIGRATIONS, entry.name), join(migDir, entry.name), {
-      recursive: true,
-    });
-  }
-
-  db = Database.open(join(dir, "history.db"), migDir);
+  ({ dir, db } = openTestDatabase("history"));
   history = new History(db);
 });
 
 afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
+  closeTestDatabase({ dir, db });
 });
 
 const record = (url: string, title = url, visitedAt = 1): boolean =>
