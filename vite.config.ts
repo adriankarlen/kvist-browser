@@ -115,6 +115,15 @@ export default defineConfig({
         },
       },
       {
+        // The omnibox query is the typed boundary for what an IPC query hands
+        // main: `handleQueries` erases it to `unknown` at the transport seam,
+        // and this is where it gets decoded back into a domain value.
+        files: ["src/main/omnibox.ts"],
+        rules: {
+          "anti-slop/no-unknown-parameters": "off",
+        },
+      },
+      {
         // Tests stub seams with partial fakes; the casts stay SAFETY-commented.
         files: ["**/*.test.ts"],
         rules: {

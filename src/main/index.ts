@@ -210,7 +210,6 @@ function isPromptAnswer(value: unknown): value is { id: number; allow: boolean }
 function createWindow(
   zoom: ZoomStore,
   history: History,
-  bookmarks: Bookmarks,
   sessions: Session,
   saved: SessionState | null,
 ): void {
@@ -517,18 +516,9 @@ function createWindow(
     (sender) => sender === win.webContents,
   );
 
-  const releaseChromeQueries = handleQueries(
-    toMainQueries,
-    {
-      omniboxSuggestions: (query) => omniboxSuggestions(history, bookmarks, query),
-    },
-    (sender) => sender === win.webContents,
-  );
-
   // ipcMain is process-global; these belong to this window.
   win.on("closed", () => {
     releaseChrome();
-    releaseChromeQueries();
     releasePage();
     releaseMessages();
     releasePermissions();
@@ -580,6 +570,20 @@ if (!gotTheLock) {
     const config = createConfigStore();
     const history = new History(db);
     const bookmarks = new Bookmarks(db);
+    // Bookmarks/History are app-scoped, not per-window, so this query is
+    // registered once for the app's whole life rather than re-registered per
+    // `createWindow` — `ipcMain.handle` throws on a second registration for
+    // the same channel, which a second window would hit immediately if this
+    // lived inside `createWindow` instead. Same exception AGENTS.md documents
+    // for `Downloads`/`Permissions`: nothing narrower to release into, so the
+    // release this returns is never called.
+    handleQueries(
+      toMainQueries,
+      {
+        omniboxSuggestions: (query) => omniboxSuggestions({ history, bookmarks }, query),
+      },
+      (sender) => BrowserWindow.getAllWindows().some((window) => window.webContents === sender),
+    );
     const loaded = await loadConfig(config);
     reportProblems(loaded);
     await applyConfig(loaded.config);
@@ -599,7 +603,7 @@ if (!gotTheLock) {
     // row is left behind by a crash.
     const sessions = new Session(db);
     const saved = sessions.load();
-    createWindow(zoom, history, bookmarks, sessions, saved);
+    createWindow(zoom, history, sessions, saved);
     const releaseConfig = await watchConfig(config, (next) => {
       reportProblems(next);
       void applyConfig(next.config);
@@ -630,7 +634,7 @@ if (!gotTheLock) {
       // session, same as cold start. Re-reading from the store is cheap and
       // avoids the alternative of carrying the row across the app's lifetime.
       if (BrowserWindow.getAllWindows().length === 0)
-        createWindow(zoom, history, bookmarks, sessions, sessions.load());
+        createWindow(zoom, history, sessions, sessions.load());
     });
   });
 }
