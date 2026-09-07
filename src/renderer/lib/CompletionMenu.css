@@ -1,0 +1,64 @@
+/*
+ * The candidate dropdown that sits under a text input. Positioned absolute
+ * against the nearest positioned ancestor, so a consumer only needs
+ * `position: relative` on its own wrapper — nothing here assumes which
+ * input it belongs to.
+ *
+ * The badge never gets a per-kind selector: its colour and tint arrive as an
+ * inline style from `kindBadgeStyle`, keyed off whatever string the caller's
+ * candidate carries as `kind`. This file only supplies the fallback look.
+ */
+@layer kvist.components {
+  .kv-completion {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    max-height: var(--kv-completion-max-height);
+    overflow-y: auto;
+    background: var(--kv-completion-bg);
+    border: var(--kv-border-width) solid var(--kv-completion-border);
+    border-radius: var(--kv-radius);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+    color: var(--kv-completion-fg);
+  }
+
+  .kv-completion__item {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    padding: 0 2ch;
+    cursor: default;
+  }
+
+  .kv-completion__item.is-active {
+    background: var(--kv-completion-hover-bg);
+    color: var(--kv-completion-hover-fg);
+  }
+
+  .kv-completion__badge {
+    flex: none;
+    width: var(--kv-completion-badge-width);
+    text-align: center;
+    text-transform: lowercase;
+    font-weight: bold;
+  }
+
+  .kv-completion__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .kv-completion__hint {
+    flex: none;
+    color: var(--kv-completion-hint-fg);
+  }
+}
