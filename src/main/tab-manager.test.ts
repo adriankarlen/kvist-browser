@@ -259,6 +259,21 @@ test("switching tabs away from the one holding fullscreen leaves fullscreen and 
   expect(owner.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 300, height: 200 });
 });
 
+test("reactivating the tab that already owns fullscreen keeps the window bounds", () => {
+  const { tabs, win } = setup();
+  tabs.setContentRect({ x: 0, y: 0, width: 300, height: 200 });
+  const id = tabs.create("https://a.example")!;
+  const owner = views[0]!;
+  owner.events.emit("enter-html-full-screen");
+  owner.setBounds.mockClear();
+
+  tabs.activate(id);
+
+  expect(win.isFullScreen()).toBe(true);
+  expect(tabs.isHtmlFullscreen).toBe(true);
+  expect(owner.setBounds).toHaveBeenCalledWith({ x: 0, y: 0, width: 1280, height: 800 });
+});
+
 test("closing the tab that holds fullscreen leaves fullscreen behind", () => {
   const { tabs, win } = setup();
   const id = tabs.create("https://a.example")!;

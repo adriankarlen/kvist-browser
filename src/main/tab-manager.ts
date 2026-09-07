@@ -303,7 +303,10 @@ export class TabManager {
       tab.setVisible(tab.id === id);
     }
 
-    target.setBounds(this.#contentRect);
+    // Reactivating the tab that already owns fullscreen (a redundant
+    // activateTab, say) must not shrink it back to the content rect — only
+    // an actual switch to a different tab leaves fullscreen, handled above.
+    target.setBounds(this.#fullscreenId === id ? this.#windowRect() : this.#contentRect);
     // Same-origin zoom propagates across tabs inside the session, so a hidden
     // tab's level can have moved with nothing for it to observe. Refresh the
     // mirror before the publish below, or the strip shows — and the next
