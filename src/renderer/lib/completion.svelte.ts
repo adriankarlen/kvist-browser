@@ -19,9 +19,21 @@ export type Candidate = {
 
 export type CompletionSource = (query: string) => Candidate[] | Promise<Candidate[]>;
 
+export interface CompletionOptions {
+  /**
+   * Whether `update()` preselects the first candidate. Tab-completion
+   * (the command line) wants this: Tab should have something to cycle from
+   * immediately. A URL bar must not: preselecting would let a bare Enter
+   * after typing silently navigate to a ranked suggestion instead of what
+   * the user typed. Defaults to `true`.
+   */
+  selectFirst?: boolean;
+}
+
 export type Completion = ReturnType<typeof createCompletion>;
 
-export function createCompletion(source: CompletionSource) {
+export function createCompletion(source: CompletionSource, options: CompletionOptions = {}) {
+  const selectFirst = options.selectFirst ?? true;
   const state = $state<{ candidates: Candidate[]; index: number }>({ candidates: [], index: -1 });
   // Bumped on every update and every close, so a slow async source landing
   // after a newer query (or after the list was closed) cannot resurrect it.
@@ -38,10 +50,10 @@ export function createCompletion(source: CompletionSource) {
       return state.candidates.length > 0;
     },
     get active(): Candidate | null {
-      // index is only ever >= 0 right after update() sets it to a valid slot,
-      // or after next()/prev() wrap it within the current candidates — so
-      // this is a bounds guard against a future change breaking that
-      // invariant, not a reachable branch today.
+      // index is only ever >= 0 right after update() sets it to a valid slot
+      // (unless selectFirst is false, where it starts at -1 with candidates
+      // present until the first next()/prev()), or after next()/prev() wrap
+      // it within the current candidates.
       return state.index >= 0 ? state.candidates[state.index] : null;
     },
     async update(query: string): Promise<void> {
@@ -62,15 +74,18 @@ export function createCompletion(source: CompletionSource) {
       }
       if (token !== latest) return;
       state.candidates = candidates;
-      state.index = candidates.length > 0 ? 0 : -1;
+      state.index = candidates.length > 0 && selectFirst ? 0 : -1;
     },
     next(): void {
       if (state.candidates.length === 0) return;
-      state.index = (state.index + 1) % state.candidates.length;
+      state.index = state.index < 0 ? 0 : (state.index + 1) % state.candidates.length;
     },
     prev(): void {
       if (state.candidates.length === 0) return;
-      state.index = (state.index - 1 + state.candidates.length) % state.candidates.length;
+      state.index =
+        state.index < 0
+          ? state.candidates.length - 1
+          : (state.index - 1 + state.candidates.length) % state.candidates.length;
     },
     close(): void {
       latest++;
