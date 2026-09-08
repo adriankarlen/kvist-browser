@@ -16,8 +16,10 @@
 
   // Suggestions follow the draft while the omnibox has focus; blurring or an
   // empty draft closes the list rather than leaving a stale query's answer
-  // on screen.
-  const completion = createCompletion(async (query) => {
+  // on screen. selectFirst: false — Enter submits the draft through
+  // resolveUrl instead of accepting whatever suggestion ranked first.
+  const completion = createCompletion(
+    async (query) => {
     const rows = await window.kvist.omniboxSuggestions(query);
     return rows.map(
       (row): Candidate => ({
@@ -30,14 +32,21 @@
         hint: row.kind === "bookmark" ? row.value : undefined,
       }),
     );
-  });
+  },
+  { selectFirst: false },
+);
 
+  // The debounce keeps mid-word typing from firing an IPC request per
+  // keystroke; the effect's cleanup cancels any timer a newer draft
+  // superseded, and blurring or an empty draft closes the list outright.
   $effect(() => {
     if (!focused || draft.trim() === "") {
       completion.close();
       return;
     }
-    void completion.update(draft);
+    const query = draft;
+    const timer = setTimeout(() => void completion.update(query), 75);
+    return () => clearTimeout(timer);
   });
 
   // Zoom follows the active tab; the omnibox is just a mirror, so this is
