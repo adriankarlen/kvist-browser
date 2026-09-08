@@ -296,6 +296,12 @@ function createWindow(
   // from — the page's keys and the chrome's both arrive here.
   const onKey = (input: KeyInput, source: KeySource): boolean => {
     messages.keyPressed();
+    // find.clear swallows Escape in normal mode (Vim#dispatch matches and
+    // calls event.preventDefault), which would otherwise be the only chance
+    // Chromium's built-in "Escape exits HTML fullscreen" gets — so that has
+    // to be reimplemented here, falling out to whatever normal-mode Escape
+    // already does, matching every other browser.
+    if (tabs.isHtmlFullscreen && input.key === "Escape") tabs.leaveHtmlFullscreen();
     return vim.handleKey(input, source);
   };
 
