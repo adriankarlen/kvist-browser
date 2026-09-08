@@ -3,22 +3,6 @@ import type { KvistApi } from "../../shared/ipc";
 
 export type Ui = ReturnType<typeof createUi>;
 
-const USER_STYLE_ID = "kv-user-config";
-
-/**
- * Injected without a cascade layer, which beats every layer Kvist ships
- * regardless of specificity — so config.css never needs !important.
- */
-export function injectUserCss(css: string): void {
-  let element = document.getElementById(USER_STYLE_ID);
-  if (!element) {
-    element = document.createElement("style");
-    element.id = USER_STYLE_ID;
-    document.head.append(element);
-  }
-  element.textContent = css;
-}
-
 /**
  * The settings the chrome itself reads, plus the ones it can flip on its own.
  * An override stands until the user edits that same field in config.toml:
