@@ -1,8 +1,9 @@
 /*
- * The candidate dropdown that sits under a text input. Positioned absolute
- * against the nearest positioned ancestor, so a consumer only needs
- * `position: relative` on its own wrapper — nothing here assumes which
- * input it belongs to.
+ * The candidate dropdown. It fills an overlay view of its own rather than
+ * floating inside the chrome's document: a tab's `WebContentsView` is a
+ * native layer painted over the chrome, so a list positioned here would be
+ * hidden behind the page. Main sizes and places that view, which is why
+ * nothing here positions anything.
  *
  * The badge never gets a per-kind selector: its colour and tint arrive as an
  * inline style from `kindBadgeStyle`, keyed off whatever string the caller's
@@ -10,11 +11,6 @@
  */
 @layer kvist.components {
   .kv-completion {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 1;
     margin: 0;
     padding: 4px 0;
     list-style: none;
@@ -34,6 +30,7 @@
     gap: 1ch;
     padding: 0 2ch;
     cursor: default;
+    user-select: none;
   }
 
   .kv-completion__item.is-active {

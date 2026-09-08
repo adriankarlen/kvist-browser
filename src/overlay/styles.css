@@ -1,0 +1,31 @@
+/*
+ * Layer order for the overlay, declared here for the same reason the chrome
+ * declares its own: user CSS is injected unlayered and beats every layer, so
+ * the dropdown is as retheme-able as the window around it.
+ *
+ * The document itself is transparent. The view is sized to the list, but a
+ * rounded corner still shows what is behind it, and behind it is the page.
+ */
+@layer kvist.reset, kvist.tokens, kvist.components;
+
+@import "../shared/styles/reset.css";
+@import "../shared/styles/tokens.css";
+
+@layer kvist.reset {
+  html,
+  body {
+    background: transparent;
+  }
+}
+
+@layer kvist.components {
+  /*
+   * The list is placed by main, in this view's own coordinates. Absolute
+   * rather than margins: a margin would collapse through the mount element,
+   * which would make an exact placement depend on nothing above it ever
+   * gaining a border.
+   */
+  .kv-completion-slot {
+    position: absolute;
+  }
+}

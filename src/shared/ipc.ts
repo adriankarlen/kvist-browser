@@ -171,6 +171,59 @@ export interface OmniboxSuggestion {
 }
 
 /**
+ * One row of a completion list, generic over what is being completed. Shared
+ * rather than renderer-owned because the list is rendered in an overlay view
+ * of its own, and the candidate crosses main to get there and back.
+ */
+export interface CompletionCandidate {
+  label: string;
+  value: string;
+  hint?: string;
+  /**
+   * A free-form tag such as "bookmark", "history", "search", or "command".
+   * Nothing here has a fixed vocabulary for it — a kind becomes a one-letter
+   * badge (its first character) coloured by `--kv-completion-kind-<kind>-fg`,
+   * a token the caller's feature defines.
+   */
+  kind?: string;
+}
+
+/**
+ * Which edge of its anchor a completion list grows from. The omnibox sits
+ * above the page and grows down; the command line sits below it and grows up.
+ */
+export type CompletionGrow = "down" | "up";
+
+/**
+ * What the completion overlay renders, and what main places it by. `anchor`
+ * is the input the list belongs to, measured in the chrome's own coordinates
+ * — the same frame `setContentRect` reports in, so main can hand it to
+ * `setBounds` without translating.
+ */
+export interface CompletionOverlayState {
+  candidates: CompletionCandidate[];
+  /** The highlighted row, or -1 when nothing is selected yet. */
+  index: number;
+  anchor: Rect;
+  grow: CompletionGrow;
+}
+
+/**
+ * Where the list sits inside its view, in CSS pixels.
+ *
+ * A view's bounds are whole pixels, but the input the list hangs from is
+ * rarely on one — the chrome measures its padding in `ch`. The view is
+ * therefore made slightly larger than the list and the list is placed at
+ * this fractional offset inside it, so its border lands exactly on the
+ * chrome's rather than a device pixel away from it.
+ */
+export interface CompletionInset {
+  left: number;
+  top: number;
+  width: number;
+}
+
+/**
  * A channel and what it carries. `payload` is a phantom: it never exists at
  * runtime, it is only how the type travels from the table to both sides.
  */
@@ -311,6 +364,12 @@ export const toMain = table({
    * override has been cleared.
    */
   orientationOverride: channel<TabOrientation | null>(),
+  /**
+   * What the completion overlay should show, or null to close it. The chrome
+   * owns the list and its selection; this is the mirror main places and
+   * paints on its behalf.
+   */
+  completionOverlay: channel<CompletionOverlayState | null>(),
 });
 
 /** Main → chrome. Full snapshots, never diffs. */
@@ -336,6 +395,41 @@ export const toChrome = table({
    * is missing or malformed — those cases look like a fresh first launch.
    */
   restoreSession: channel<RestoreSessionState>(),
+  /** A row the user clicked in the completion overlay, relayed back to accept. */
+  completionAccept: channel<CompletionCandidate>(),
+});
+
+/**
+ * Main → the completion overlay view. Separate from `toChrome` because the
+ * overlay is a different webContents with a far smaller surface: it renders
+ * a list and nothing else.
+ */
+export const toOverlay = table({
+  completionState: channel<CompletionOverlayState>(),
+  /** Where to draw the list inside the view main has sized for it. */
+  completionInset: channel<CompletionInset>(),
+  /** The user's config.css, injected unlayered so a retheme reaches the menu too. */
+  completionCss: channel<string>(),
+});
+
+/**
+ * The completion overlay → main. Accepted only from the overlay's own
+ * webContents, the same way `fromPage` is gated on owning a tab.
+ */
+export const fromOverlay = table({
+  /**
+   * How tall the rendered list is. Only the overlay can know: the height
+   * follows the row count and the styling, neither of which main should
+   * have to model.
+   */
+  completionHeight: channel<number>(),
+  /**
+   * A clicked row. Carries the candidate rather than its index because the
+   * click moves focus off the chrome, which blurs the input and clears the
+   * list before this lands — an index would point into an array that is
+   * already empty.
+   */
+  completionPick: channel<CompletionCandidate>(),
 });
 
 /**
@@ -434,3 +528,10 @@ export function invokers<T extends AnyQueryTable>(
 export type KvistApi = Senders<typeof toMain> &
   Listeners<typeof toChrome> &
   Queries<typeof toMainQueries>;
+
+/**
+ * What the overlay preload exposes. Deliberately not `KvistApi`: the overlay
+ * renders a list, and handing it the chrome's whole surface would let a
+ * dropdown navigate tabs.
+ */
+export type OverlayApi = Senders<typeof fromOverlay> & Listeners<typeof toOverlay>;

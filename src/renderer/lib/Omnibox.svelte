@@ -2,12 +2,13 @@
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
   import { browser, ui, vim } from "./stores.svelte";
-  import CompletionMenu from "./CompletionMenu.svelte";
+  import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let draft = $state("");
   let focused = $state(false);
+  const anchor = createAnchor();
 
   $effect(() => {
     const url = browser.active?.url ?? "";
@@ -47,6 +48,26 @@
     const query = draft;
     const timer = setTimeout(() => void completion.update(query), 75);
     return () => clearTimeout(timer);
+  });
+
+  /**
+   * Mirrors the list to main, which paints it in an overlay view above the
+   * page — chrome HTML can never overlap a tab's native layer, so the rows
+   * cannot be rendered here. Snapshotted because a `$state` proxy is not
+   * something IPC can serialise.
+   */
+  $effect(() => {
+    const box = anchor.current;
+    if (!focused || box === null || !completion.open) {
+      window.kvist.completionOverlay(null);
+      return;
+    }
+    window.kvist.completionOverlay({
+      candidates: $state.snapshot(completion.candidates),
+      index: completion.index,
+      anchor: box,
+      grow: "down",
+    });
   });
 
   // Zoom follows the active tab; the omnibox is just a mirror, so this is
@@ -96,9 +117,16 @@
   }
 
   window.kvist.onFocusOmnibox(() => input?.focus());
+
+  // A clicked row comes back through main: the overlay is a webContents of
+  // its own, so its clicks cannot reach this document directly.
+  window.kvist.onCompletionAccept((candidate) => {
+    completion.close();
+    acceptSuggestion(candidate);
+  });
 </script>
 
-<form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit}>
+<form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>
   <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
   <button
     class="kv-omnibox__button"
@@ -133,7 +161,6 @@
     {onblur}
     {onkeydown}
   />
-  <CompletionMenu {completion} onaccept={acceptSuggestion} />
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
   <button

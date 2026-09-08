@@ -3,19 +3,15 @@
  * The caller supplies a source (query -> candidates) and decides what
  * accepting one does to its input; this module only owns the list, the
  * selection, and the keys that drive both.
+ *
+ * The rows are rendered in an overlay view rather than in this document — a
+ * tab's `WebContentsView` paints over the chrome, so a dropdown here would be
+ * hidden by the page. A candidate makes the trip through main to get there,
+ * which is why its type lives in `shared/ipc.ts`.
  */
-export type Candidate = {
-  label: string;
-  value: string;
-  hint?: string;
-  /**
-   * A free-form tag such as "bookmark", "history", "search", or "command".
-   * This module has no fixed vocabulary for it — a kind becomes a one-letter
-   * badge (its first character) coloured by `--kv-completion-kind-<kind>-fg`,
-   * a token the caller's feature defines. Nothing here enumerates kinds.
-   */
-  kind?: string;
-};
+import type { CompletionCandidate } from "../../shared/ipc";
+
+export type Candidate = CompletionCandidate;
 
 export type CompletionSource = (query: string) => Candidate[] | Promise<Candidate[]>;
 
@@ -137,36 +133,4 @@ export function handleCompletionKey(
     default:
       return false;
   }
-}
-
-/**
- * The badge letter for a candidate's kind, or a neutral "•" when it has
- * none — every row gets a badge, not just the ones with a kind.
- */
-export function kindBadge(candidate: Pick<Candidate, "kind">): string {
-  return candidate.kind ? candidate.kind.charAt(0).toLowerCase() : "•";
-}
-
-/**
- * Inline style for a candidate's badge: the kind's own colour, and a
- * background tinted towards it by `color-mix`. A kind with no dedicated
- * `--kv-completion-kind-<kind>-fg`, and a candidate with no kind at all,
- * both fall back to the default badge colour — every row gets the same
- * tinted-square look, never a blank space where the colour would be.
- *
- * `kind` is free-form and ends up in a CSS custom property *name*, not a
- * value, so `var()`'s own escaping does nothing for it — a kind containing
- * `)`, `;`, or whitespace could close the declaration early and inject
- * arbitrary CSS. Restricted to the characters a token name can use; anything
- * else is treated the same as no kind at all.
- */
-const KIND_TOKEN_PATTERN = /^[a-z0-9-]+$/i;
-
-export function kindBadgeStyle(candidate: Pick<Candidate, "kind">): string {
-  const kind =
-    candidate.kind && KIND_TOKEN_PATTERN.test(candidate.kind) ? candidate.kind : undefined;
-  const fg = kind
-    ? `var(--kv-completion-kind-${kind}-fg, var(--kv-completion-badge-fg))`
-    : "var(--kv-completion-badge-fg)";
-  return `color: ${fg}; background: color-mix(in srgb, ${fg} var(--kv-completion-badge-tint), var(--kv-completion-bg))`;
 }

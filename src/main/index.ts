@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, session, shell, WebContentsView } from "electron";
 import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
@@ -16,6 +16,7 @@ import { omniboxSuggestions } from "./omnibox";
 import { Prompts } from "./prompts";
 import { Session, type SessionState } from "./session";
 import {
+  fromOverlay,
   fromPage,
   type Point,
   type PromptState,
@@ -42,6 +43,7 @@ import { applyXdgPaths, dbPath } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
+import { CompletionOverlay } from "./completion-overlay";
 import { ViewStack } from "./view-stack";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
@@ -53,7 +55,9 @@ registerKvistScheme();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
+const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
+const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 /**
@@ -241,6 +245,36 @@ function createWindow(
   const tabs = new TabManager(win, views, pagePreload, zoom, (state) => chrome.state(state));
   tabManagers.add(tabs);
 
+  /**
+   * The completion menu's view, built the first time something is completed
+   * and kept after that. The factory both creates and mounts, because an
+   * overlay that exists but is not in the stack is invisible for a reason
+   * no caller could debug.
+   */
+  const completion = new CompletionOverlay(
+    () => {
+      const view = new WebContentsView({ webPreferences: { preload: overlayPreload } });
+      view.setBackgroundColor("#00000000");
+      views.addOverlay(view);
+      if (process.env.VITE_DEV_SERVER_URL) {
+        void view.webContents.loadURL(
+          new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href,
+        );
+      } else {
+        void view.webContents.loadFile(overlayHtml);
+      }
+      return {
+        host: view,
+        release: () => {
+          views.remove(view);
+          view.webContents.close();
+        },
+      };
+    },
+    () => win.getContentBounds(),
+    () => current.css,
+  );
+
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
@@ -252,6 +286,7 @@ function createWindow(
   const applyToWindow = (next: UserConfig): void => {
     tabs.applySettings(next);
     chrome.config(next);
+    completion.applyCss();
   };
 
   downloads.observe((list) => chrome.downloads(list));
@@ -520,16 +555,39 @@ function createWindow(
         // typing.
         vim.requestMode("normal");
       },
+      completionOverlay: (state) => {
+        if (state === null) completion.hide();
+        else completion.show(state);
+      },
     },
     (sender) => sender === win.webContents,
+  );
+
+  // The completion overlay's own channels, accepted from its view and from
+  // nothing else — the same shape the page channels take.
+  const releaseOverlay = handle(
+    fromOverlay,
+    {
+      completionHeight: (height) => completion.setHeight(height),
+      completionPick: (candidate) => {
+        chrome.completionAccept(candidate);
+        // The click moved focus into the overlay's webContents. Without this
+        // the keyboard is stranded there: the omnibox has lost focus and the
+        // mode machine sees nothing the user types next.
+        win.webContents.focus();
+      },
+    },
+    (sender) => completion.owns(sender),
   );
 
   // ipcMain is process-global; these belong to this window.
   win.on("closed", () => {
     releaseChrome();
     releasePage();
+    releaseOverlay();
     releaseMessages();
     releasePermissions();
+    completion.release();
   });
 }
 
