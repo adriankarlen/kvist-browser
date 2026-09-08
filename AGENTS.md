@@ -24,12 +24,21 @@ subcommands. Two footguns:
 The shape of the project, with the _why_ living next to the code it
 constrains.
 
-- **Two preloads.** `src/preload/index.ts` exposes `window.kvist`;
-  `src/preload/page.ts` runs in every tab and exposes nothing. Each needs its
-  own entry in `vite.config.ts` — the plugin bundles a preload to one file.
+- **Three preloads.** `src/preload/index.ts` exposes `window.kvist`;
+  `src/preload/page.ts` runs in every tab and exposes nothing;
+  `src/preload/overlay.ts` exposes `window.kvistOverlay`, a list renderer's
+  worth of API and no more — the chrome's bridge would let a dropdown
+  navigate tabs. Each needs its own entry in `vite.config.ts` — the plugin
+  bundles a preload to one file.
 - **Tabs are `WebContentsView`s** owned by `TabManager` and hidden with
   `setVisible(false)` rather than detached. `TabManager.ownsTab` is the
   sender check for every tab→main channel (hints, context menu, page-editable).
+- **`ViewStack` owns z-order.** Tab views and chrome overlays are siblings
+  composited in the order they were added, so a tab opened while a dropdown
+  is up would paint straight over it. Electron re-orders a child to the top
+  when it is added again, which is what every `addPage` ends with. Raising
+  the overlay from each site that mounts a tab would be one forgotten call
+  away from the bug it fixes, so the invariant lives in one place.
 - **Renderer owns layout.** The renderer measures its own content area with a
   `ResizeObserver` and pushes a `Rect` over `kvist:content-rect`; main just
   applies it via `view.setBounds`. Tab orientation is a pure CSS concern.
@@ -110,6 +119,55 @@ stable is a version change rather than a rewrite.
   boundary. For DB rows, `drizzle-arktype`'s `createSelectSchema(table)`
   derives a validator from the Drizzle schema — types and runtime checks
   come from one source.
+
+## Completion overlay
+
+The omnibox dropdown is painted in a `WebContentsView` of its own
+(`src/main/completion-overlay.ts`, rendered by `src/overlay/`). Rendering it
+in the page — the context menu's answer to the same problem — does not work
+here: the page rect starts _below_ the omnibox, so a list anchored to that
+input could never touch it.
+
+The chrome keeps the state. `createCompletion` and `handleCompletionKey` stay
+in the renderer; the overlay renders rows and reports which one was clicked.
+That split is what lets the command line reuse it (KVI-41) without either
+caller's rules leaking into the other.
+
+Sizing runs the opposite way to the content rect: the chrome reports the
+anchor, the overlay reports how tall it rendered, and main puts the two
+together in `completion-bounds.ts`. Main never learns row heights, so a
+retheme that changes them needs no main-side change.
+
+Both measurements travel unrounded, and that is load-bearing. A view's
+bounds are whole device-independent pixels, but the omnibox is not — the
+chrome measures its padding in `ch`, so the panel lands on fractions like
+x=234.396. Rounding the view to the nearest whole pixel leaves its border up
+to one device pixel from the panel's, and the two vertical lines visibly
+fail to meet on one side only (whichever edge lost the coin flip). So the
+view is the smallest whole-pixel rectangle _containing_ the true span, and
+the list is placed at its exact fractional offset inside it, where CSS can
+still address sub-pixels. `CompletionInset` carries that offset. The slack
+is invisible because the overlay's document is transparent.
+
+The slot is positioned absolutely rather than with margins: a margin would
+collapse through the mount element, making an exact placement depend on
+nothing above it ever gaining a border.
+
+Two things that look like bugs and are not:
+
+- **A hidden view never reports.** `setVisible(false)` stalls the rendering
+  lifecycle, so no layout happens and no `ResizeObserver` fires — and a
+  zero-width viewport measures wrong even when layout is forced. Revealing
+  only after measuring therefore deadlocks. An unmeasured list is shown at
+  every pixel it could use and shrinks once the real height arrives; the
+  document is transparent, so the oversized rectangle shows nothing.
+- **Rows are sent after the view is sized**, not before, for the same reason.
+
+A clicked row travels as the candidate itself, never as an index into the
+chrome's list. The click moves focus off the chrome, which blurs the omnibox,
+which clears the list before the pick lands — an index would point into an
+empty array. Main refocuses the chrome afterwards, or the keyboard is
+stranded in the overlay.
 
 ## In-page vim
 
@@ -241,6 +299,15 @@ right now, not a resumed backlog item. Revisit as a fresh initiative later.
 
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
+- **A `$state` proxy cannot cross IPC.** Structured clone rejects it with
+  "An object could not be cloned", thrown inside the effect that sends it —
+  which kills that effect for the rest of the page's life, so the symptom is
+  a feature that silently never runs again. Use `$state.raw` for anything
+  replaced wholesale (`anchor.svelte.ts`, the overlay's own state) and
+  `$state.snapshot` for anything read out of a deep one.
+- **`contextBridge` properties are not writable.** Patching `window.kvist.foo`
+  from a devtools console to trace calls fails silently and reads as "the
+  code never ran". Instrument the receiving end instead.
 
 ## Comments
 
