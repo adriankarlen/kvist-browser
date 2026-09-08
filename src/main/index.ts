@@ -42,6 +42,7 @@ import { applyXdgPaths, dbPath } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
+import { ViewStack } from "./view-stack";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
@@ -236,7 +237,8 @@ function createWindow(
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
 
-  const tabs = new TabManager(win, pagePreload, zoom, (state) => chrome.state(state));
+  const views = new ViewStack(win.contentView);
+  const tabs = new TabManager(win, views, pagePreload, zoom, (state) => chrome.state(state));
   tabManagers.add(tabs);
 
   if (process.env.VITE_DEV_SERVER_URL) {
