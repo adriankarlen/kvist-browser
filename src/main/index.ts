@@ -8,9 +8,11 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
+import { Bookmarks } from "./bookmarks";
 import { Database } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { History } from "./history";
+import { omniboxSuggestions } from "./omnibox";
 import { Prompts } from "./prompts";
 import { Session, type SessionState } from "./session";
 import {
@@ -21,8 +23,9 @@ import {
   type TabId,
   toChrome,
   toMain,
+  toMainQueries,
 } from "../shared/ipc";
-import { handle } from "./ipc";
+import { handle, handleQueries } from "./ipc";
 import { createCommands } from "./commands";
 import {
   createConfigStore,
@@ -572,6 +575,21 @@ if (!gotTheLock) {
     }
     const config = createConfigStore();
     const history = new History(db);
+    const bookmarks = new Bookmarks(db);
+    // Bookmarks/History are app-scoped, not per-window, so this query is
+    // registered once for the app's whole life rather than re-registered per
+    // `createWindow` — `ipcMain.handle` throws on a second registration for
+    // the same channel, which a second window would hit immediately if this
+    // lived inside `createWindow` instead. Same exception AGENTS.md documents
+    // for `Downloads`/`Permissions`: nothing narrower to release into, so the
+    // release this returns is never called.
+    handleQueries(
+      toMainQueries,
+      {
+        omniboxSuggestions: (query) => omniboxSuggestions({ history, bookmarks }, query),
+      },
+      (sender) => BrowserWindow.getAllWindows().some((window) => window.webContents === sender),
+    );
     const loaded = await loadConfig(config);
     reportProblems(loaded);
     await applyConfig(loaded.config);

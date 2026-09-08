@@ -61,6 +61,42 @@ test("next and prev are no-ops when there are no candidates", () => {
   expect(completion.index).toBe(-1);
 });
 
+test("selectFirst: false leaves nothing selected until the keyboard moves it", async () => {
+  const completion = createCompletion(() => candidates("a", "b", "c"), { selectFirst: false });
+
+  await completion.update("q");
+
+  expect(completion.open).toBe(true);
+  expect(completion.index).toBe(-1);
+  expect(completion.active).toBe(null);
+});
+
+test("selectFirst: false still lets ArrowDown/ArrowUp move into the list", async () => {
+  const completion = createCompletion(() => candidates("a", "b", "c"), { selectFirst: false });
+  await completion.update("q");
+
+  completion.next();
+  expect(completion.index).toBe(0);
+});
+
+test("selectFirst: false lets ArrowUp from nothing selected wrap to the last candidate", async () => {
+  const completion = createCompletion(() => candidates("a", "b", "c"), { selectFirst: false });
+  await completion.update("q");
+
+  completion.prev();
+  expect(completion.index).toBe(2);
+});
+
+test("selectFirst: false means Enter with no explicit selection is left for the caller", async () => {
+  const completion = createCompletion(() => candidates("a"), { selectFirst: false });
+  await completion.update("q");
+  const onAccept = vi.fn();
+
+  expect(handleCompletionKey(completion, key("Enter"), onAccept)).toBe(false);
+  expect(onAccept).not.toHaveBeenCalled();
+  expect(completion.open).toBe(true);
+});
+
 test("close clears the list and invalidates any in-flight query", async () => {
   let resolve: (candidates: Candidate[]) => void = () => {};
   const pending = new Promise<Candidate[]>((r) => {

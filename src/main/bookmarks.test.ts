@@ -1,38 +1,19 @@
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { Bookmarks } from "./bookmarks";
-import { Database } from "./db/database";
-
-const REAL_MIGRATIONS = join(process.cwd(), "src/main/db/migrations");
+import type { Database } from "./db/database";
+import { closeTestDatabase, openTestDatabase } from "./db/test-database";
 
 let dir: string;
-let migDir: string;
 let db: Database;
 let bookmarks: Bookmarks;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "kvist-bookmarks-"));
-  migDir = join(dir, "migrations");
-  mkdirSync(migDir, { recursive: true });
-
-  // Copy the real migrations into the test folder so `Database.open` runs
-  // them and the `bookmarks` table exists before the test starts.
-  for (const entry of readdirSync(REAL_MIGRATIONS, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    cpSync(join(REAL_MIGRATIONS, entry.name), join(migDir, entry.name), {
-      recursive: true,
-    });
-  }
-
-  db = Database.open(join(dir, "bookmarks.db"), migDir);
+  ({ dir, db } = openTestDatabase("bookmarks"));
   bookmarks = new Bookmarks(db);
 });
 
 afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
+  closeTestDatabase({ dir, db });
 });
 
 const add = (url: string, title = url, createdAt = 1): boolean =>

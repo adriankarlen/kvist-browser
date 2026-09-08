@@ -92,6 +92,7 @@ export default defineConfig({
           "anti-slop/no-chained-type-assertions": "off",
           "anti-slop/no-known-value-widening": "off",
           "anti-slop/no-unknown-parameters": "off",
+          "anti-slop/no-unknown-returns": "off",
         },
       },
       {
@@ -111,6 +112,15 @@ export default defineConfig({
         rules: {
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unsafe-dictionary-type": "off",
+        },
+      },
+      {
+        // The omnibox query is the typed boundary for what an IPC query hands
+        // main: `handleQueries` erases it to `unknown` at the transport seam,
+        // and this is where it gets decoded back into a domain value.
+        files: ["src/main/omnibox.ts"],
+        rules: {
+          "anti-slop/no-unknown-parameters": "off",
         },
       },
       {

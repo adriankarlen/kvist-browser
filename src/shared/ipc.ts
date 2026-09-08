@@ -158,6 +158,19 @@ export interface PromptWire {
 }
 
 /**
+ * One row offered while typing in the omnibox: a concrete destination, not
+ * typed search text — accepting one navigates straight to `value` rather
+ * than going through `resolveUrl` again. `kind` picks the badge `completion
+ * .svelte.ts` renders (and, for `bookmark`, its own colour token) so a
+ * bookmarked row reads differently from a history-only one.
+ */
+export interface OmniboxSuggestion {
+  label: string;
+  value: string;
+  kind: "bookmark" | "history";
+}
+
+/**
  * A channel and what it carries. `payload` is a phantom: it never exists at
  * runtime, it is only how the type travels from the table to both sides.
  */
@@ -167,6 +180,28 @@ export interface Channel<T> {
 
 export type AnyTable = Record<string, Channel<unknown>>;
 export type PayloadOf<C> = C extends Channel<infer T> ? T : never;
+
+/**
+ * A query channel: chrome asks, main answers. `toMain`/`toChrome` are
+ * fire-and-forget sends — a channel that needs the answer back in the same
+ * call (e.g. "what matches this omnibox query") cannot be modelled as two
+ * independent sends, so this rides `ipcRenderer.invoke`/`ipcMain.handle`
+ * instead. `request`/`response` are phantom, the same way `Channel`'s
+ * `payload` is.
+ */
+export interface Query<Req, Res> {
+  readonly request: Req;
+  readonly response: Res;
+}
+
+export type AnyQueryTable = Record<string, Query<unknown, unknown>>;
+export type RequestOf<Q> = Q extends Query<infer Req, unknown> ? Req : never;
+export type ResponseOf<Q> = Q extends Query<unknown, infer Res> ? Res : never;
+
+/** A query table's method: request in, response out. */
+export type Queries<T extends AnyQueryTable> = {
+  [K in keyof T]: (request: RequestOf<T[K]>) => Promise<ResponseOf<T[K]>>;
+};
 
 /**
  * The method a channel becomes. A channel that carries nothing takes no
@@ -214,6 +249,21 @@ export function table<T extends AnyTable>(channels: T): T {
 }
 
 /**
+ * Same claim as `table()`, over the query namespace instead — a query and a
+ * fire-and-forget channel share the one wire namespace `claimed` tracks, so
+ * a query cannot silently steal a name a `Channel` already owns, or the
+ * other way round.
+ */
+export function queryTable<T extends AnyQueryTable>(channels: T): T {
+  for (const key of Object.keys(channels)) {
+    const name = wire(key);
+    if (claimed.has(name)) throw new Error(`kvist: duplicate channel ${name}`);
+    claimed.add(name);
+  }
+  return channels;
+}
+
+/**
  * Creates a channel declaration. The payload type T exists only at compile
  * time; the channel itself is an empty object whose type carries the payload
  * information.
@@ -221,6 +271,15 @@ export function table<T extends AnyTable>(channels: T): T {
 function channel<T>(): Channel<T> {
   // SAFETY: `payload` is phantom — the object deliberately carries nothing; T travels in the type only.
   return {} as Channel<T>;
+}
+
+/**
+ * Creates a query declaration. `Req`/`Res` exist only at compile time, the
+ * same way `channel`'s `T` does.
+ */
+function query<Req, Res>(): Query<Req, Res> {
+  // SAFETY: `request`/`response` are phantom — the object deliberately carries nothing; Req/Res travel in the type only.
+  return {} as Query<Req, Res>;
 }
 
 /** Chrome → main. Accepted only from the window's own webContents. */
@@ -277,6 +336,16 @@ export const toChrome = table({
    * is missing or malformed — those cases look like a fresh first launch.
    */
   restoreSession: channel<RestoreSessionState>(),
+});
+
+/**
+ * Chrome → main, request/response. Kept separate from `toMain` because a
+ * query needs its answer back in the same call, which `Send`'s
+ * fire-and-forget shape cannot express.
+ */
+export const toMainQueries = queryTable({
+  /** Candidates for the omnibox's dropdown, merged from history and bookmarks. */
+  omniboxSuggestions: query<string, OmniboxSuggestion[]>(),
 });
 
 /**
@@ -344,5 +413,24 @@ export function listeners<T extends AnyTable>(
   return api as unknown as Listeners<T>;
 }
 
-/** What the preload exposes as `window.kvist`, derived from the two tables. */
-export type KvistApi = Senders<typeof toMain> & Listeners<typeof toChrome>;
+/**
+ * Binds a query table's sending half to a transport. Pure, like `senders`
+ * and `listeners` — bindable to `ipcRenderer.invoke`, or to a fake in a test.
+ */
+export function invokers<T extends AnyQueryTable>(
+  channels: T,
+  invoke: (channel: string, request: unknown) => Promise<unknown>,
+): Queries<T> {
+  const api: Record<string, (request: unknown) => Promise<unknown>> = {};
+  for (const key of Object.keys(channels)) {
+    const name = wire(key);
+    api[key] = (request) => invoke(name, request);
+  }
+  // SAFETY: one method per key of T was built above; the transport erases request/response types.
+  return api as Queries<T>;
+}
+
+/** What the preload exposes as `window.kvist`, derived from the tables. */
+export type KvistApi = Senders<typeof toMain> &
+  Listeners<typeof toChrome> &
+  Queries<typeof toMainQueries>;
