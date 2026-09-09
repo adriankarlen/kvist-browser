@@ -75,16 +75,17 @@ test("overlays keep their own order as pages mount beneath them", () => {
   expect(children).toEqual([page, lower, upper]);
 });
 
-test("registering the same overlay twice does not stack two copies", () => {
+test("registering an overlay twice does not change the overlay order", () => {
   const { root, children } = createRoot();
   const stack = new ViewStack(root);
-  const [overlay, page] = views(2);
+  const [lower, upper, page] = views(3);
 
-  stack.addOverlay(overlay!);
-  stack.addOverlay(overlay!);
+  stack.addOverlay(lower!);
+  stack.addOverlay(upper!);
+  stack.addOverlay(lower!);
   stack.addPage(page!);
 
-  expect(children).toEqual([page, overlay]);
+  expect(children).toEqual([page, lower, upper]);
 });
 
 test("a removed overlay stops being raised over later pages", () => {

@@ -254,20 +254,20 @@ function createWindow(
   const completion = new CompletionOverlay(
     () => {
       const view = new WebContentsView({ webPreferences: { preload: overlayPreload } });
+      // The view drops this reference during destruction; cleanup still needs it.
+      const contents = view.webContents;
       view.setBackgroundColor("#00000000");
       views.addOverlay(view);
       if (process.env.VITE_DEV_SERVER_URL) {
-        void view.webContents.loadURL(
-          new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href,
-        );
+        void contents.loadURL(new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href);
       } else {
-        void view.webContents.loadFile(overlayHtml);
+        void contents.loadFile(overlayHtml);
       }
       return {
         host: view,
         release: () => {
           views.remove(view);
-          view.webContents.close();
+          if (!contents.isDestroyed()) contents.close();
         },
       };
     },

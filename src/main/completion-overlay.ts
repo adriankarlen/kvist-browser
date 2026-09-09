@@ -41,7 +41,7 @@ export class CompletionOverlay {
   #loaded = false;
   #state: CompletionOverlayState | null = null;
   /**
-   * The last height the overlay reported, kept across openings. A list with
+   * The last positive height the overlay reported, kept across openings. A list with
    * the same height as the one before it triggers no `ResizeObserver` and so
    * no new report, and reusing the last answer is what makes that silence
    * correct rather than a stall.
@@ -49,7 +49,7 @@ export class CompletionOverlay {
    * Fractional, because the list is laid out at the input's true sub-pixel
    * width — rounding here would put the bottom border a pixel out.
    */
-  #height = 0;
+  #height: number | null = null;
 
   constructor(open: () => OverlayLease, contentSize: () => ContentSize, css: () => string) {
     this.#open = open;
@@ -83,12 +83,6 @@ export class CompletionOverlay {
     this.#conceal();
   }
 
-  /**
-   * Takes the view off screen without closing the menu. Kept apart from
-   * `hide` because the two happen for different reasons: a first opening is
-   * concealed until the overlay reports a height, and clearing the state
-   * there would mean the report arrives with nothing left to show.
-   */
   #conceal(): void {
     if (this.#lease === null) return;
     this.#lease.host.setVisible(false);
@@ -99,6 +93,9 @@ export class CompletionOverlay {
 
   /** How tall the overlay rendered, which is the half of its bounds only it knows. */
   setHeight(height: number): void {
+    // An empty slot reports zero before rows arrive, including after reopening.
+    // Hiding on that report would stall the observer needed to measure the rows.
+    if (height === 0) return;
     this.#height = height;
     this.#place();
   }
@@ -110,10 +107,11 @@ export class CompletionOverlay {
   }
 
   release(): void {
-    this.#lease?.release();
+    const lease = this.#lease;
     this.#lease = null;
     this.#loaded = false;
     this.#state = null;
+    lease?.release();
   }
 
   #start(): OverlayLease {
@@ -129,6 +127,18 @@ export class CompletionOverlay {
       if (this.#state === null) return;
       this.#place();
       send.completionState(this.#state);
+    });
+    lease.host.webContents.once("render-process-gone", () => {
+      if (this.#lease !== lease) return;
+      this.#lease = null;
+      this.#loaded = false;
+      lease.release();
+    });
+    lease.host.webContents.once("destroyed", () => {
+      if (this.#lease !== lease) return;
+      this.#lease = null;
+      this.#loaded = false;
+      lease.release();
     });
     return lease;
   }
@@ -155,7 +165,7 @@ export class CompletionOverlay {
       this.#conceal();
       return;
     }
-    const height = this.#height > 0 ? this.#height : Number.POSITIVE_INFINITY;
+    const height = this.#height ?? Number.POSITIVE_INFINITY;
     const placed = placeCompletion(
       this.#state.anchor,
       height,

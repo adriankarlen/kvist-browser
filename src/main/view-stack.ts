@@ -37,7 +37,8 @@ export class ViewStack {
 
   /** Mounts an overlay on top, and keeps it there as pages come and go. */
   addOverlay(view: View): void {
-    if (!this.#overlays.includes(view)) this.#overlays.push(view);
+    if (this.#overlays.includes(view)) return;
+    this.#overlays.push(view);
     this.#root.addChildView(view);
   }
 

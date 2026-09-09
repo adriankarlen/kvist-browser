@@ -16,21 +16,26 @@ function state(...labels: string[]): CompletionOverlayState {
   };
 }
 
-/**
- * One fake overlay view, plus the load event main waits on. `finishLoad`
- * stands in for `did-finish-load`, which is the only reason this seam has
- * `once` at all.
- */
+/** One fake overlay view, plus controls for the lifecycle events main watches. */
 function createLease() {
-  const loadListeners: (() => void)[] = [];
+  const listeners = new Map<string, (() => void)[]>();
   const sent: { channel: string; payload: unknown }[] = [];
   /** Everything that happened, in order, so a test can assert on sequence. */
   const log: string[] = [];
   let destroyed = false;
 
+  const emit = (event: string) => {
+    for (const listener of listeners.get(event)?.splice(0) ?? []) listener();
+  };
+  const destroy = () => {
+    destroyed = true;
+    emit("destroyed");
+  };
   const webContents = {
     once: (event: string, listener: () => void) => {
-      if (event === "did-finish-load") loadListeners.push(listener);
+      const eventListeners = listeners.get(event) ?? [];
+      eventListeners.push(listener);
+      listeners.set(event, eventListeners);
       return webContents;
     },
     send: (channel: string, payload: unknown) => {
@@ -48,18 +53,15 @@ function createLease() {
       setVisible: vi.fn((visible: boolean) => void log.push(`visible ${visible}`)),
       setBounds: vi.fn((bounds: Rect) => void log.push(`bounds ${bounds.width}x${bounds.height}`)),
     },
-    release: vi.fn(),
+    release: vi.fn(destroy),
   };
 
   return {
     lease,
     log,
-    finishLoad: () => {
-      for (const listener of loadListeners.splice(0)) listener();
-    },
-    destroy: () => {
-      destroyed = true;
-    },
+    finishLoad: () => emit("did-finish-load"),
+    crash: () => emit("render-process-gone"),
+    destroy,
     visible: () => lease.host.setVisible.mock.calls.at(-1)?.[0],
     bounds: () => lease.host.setBounds.mock.calls.at(-1)?.[0],
     payloads: (channel: string) =>
@@ -122,6 +124,25 @@ test("an unmeasured list is shown at every pixel it could use, so it can lay out
   expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
 });
 
+test.each(["before", "after"])(
+  "a zero-height report %s load leaves room to measure the rows",
+  (timing) => {
+    const { overlay, view } = setup();
+
+    overlay.show(state("a"));
+    if (timing === "before") overlay.setHeight(0);
+    view.finishLoad();
+    if (timing === "after") overlay.setHeight(0);
+
+    expect(view.visible()).toBe(true);
+    expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 730 });
+
+    overlay.setHeight(60);
+
+    expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
+  },
+);
+
 test("the view is sized before the rows are sent, so there is a viewport to lay out in", () => {
   const { overlay, view } = setup();
   overlay.show(state("a"));
@@ -144,6 +165,43 @@ test("a height reported while the list is still pending is not thrown away", () 
   overlay.show(state("b"));
 
   expect(view.visible()).toBe(true);
+  expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
+});
+
+test("a zero-height report after hiding preserves the last measured height", () => {
+  const { overlay, view } = setup();
+
+  overlay.show(state("a"));
+  view.finishLoad();
+  overlay.setHeight(60);
+  overlay.hide();
+  overlay.setHeight(0);
+  overlay.show(state("b"));
+
+  expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
+});
+
+test("a delayed zero-height report after reopening preserves the last measured height", () => {
+  const { overlay, view } = setup();
+
+  overlay.show(state("a"));
+  view.finishLoad();
+  overlay.setHeight(60);
+  overlay.hide();
+  overlay.show(state("b"));
+  overlay.setHeight(0);
+
+  expect(view.visible()).toBe(true);
+  expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
+});
+
+test("the first positive height is accepted while the overlay is hidden", () => {
+  const { overlay, view } = setup();
+
+  overlay.setHeight(60);
+  overlay.show(state("a"));
+  view.finishLoad();
+
   expect(view.bounds()).toEqual({ x: 20, y: 70, width: 960, height: 60 });
 });
 
@@ -259,6 +317,17 @@ test("releasing hands the view back and forgets the list it was showing", () => 
   expect(open).toHaveBeenCalledTimes(2);
 });
 
+test("destruction during release does not release the lease twice", () => {
+  const { overlay, view } = setup();
+
+  overlay.show(state("a"));
+  view.finishLoad();
+  overlay.release();
+  overlay.release();
+
+  expect(view.lease.release).toHaveBeenCalledTimes(1);
+});
+
 test("a load that finishes after release does not resurrect the old view", () => {
   const { overlay, view } = setup();
 
@@ -267,6 +336,48 @@ test("a load that finishes after release does not resurrect the old view", () =>
   view.finishLoad();
 
   expect(view.payloads("kvist:completion-state")).toEqual([]);
+});
+
+test("a crashed renderer is released and replaced on the next show", () => {
+  const first = createLease();
+  const second = createLease();
+  const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+  const overlay = new CompletionOverlay(
+    open,
+    () => content,
+    () => "",
+  );
+
+  overlay.show(state("a"));
+  first.finishLoad();
+  first.crash();
+  overlay.show(state("b"));
+  second.finishLoad();
+
+  expect(first.lease.release).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(second.payloads("kvist:completion-state")).toEqual([state("b")]);
+});
+
+test("a destroyed renderer releases its view and is replaced on the next show", () => {
+  const first = createLease();
+  const second = createLease();
+  const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+  const overlay = new CompletionOverlay(
+    open,
+    () => content,
+    () => "",
+  );
+
+  overlay.show(state("a"));
+  first.finishLoad();
+  first.destroy();
+  overlay.show(state("b"));
+  second.finishLoad();
+
+  expect(first.lease.release).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(second.payloads("kvist:completion-state")).toEqual([state("b")]);
 });
 
 test("a destroyed webContents is not sent to", () => {
