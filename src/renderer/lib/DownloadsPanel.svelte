@@ -22,10 +22,9 @@
   }
 
   /**
-   * What the row counts towards. A server that sent no length leaves nothing to
-   * count towards, so the bare received count is all there is to show — and a
-   * finished download is its own total, so it shows one number rather than two
-   * copies of the same one.
+   * A server that sent no length gives nothing to count towards — the bare
+   * received count is all there is — and a finished download is its own
+   * total, so one number, not two copies.
    */
   function size(entry: DownloadState): string {
     const received = formatBytes(entry.receivedBytes);

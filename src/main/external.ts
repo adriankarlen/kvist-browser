@@ -3,12 +3,10 @@ import type { PageContents } from "./page-host";
 import type { Prompts } from "./prompts";
 
 /**
- * Schemes Chromium already loads inside a tab, one way or another — either
- * genuinely (`http`, `https`, `kvist`, `file`) or by design, failing the
- * navigation itself (`about`, `chrome`, `devtools`, ...). None of these are
- * ever a candidate for the OS to open instead: asking to hand `file:` to
- * the desktop would be new, wrong behaviour for a path that already works
- * (or already fails the same way it always has).
+ * Schemes Chromium loads inside a tab itself — genuinely (`http`,
+ * `https`, `kvist`, `file`) or by failing the navigation (`about`,
+ * `chrome`, `devtools`, ...). None is a candidate for the desktop:
+ * `file:` already works or already fails, in a tab.
  */
 const NATIVE_SCHEMES = new Set([
   "http",
@@ -27,12 +25,10 @@ const NATIVE_SCHEMES = new Set([
 ]);
 
 /**
- * The scheme of a URL the desktop should open instead of the tab, or null
- * for a scheme this browser loads itself. Everything else is a candidate —
- * not just a fixed handful of known ones — because there is no way to
- * enumerate every native-app scheme a site might hand off to in advance;
- * `ExternalProtocols` is what decides whether a candidate is actually
- * opened.
+ * The scheme a URL hands to the desktop instead of the tab, or null for a
+ * scheme the browser loads itself. Every other scheme is a candidate,
+ * since native-app schemes cannot be enumerated; `ExternalProtocols`
+ * decides whether a candidate opens.
  */
 export function externalProtocolTarget(raw: string): string | null {
   let protocol: string;
@@ -46,20 +42,10 @@ export function externalProtocolTarget(raw: string): string | null {
 }
 
 /**
- * Whether a URL is structurally indistinguishable from a typed `host:port`
- * — `localhost:3000`, `example.com:8080` — rather than a real scheme
- * invocation. A non-special scheme's own URL has no `hostname` regardless
- * of what the "scheme" actually is (`resolveUrl`'s `HAS_SCHEME` regex
- * already treats any `word:` prefix as "already a URL"), so an empty
- * hostname and a digits-only path alone would also match `tel:123` or
- * `sms:112` — real, if short, phone numbers. What a host:port has that
- * those do not is a host-shaped word before the colon: a dotted name
- * (`example.com`) or the one common bare hostname with no dot at all,
- * `localhost`.
- *
- * Only ever call this for input that was not authored by a page: a page's
- * own `<a href>` is never ambiguous, but a person typing into the omnibox
- * (or `:tabnew`/`:open`) might mean either one.
+ * True for a typed `host:port` that is not a scheme: a non-special
+ * scheme's URL has no `hostname`, so `tel:123` looks alike; only a dotted
+ * or `localhost` word before the colon counts. Typed input only — page
+ * links are unambiguous.
  */
 export function looksLikeHostPort(raw: string): boolean {
   let parsed: URL;
@@ -74,12 +60,10 @@ export function looksLikeHostPort(raw: string): boolean {
 }
 
 /**
- * The key a decision is remembered under. `selfInitiated` keeps "the user
- * typed this" and "a page asked but named no nameable origin" from sharing
- * a bucket: both carry `origin: null`, but they are different levels of
- * trust — an allow the user granted while typing a `mailto:` must not
- * silently cover a `kvist:`/`file:`/opaque-origin page's own request for
- * the same scheme.
+ * The key a decision is remembered under. `selfInitiated` separates "the
+ * user typed this" from "a page asked with no nameable origin": both carry
+ * `origin: null`, but an allow while typing a `mailto:` must not cover a
+ * page's own opaque-origin request.
  */
 function keyOf(origin: string | null, scheme: string, selfInitiated: boolean): string {
   const bucket = selfInitiated ? "self" : (origin ?? "page");
@@ -107,34 +91,19 @@ interface PendingExternal {
   /** Every tab that asked about this scheme, so one closing does not cancel a sibling's still-live question. */
   watchers: Watcher[];
   /**
-   * Set once any request for this ask arrived with no tab to watch — a
-   * `:tabnew` or session-restore URL that has nothing tied to a tab's
-   * lifetime. `#dropWatcher` must not cancel the whole entry just because
-   * every *watched* request's tab died; this one is still owed an answer.
+   * A request for this ask arrived with no tab to watch — a `:tabnew` or
+   * restored-session URL, tied to no tab's lifetime. `#dropWatcher` must
+   * not cancel the entry because every watched tab died; this request is
+   * still owed an answer.
    */
   hasUnwatchedRequest: boolean;
 }
 
 /**
- * Whether a scheme the desktop, not a tab, should handle may actually reach
- * `shell.openExternal`. Same shape as `Permissions`: deny by default, ask
- * once, remember the answer per origin and scheme for the session — a site
- * that hands off to `bankid:` on every sign-in must not re-prompt on every
- * click, and a user who says no once should not be asked again either.
- *
- * There is no fixed allowlist of schemes here on purpose: the site decides
- * what it wants opened, the user decides whether that is answered — the
- * same trade Permissions already makes for the camera and geolocation
- * instead of Electron's grant-everything default. A scheme the browser
- * loads itself never reaches here at all; `externalProtocolTarget` filters
- * those out before a request is made.
- *
- * An ask with nothing watching it (`:tabnew mailto:x`, a saved session row,
- * the default homepage) is app-scoped like `Permissions`' own decisions:
- * there is no tab to tie its lifetime to, so it survives whatever window
- * asked closing, the same deliberate exception `Downloads` and
- * `Permissions` already are. A prompt with at least one watched tab is not
- * — closing every tab that asked about it does cancel it.
+ * Whether a scheme may reach `shell.openExternal`, decided per origin and
+ * scheme: deny by default, ask once, keep the answer. No allowlist — site
+ * picks scheme, user decides. Tab-loaded schemes never reach here. An ask
+ * with nothing watching is app-scoped, like `Permissions`.
  */
 export class ExternalProtocols {
   #prompts: Prompts<PromptState>;
@@ -154,14 +123,10 @@ export class ExternalProtocols {
   }
 
   /**
-   * A URL kvist has already recognised as a scheme it does not load itself,
-   * with its scheme already split out (recomputing it here, from the same
-   * URL, would just be a second parse that could disagree with the
-   * caller's). `origin` is the page that asked, or null when it named
-   * nothing nameable; `selfInitiated` is true when nothing asked on a
-   * page's behalf at all (typed in the omnibox, `:tabnew`, a restored
-   * tab) — see `keyOf`. `contents` is the tab behind the ask, or null when
-   * nothing was created for it.
+   * A recognised handed-off URL and its scheme, split out — a second parse
+   * could disagree with the caller's. `origin` is the asking page or null;
+   * `selfInitiated` means nothing asked; `contents` is the tab behind the
+   * ask, or null.
    */
   request(
     url: string,
@@ -247,12 +212,10 @@ export class ExternalProtocols {
   }
 
   /**
-   * The tab behind one of a pending ask's watchers has died. Only that
-   * watcher's own wait ends here — a sibling tab that asked about the same
-   * scheme is still watching, and an unwatched request riding along
-   * (`hasUnwatchedRequest`) is still owed an answer regardless. With no
-   * watchers left and nothing unwatched, the prompt is removed without
-   * answering it: nobody decided, so nothing is remembered either.
+   * One watcher's tab died; its wait alone ends. A sibling tab is still
+   * watching; an unwatched request (`hasUnwatchedRequest`) still needs an
+   * answer. With neither left, the prompt is removed unanswered — nobody
+   * decided, nothing remembered.
    */
   #dropWatcher(promptsId: number, contents: PageContents): void {
     const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);

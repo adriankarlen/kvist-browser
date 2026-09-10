@@ -1,22 +1,10 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * The last closed window's restore state, single-row by convention (`id` is
- * always 1). Each `win.on("close")` overwrites it, so the most recently
- * closed window is what comes back on relaunch — multi-window restore is
- * explicitly out of scope for KVI-27.
- *
- * `tabsJson` is a JSON-encoded list of URLs in tab order, not a child
- * table: one session, one row, no joins. `activeIndex` indexes into that
- * list. `x` / `y` are nullable so a window without a remembered position
- * (first launch, headless, etc.) does not have to store a sentinel. The
- * orientation override lives here rather than on the user config because it
- * is a runtime UI flip, not something the user has written in `config.toml`.
- *
- * `savedAt` is wall-clock milliseconds at close time. It is not used for
- * restore logic today, but having it on the row means a future "stale
- * session" rule can reject a row older than N days without re-introducing
- * the column.
+ * Restore state of the last closed window: `id` is 1, overwritten every
+ * close. `tabsJson` holds tab-order URLs, `activeIndex` indexes them. The
+ * orientation override is a runtime flip, not config; multi-window restore
+ * is out of scope (KVI-27).
  */
 export const session = sqliteTable("session", {
   id: integer("id").primaryKey(),

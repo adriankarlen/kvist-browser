@@ -329,6 +329,17 @@ This is not a one-time filter. Re-examine every comment a change touches —
 if the code around it moved, the comment's reason to exist may have moved
 with it, or vanished.
 
+The budget is enforced, not just advised: a prose comment carries at most 40
+words, and consecutive `//` lines count as one. Directives, license notices,
+and generated files are excluded — nothing else is, so JSDoc and SAFETY
+justifications obey the same cap. When reasoning truly earns its length, it
+moves to documentation beside the code it explains — not to discard it, but
+so the length lives where it can still be checked against reality. Files
+that already carried overruns are grandfathered in
+`tools/oxlint/anti-slop/verbose-comment-baseline.ts`; that list only
+shrinks — a file with no overruns left fails the lint until its entry is
+pruned.
+
 ## Tracking
 
 Work is tracked in Linear: team `KVI`, project "Kvist Browser", with the

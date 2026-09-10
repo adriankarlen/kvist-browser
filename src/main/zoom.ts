@@ -25,13 +25,11 @@ const DEBOUNCE_MS = 250;
 const ZOOM_FILE = "zoom.json";
 
 /**
- * Per-origin zoom levels, persisted to `~/.config/kvist/zoom.json`. App-scoped
- * like `Downloads` and `Permissions`: a tab's zoom level belongs to the
- * origin it is on, not to any one window.
+ * Per-origin zoom levels, persisted to `~/.config/kvist/zoom.json`.
+ * App-scoped like `Downloads`: a zoom belongs to the origin, not a window.
  *
- * Writes are debounced — a Ctrl-wheel nudge can fire many `zoom-changed`
- * events in quick succession — and a pending write is flushed on `release()`,
- * so a quit cannot lose a level that is in flight.
+ * Writes are debounced — a Ctrl-wheel nudge fires many events — and a
+ * pending write flushes on `release()`, so a quit cannot lose it.
  */
 export class ZoomStore {
   #levels = new Map<string, number>();
@@ -87,12 +85,10 @@ export class ZoomStore {
   }
 
   /**
-   * Writes any queued levels to disk and stops the debounce timer. The write
-   * is `writeFileSync`, not the async path, because the only caller is
-   * `will-quit`: an async write there has to hold the quit open to finish,
-   * and holding the quit open is what broke the app (see `flushOnQuit`).
-   * A store is done after this — later `set` calls still update the map but
-   * never reach the disk.
+   * Flushes queued levels and stops the timer. Synchronous, because the
+   * only caller is `will-quit`: an async write holds the quit open, which
+   * is what broke the app. Then the store is done — `set` still updates
+   * the map, never the disk.
    */
   release(): void {
     if (this.#timer !== undefined) {
@@ -177,22 +173,10 @@ export function clamp(level: number): number {
 }
 
 /**
- * Hooks `will-quit` so a write queued inside the debounce window still lands
- * before the process exits. The whole flush is synchronous, so the quit is
- * never cancelled.
- *
- * This used to `preventDefault()` the quit, await the write, then call
- * `app.quit()` again — and that re-armed quit is silently dropped when it
- * lands on the same tick as the `will-quit` that cancelled it. With no
- * queued write the flush promise is already resolved, so that was the
- * *common* path: the app cancelled its own quit, never re-armed, and sat in
- * the dock with its database already closed by an earlier `will-quit`
- * handler. The next dock click hit `activate` and threw a DrizzleQueryError
- * out of `Session.load`.
- *
- * Documented limitation: Electron does not emit `will-quit` at all on Windows
- * system shutdown, restart and logout, so the flush never runs there — the
- * write is best-effort in that window no matter what this does.
+ * Hooks `will-quit` so a queued write lands before exit; the flush is
+ * synchronous, so the quit is never cancelled — preventDefault plus
+ * re-quit loses the re-arm on the same tick. Documented limit: Windows
+ * shutdown emits no `will-quit`.
  */
 export function flushOnQuit(app: Pick<App, "on">, store: ZoomStore): void {
   app.on("will-quit", () => store.release());

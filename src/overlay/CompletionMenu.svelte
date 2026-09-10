@@ -28,10 +28,9 @@
 
 {#if candidates.length > 0}
   <!--
-    The option is the interactive element, not a button it wraps: a listbox
-    option must stay a leaf for a screen reader to announce it correctly,
-    and the keyboard never focuses it anyway — arrow keys and Enter are read
-    off the owning input by handleCompletionKey, which runs in the chrome.
+    The option is the interactive element, not a button: a listbox
+    option stays a leaf for screen readers, never focused directly —
+    keys are read off the owning input in the chrome.
   -->
   <ul class="kv-completion" role="listbox" {@attach revealActive(index)}>
     {#each candidates as candidate, row (row)}

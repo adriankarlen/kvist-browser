@@ -69,8 +69,8 @@ export function buildContextMenuItems(
 /**
  * The menu lives in a shadow root, where `:root` matches nothing — the
  * shadow host is the root there, so token blocks (ours and the user's) are
- * retargeted at it. User CSS stays unlayered and last, which keeps the
- * chrome's override semantics: unlayered beats every layer.
+ * retargeted at it. User CSS stays unlayered and last, so unlayered beats
+ * every layer.
  */
 export function composeContextMenuCss(userCss: string): string {
   const host = (css: string): string => css.replaceAll(":root", ":host");

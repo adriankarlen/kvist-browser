@@ -10,15 +10,10 @@ import type { UserStyleSource } from "./user-styles";
 const DEBOUNCE_MS = 50;
 
 /**
- * Whether a directory entry is a style file worth reading: named `*.css`,
- * not dotfile-hidden, and either a plain file or a symlink to one — dotfile
- * repos commonly symlink their managed files into `~/.config`, and
- * `Dirent.isFile()` is false for a symlink even when what it points at is a
- * plain file. A symlink to a directory still passes this check and fails at
- * `readFile` instead, which is already handled below the same as any other
- * unreadable file. Excludes an editor's own swap/backup files for free —
- * `.foo.css.swp` and `foo.css~` both fail the `.css` suffix check, without
- * needing to know any one editor's naming convention.
+ * Whether a directory entry is a style file worth reading: `*.css`, not
+ * dotfile-hidden, and a plain file or symlink to one — dotfile repos
+ * symlink into `~/.config`, where `isFile()` is false. Editor swap files
+ * fail the `.css` suffix (`foo.css~`).
  */
 function isStyleFile(entry: {
   name: string;
@@ -33,15 +28,10 @@ function isStyleFile(entry: {
 }
 
 /**
- * Reads every style file in the watched directory into a source UserStyles
- * can parse. Sorted by name for a stable, predictable injection order across
- * runs — the order otherwise reflects nothing but directory-entry timing.
- *
- * Never rejects. A file that fails to read (permissions, a race with an
- * editor's rename-over-save) is skipped rather than aborting the whole scan:
- * one bad file must not blank out every style that still loads. Failing to
- * create or list the directory at all is the same story one level up —
- * logged, answered with nothing in force.
+ * Reads every style file, sorted by name so the injection order is stable
+ * across runs. Never rejects: an unreadable file is skipped — one bad file
+ * must not blank out the rest; an unlistable directory is logged, nothing
+ * in force.
  */
 export async function readStyleFiles(dir: string = stylesDir): Promise<UserStyleSource[]> {
   try {
@@ -79,22 +69,10 @@ export async function readStyleFiles(dir: string = stylesDir): Promise<UserStyle
 }
 
 /**
- * Acquires the styles-directory watcher and returns its release — the same
- * shape as config.ts's watchConfig: the handle and its debounce timer both
- * outlive any single event. Watches the directory rather than individual
- * files, so a file dropped in fresh registers as readily as one that was
- * already there, and an editor's rename-over-save does not need a watch set
- * up under the new inode.
- *
- * A full rescan on every change rather than a diff, like the rest of the
- * config path: working out which one file changed would buy nothing over
- * handing UserStyles a fresh snapshot of everything.
- *
- * A directory that cannot even be created (a stray non-directory file in its
- * place, an unwritable parent), or whose watch cannot be acquired (an inotify
- * limit, the directory vanishing right after creation), yields a no-op
- * release rather than rejecting: a bad or unwatchable config directory must
- * not be the reason the window never opens.
+ * Watches the styles directory, returning a release like `watchConfig`. A
+ * directory watch, not per-file: rename-over-save needs no inode watch.
+ * Changes trigger a full rescan — diffing buys nothing. An unwatchable
+ * directory yields a no-op release, not a rejection.
  */
 export async function watchStyleFiles(
   onChange: (sources: UserStyleSource[]) => void,

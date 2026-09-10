@@ -16,11 +16,10 @@ export interface OmniboxSources {
 }
 
 /**
- * Keeps the first row per URL. Both `History` (a reload is its own row) and
- * `Bookmarks` (two rows for one URL is intentional, see `db/schema/
- * bookmarks.ts`) can return more than one row for the same URL; both
- * sources already return newest first, so keeping the first occurrence
- * keeps the newest one.
+ * Keeps the first row per URL. Both `History` (a reload is its own row)
+ * and `Bookmarks` (two rows per URL is intentional, see `db/schema/
+ * bookmarks.ts`) can return duplicates; both return newest first, so the
+ * first occurrence is the newest.
  */
 function dedupeByUrl<T extends { url: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
@@ -34,14 +33,11 @@ function dedupeByUrl<T extends { url: string }>(rows: T[]): T[] {
 }
 
 /**
- * Candidates for the omnibox's dropdown, merged from `Bookmarks.search` and
- * `History.search`. A bookmark is the more deliberate signal — the user
- * chose to keep the page, not just visited it — so a URL bookmarked *and*
- * visited shows once, as a bookmark, and bookmarks are listed first.
+ * Candidates for the omnibox dropdown, merged from `Bookmarks.search` and
+ * `History.search`. A bookmark is the deliberate signal — chosen, not
+ * visited — so a double-hit URL shows once, as a bookmark, first.
  *
- * `query` is validated rather than trusted: it crosses the IPC boundary in
- * `main/ipc.ts`'s `handleQueries`, which erases it to `unknown` before it
- * reaches here the same way every channel payload does.
+ * `query` is validated, not trusted: it crosses IPC as `unknown`.
  */
 export function omniboxSuggestions(sources: OmniboxSources, query: unknown): OmniboxSuggestion[] {
   const validated = parse(queryValidator, query);

@@ -48,15 +48,10 @@ export interface SearchOptions {
 }
 
 /**
- * App-scoped, like `Downloads`, `Permissions`, `ZoomStore`: a navigation is
- * a fact about the session, not about any one window, so the store lives at
- * the top of `index.ts` and every `TabManager` writes through the same one.
- *
- * Writes are filtered at this seam so a malformed call cannot pollute the
- * table from any layer above. Error-page wrappers are dropped (they are
- * Chromium's bookkeeping, not a page the user visited), and origins we
- * would not want to remember — `data:`, `blob:` — are dropped because they
- * have no place in a URL search.
+ * App-scoped, like `Downloads` and `Permissions`: a navigation is
+ * session-wide, so one store serves every window. Writes are validated
+ * here: error-page wrappers (Chromium bookkeeping) and `data:`/`blob:`
+ * origins are dropped — no place in a URL search.
  */
 export class History {
   #db: Database;
@@ -66,11 +61,10 @@ export class History {
   }
 
   /**
-   * Appends one row. Skips silently and returns `false` when the row would
-   * be a wrapper or an opaque origin, or when the input fails the schema
-   * validation — callers are all in main and the rejection is intentional,
-   * so the noise of a log line on every filtered navigation would not pay
-   * for itself.
+   * Appends one row. Skips silently, returning false, for wrapper or opaque
+   * origins and schema-invalid input — callers are all in main and the
+   * filtering is intentional, so a log line per filtered navigation would
+   * not pay for itself.
    */
   record(input: RecordInput): boolean {
     const validated = parse(recordValidator, input);
@@ -91,12 +85,10 @@ export class History {
   }
 
   /**
-   * LIKE-pattern match against URL and title. Returns the newest rows
-   * first, capped by `options.limit` (default 50, max 500). The pattern is
-   * wrapped with `%`s so callers pass the thing they are searching for,
-   * not a complete LIKE expression; `%`, `_` and `\` in the input are
-   * escaped so a query like `%` is a search for the literal `%`, not "any
-   * string".
+   * LIKE-pattern match against URL and title, newest first, capped by
+   * `options.limit` (default 50, max 500). The pattern is wrapped with `%`s
+   * so callers pass what they search for, and `%`, `_` and `\` are escaped
+   * so a query like `%` searches for a literal `%`.
    */
   search(pattern: string, options: SearchOptions = {}): HistoryRow[] {
     const validation = parse(nonEmptyString, pattern);

@@ -2,11 +2,10 @@ import { type, type Type } from "arktype";
 import type { Problem } from "../../shared/config";
 
 /**
- * Runtime validation of typed boundaries. `parse()` adapts ArkType's
- * success/failure shape into `{ value, problem }`, where `problem` is a
- * single `Problem` (the existing config-layer reporter reads it directly).
- * `parseAll()` returns every failure for callers that can show more than
- * one message at a time.
+ * Runtime validation of typed boundaries. `parse()` adapts ArkType's shape
+ * into `{value, problem}`, where `problem` is the config layer's `Problem`.
+ * `parseAll()` returns every failure, for callers that can show more than
+ * one message.
  */
 export type ParseResult<T> =
   | { value: T; problem: undefined }
@@ -24,13 +23,10 @@ export const epochMillis = type("number.integer >= 0");
 const ArkErrors = type.errors;
 
 /**
- * Validates `value` against the ArkType. `field` is the dotted path of
- * the first failure (e.g. `"user.email"`) — same convention the config
- * parser uses, so `reportProblems` reads it from any boundary.
- *
- * The parameter is `unknown` on purpose: this *is* the boundary. The
- * lint override lives in `vite.config.ts`; the SAFETY comment below is
- * the per-call acknowledgement of the same fact.
+ * Validates `value` against the ArkType; `field` is the dotted path of the
+ * first failure, the config convention, so `reportProblems` reads it from
+ * any boundary. `unknown` on purpose — this is the boundary; the lint
+ * override and SAFETY comment say the same.
  */
 export function parse<T>(validator: Type<T>, value: unknown): ParseResult<T> {
   const result = validator(value);

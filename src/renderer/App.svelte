@@ -10,17 +10,10 @@
   import TabStrip from "./lib/TabStrip.svelte";
 
   /**
-   * Click anywhere in the chrome outside the prompt line dismisses it as a
-   * deny — the same semantics as `Escape`. Restricted to permission and
-   * external-protocol prompts because a session-restore deny is destructive:
-   * the callback creates a homepage tab and the next close overwrites the
-   * saved row with just that homepage. A stray click on a restore prompt
-   * would discard the user's saved tabs without warning. The prompt's own
-   * container stops propagation so clicks on its buttons (which answer
-   * before the stop) and on its text don't trigger this.
-   *
-   * Page clicks live in a separate webContents and don't bubble into the
-   * chrome's DOM, so they don't dismiss — that's a deliberate scope cut.
+   * A click outside the prompt line denies the head prompt, like Escape.
+   * Only for permission and external-protocol prompts: denying a session
+   * restore would overwrite the user's saved tabs. Page clicks live in
+   * another webContents and never bubble here.
    */
   function onWindowClick(): void {
     const head = prompts.current;

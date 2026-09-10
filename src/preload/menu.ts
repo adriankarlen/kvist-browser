@@ -1,16 +1,8 @@
 /**
- * The context menu, rendered in the tab's own page.
- *
- * It has to live here: the tab's WebContentsView is a native layer painted
- * over the chrome, so chrome HTML can never overlap page content. Rendering
- * in a shadow root keeps the page's stylesheet out (a class is one
- * `!important` away from being hidden — the same reason hint labels are
- * inline-styled), and main ships the tokens, the menu styles and the user's
- * config.css with the payload, so the menu still themes like the chrome.
- *
- * The root is closed and clicks must be trusted: the items run privileged
- * actions, and an open root would let the page itself click Paste and read
- * the clipboard out of whatever field it landed in.
+ * The context menu lives in the tab's page — its view is a native layer
+ * over the chrome. Shadow root for style isolation; main ships tokens and
+ * config.css, so it themes like the chrome. Closed root: only trusted
+ * clicks.
  */
 
 import { ipcRenderer } from "electron";

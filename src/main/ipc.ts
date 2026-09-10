@@ -18,11 +18,11 @@ export type Handlers<T extends AnyTable> = {
 };
 
 /**
- * Registers a whole table at once, behind one sender check — a channel cannot
- * be wired without stating who may use it.
+ * Registers a whole table at once, behind one sender check — a channel
+ * cannot be wired without stating who may use it.
  *
- * `ipcMain` is process-global while these handlers belong to a window, so this
- * answers with the way to take them off again.
+ * `ipcMain` is process-global while these handlers belong to a window, so
+ * the return value takes them off again.
  */
 export function handle<T extends AnyTable>(
   channels: T,

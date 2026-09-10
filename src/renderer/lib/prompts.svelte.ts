@@ -9,10 +9,10 @@ export interface ButtonLabels {
 }
 
 /**
- * The button labels per prompt kind. The two-line shape of the prompt line
- * (text + buttons) is the same; only the wording changes — a permission is
- * a yes-or-no, a session restore is a keep-or-discard. Splitting the
- * wording off the component keeps `PromptLine.svelte` markup-only.
+ * The button labels per prompt kind. The prompt line shape is constant;
+ * only wording changes — permission is yes-or-no, session restore
+ * keep-or-discard. Splitting the wording off keeps `PromptLine.svelte`
+ * markup-only.
  */
 export function buttonLabels(prompt: PromptState): ButtonLabels {
   switch (prompt.kind) {
@@ -43,11 +43,9 @@ export function describePrompt(prompt: PromptState): string {
 }
 
 /**
- * The scheme alone ("open bankid:") does not say what is actually being
- * sent to the OS — the payload is the one thing that lets a user judge
- * whether to trust it. Shown in full up to a point; past it, a truncated
- * URL is still more informative than nothing, and the full one is not
- * worth wrapping the prompt line for.
+ * The scheme alone ("open bankid:") does not say what goes to the OS —
+ * the payload is what a user judges trust by. Shown in full up to a point;
+ * past it, truncation beats nothing.
  */
 const TRUNCATE_AT = 64;
 
@@ -86,14 +84,10 @@ function describePermission(prompt: Extract<PromptState, { kind: "permission" }>
 }
 
 /**
- * The prompt main is waiting on, or null. Nothing is decided here: main
- * owns the queue and the answers, and the y/n keys reach it without
- * passing through this store at all.
- *
- * Click-outside dismissal in `App.svelte` also routes through `answer`,
- * so the only way to clear the prompt from the renderer is to send an
- * answer with the current id — the same path the buttons and y/n keys
- * already use.
+ * The prompt main waits on, or null. Nothing is decided here: main owns
+ * the queue, and y/n keys bypass this store. App.svelte click-outside
+ * dismissal routes through `answer` too, so clearing the prompt means an
+ * answer with the current id.
  */
 export function createPrompts(bridge: Pick<KvistApi, "onPrompt" | "answerPrompt">) {
   const state = $state<{ current: PromptWire | null }>({ current: null });

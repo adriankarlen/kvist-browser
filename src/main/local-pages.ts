@@ -23,11 +23,10 @@ const MIME_TYPES = new Map([
 ]);
 
 /**
- * The local pages the `kvist://` scheme serves: kvist://newtab/ is the
- * homepage, kvist://error/ the failure page. Each is a directory of static
- * files under public/, and each gets the shared reset and tokens plus the
- * user's config.css appended to its style.css, so it is reset and themed
- * like the chrome.
+ * The local pages `kvist://` serves: newtab is the homepage, error the
+ * failure page. Each is a static directory under public/, given the shared
+ * reset and tokens plus the user's config.css appended to its style.css —
+ * reset and themed like the chrome.
  */
 const PAGES = ["newtab", "error"] as const;
 type LocalPage = (typeof PAGES)[number];

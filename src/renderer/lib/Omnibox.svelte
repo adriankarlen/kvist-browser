@@ -53,8 +53,8 @@
   /**
    * Mirrors the list to main, which paints it in an overlay view above the
    * page — chrome HTML can never overlap a tab's native layer, so the rows
-   * cannot be rendered here. Snapshotted because a `$state` proxy is not
-   * something IPC can serialise.
+   * cannot render here. Snapshotted: a `$state` proxy is not something IPC
+   * can serialise.
    */
   $effect(() => {
     const box = anchor.current;

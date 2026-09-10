@@ -13,11 +13,10 @@ const TOML_FILE = "config.toml";
 const DEBOUNCE_MS = 50;
 
 /**
- * Everything config reading owns: the last settings that parsed. Session
- * state belonging to the file — a syntax error mid-edit keeps these rather
- * than reverting to the defaults. Explicit instead of a module-level `let`,
- * so `load`/`watch` take the store they mutate rather than reaching for
- * shared state, and a test can hold two of them.
+ * Everything config reading owns: the last settings that parsed — session
+ * state, so a syntax error mid-edit keeps them rather than reverting to
+ * defaults. Explicit instead of module-level state, so `load`/`watch` take
+ * the store, and a test can hold two.
  */
 export interface ConfigStore {
   lastGood: Settings;
@@ -69,11 +68,10 @@ export async function loadConfig(store: ConfigStore): Promise<LoadedConfig> {
 }
 
 /**
- * Acquires the config watcher and returns its release. A watcher is a
- * resource with a lifecycle — the handle and the debounce timer both outlive
- * any single event — so acquire/release is the shape of the API, not a
- * fire-and-forget `void`. Watches the directory rather than the files, so
- * saves that replace the inode still register.
+ * Acquires the config watcher and returns its release. A watcher has a
+ * lifecycle — handle and debounce timer outlive any event — so
+ * acquire/release is the API shape, not fire-and-forget. Watches the
+ * directory, so inode-replacing saves still register.
  */
 export async function watchConfig(
   store: ConfigStore,

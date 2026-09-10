@@ -4,15 +4,10 @@ import type { KvistApi } from "../../shared/ipc";
 export type Ui = ReturnType<typeof createUi>;
 
 /**
- * The settings the chrome itself reads, plus the ones it can flip on its own.
- * An override stands until the user edits that same field in config.toml:
- * Kvist never writes to their file, so the file is always the last word on
- * anything they have actually written there.
- *
- * The override is also round-tripped to main via `orientationOverride`, so
- * `win.on("close")` can persist it with the rest of the session and the
- * next launch can replay it via `onRestoreSession`. Without that round-trip
- * the chrome's flip would be lost on every relaunch.
+ * Settings the chrome reads, plus the ones it can flip. An override stands
+ * until that field is edited in config.toml — Kvist never writes the file.
+ * The override round-trips to main via `orientationOverride`, so the
+ * session persists it across relaunch.
  */
 export function createUi(
   bridge: Pick<KvistApi, "onConfig" | "onRestoreSession" | "orientationOverride">,

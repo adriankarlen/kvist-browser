@@ -20,10 +20,8 @@ const PERSISTABLE = new Set(["http:", "https:", "kvist:", "file:"]);
 
 /**
  * The origin a page may be asked about, or null. Narrower than `originOf`:
- * a permission or an external-protocol ask ties a remembered decision to a
- * site, and `kvist:`, `file:`, devtools and anything opaque all parse to
- * the origin "null" — a prompt that cannot say who is asking is no prompt,
- * so only http(s) origins qualify.
+ * a prompt ties a remembered decision to a site, and unnameable origins
+ * parse to "null" — a prompt that cannot name an asker is no prompt.
  */
 export function httpOrigin(url: string): string | null {
   let origin: string;
@@ -36,12 +34,10 @@ export function httpOrigin(url: string): string | null {
 }
 
 /**
- * The origin a per-site preference (zoom level, etc.) is keyed under. Returns
- * null for opaque origins (`about:blank`, `data:`) and for schemes we do not
- * care to remember, so callers can skip persistence without an extra check.
- *
- * `URL#origin` returns the string `"null"` for non-special schemes like
- * `kvist:`, so `kvist://newtab` is assembled by hand from protocol + host.
+ * The origin a per-site preference (zoom level, etc.) is keyed under; null
+ * for opaque origins and unremembered schemes, letting callers skip
+ * persistence. `URL#origin` returns "null" for non-special schemes like
+ * `kvist:`, so `kvist://newtab` is assembled by hand from protocol+host.
  */
 export function originOf(url: string): string | null {
   let parsed: URL;

@@ -1,8 +1,7 @@
 /**
- * A candidate dropdown for a text input, generic over what it is completing.
- * The caller supplies a source (query -> candidates) and decides what
- * accepting one does to its input; this module only owns the list, the
- * selection, and the keys that drive both.
+ * A candidate dropdown for a text input, generic over what it completes.
+ * The caller supplies the source and owns accepting; this module owns the
+ * list, the selection, and the keys that drive both.
  */
 import type { CompletionCandidate } from "../../shared/ipc";
 
@@ -12,11 +11,10 @@ export type CompletionSource = (query: string) => Candidate[] | Promise<Candidat
 
 export interface CompletionOptions {
   /**
-   * Whether `update()` preselects the first candidate. Tab-completion
-   * (the command line) wants this: Tab should have something to cycle from
-   * immediately. A URL bar must not: preselecting would let a bare Enter
-   * after typing silently navigate to a ranked suggestion instead of what
-   * the user typed. Defaults to `true`.
+   * Whether `update()` preselects the first candidate. Tab-completion wants
+   * this: Tab needs something to cycle from. A URL bar must not —
+   * preselecting would let a bare Enter navigate to a suggestion instead of
+   * what the user typed. Defaults to true.
    */
   selectFirst?: boolean;
 }

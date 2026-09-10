@@ -1,12 +1,8 @@
 /**
- * The failure page, as data: what went wrong and where the user was headed.
- * Kept pure so both sides of the URL — the tab manager writing it and the
- * display mapping reading it back — are unit-testable without a browser.
- *
- * The page itself is static files under `public/error/`, served by the
- * `kvist://` protocol handler. The details travel in the query string, so
- * the page needs no IPC of its own — and it runs with the page preload,
- * which exposes nothing.
+ * The failure page as data: what broke and where the user was headed.
+ * Pure, so writer and display test without a browser. The page is static
+ * under `public/error/`, served by `kvist://`; details ride the query
+ * string, so no IPC.
  */
 
 /**
