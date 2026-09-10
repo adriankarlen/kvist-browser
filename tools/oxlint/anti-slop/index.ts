@@ -13,6 +13,7 @@ import { noUnknownParametersRule } from "./rules/no-unknown-parameters.ts";
 import { noUnknownReturnsRule } from "./rules/no-unknown-returns.ts";
 import { noUnknownTypeAliasesRule } from "./rules/no-unknown-type-aliases.ts";
 import { noUnsafeDictionaryTypeRule } from "./rules/no-unsafe-dictionary-type.ts";
+import { noVerboseCommentsRule } from "./rules/no-verbose-comments.ts";
 import { noWidenThenAssertRule } from "./rules/no-widen-then-assert.ts";
 import { requireSafetyCommentForTypeAssertionRule } from "./rules/require-safety-comment-for-type-assertion.ts";
 
@@ -29,6 +30,7 @@ const antiSlopPlugin = eslintCompatPlugin({
 		"no-reflect-get": noReflectGetRule,
 		"no-runtime-typeof": noRuntimeTypeofRule,
 		"no-unsafe-dictionary-type": noUnsafeDictionaryTypeRule,
+		"no-verbose-comments": noVerboseCommentsRule,
 		"no-shape-in-symbol-names": noForbiddenTermInSymbolNamesRule,
 		"no-unknown-parameters": noUnknownParametersRule,
 		"no-unknown-returns": noUnknownReturnsRule,
