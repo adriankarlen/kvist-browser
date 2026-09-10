@@ -7,10 +7,10 @@ import { clipboard } from "electron";
  * the same way `getSearchUrl` is.
  */
 export const systemClipboard = {
-  read(): string {
+  read(): Promise<string> {
     return clipboard.readText();
   },
-  write(text: string): void {
-    clipboard.writeText(text);
+  write(text: string): Promise<void> {
+    return clipboard.writeText(text);
   },
 } as const;

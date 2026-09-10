@@ -18,8 +18,8 @@ export type Action = (arg?: string) => void;
  * caller decides what empty means.
  */
 export interface Clipboard {
-  read(): string;
-  write(text: string): void;
+  read(): Promise<string>;
+  write(text: string): Promise<void>;
 }
 
 /**
@@ -326,30 +326,34 @@ export function createActions(
           messages.warn("no URL to yank");
           return;
         }
-        clipboard.write(url);
+        void clipboard.write(url);
         messages.say(`yanked ${url}`);
       },
       open: () => {
-        const text = clipboard.read().trim();
-        if (text === "") {
-          messages.warn("clipboard is empty");
-          return;
-        }
-        const active = tabs.active;
-        if (active === undefined) {
-          messages.warn("no active tab");
-          return;
-        }
-        active.navigate(resolveUrl(text, getSearchUrl()));
+        void clipboard.read().then((raw) => {
+          const text = raw.trim();
+          if (text === "") {
+            messages.warn("clipboard is empty");
+            return;
+          }
+          const active = tabs.active;
+          if (active === undefined) {
+            messages.warn("no active tab");
+            return;
+          }
+          active.navigate(resolveUrl(text, getSearchUrl()));
+        });
       },
       // No active tab is fine here: opening in a new tab creates the tab.
       openNewTab: () => {
-        const text = clipboard.read().trim();
-        if (text === "") {
-          messages.warn("clipboard is empty");
-          return;
-        }
-        tabs.create(resolveUrl(text, getSearchUrl()));
+        void clipboard.read().then((raw) => {
+          const text = raw.trim();
+          if (text === "") {
+            messages.warn("clipboard is empty");
+            return;
+          }
+          tabs.create(resolveUrl(text, getSearchUrl()));
+        });
       },
     },
     style: {
