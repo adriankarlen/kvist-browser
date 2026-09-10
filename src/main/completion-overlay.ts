@@ -40,6 +40,8 @@ export class CompletionOverlay {
   #lease: OverlayLease | null = null;
   #loaded = false;
   #state: CompletionOverlayState | null = null;
+  /** Gives the keyboard back to whoever the focus steal just blurred. */
+  #restoreFocus: () => void;
   /**
    * The last positive height the overlay reported, kept across openings. A list with
    * the same height as the one before it triggers no `ResizeObserver` and so
@@ -51,10 +53,16 @@ export class CompletionOverlay {
    */
   #height: number | null = null;
 
-  constructor(open: () => OverlayLease, contentSize: () => ContentSize, css: () => string) {
+  constructor(
+    open: () => OverlayLease,
+    contentSize: () => ContentSize,
+    css: () => string,
+    restoreFocus: () => void,
+  ) {
     this.#open = open;
     this.#contentSize = contentSize;
     this.#css = css;
+    this.#restoreFocus = restoreFocus;
   }
 
   /** The overlay's own webContents, for the sender check on `fromOverlay`. */
@@ -117,6 +125,18 @@ export class CompletionOverlay {
   #start(): OverlayLease {
     const lease = this.#open();
     this.#lease = lease;
+    // Mounting a fresh view pulls the window's keyboard focus into it as its
+    // renderer starts producing output — the blur of the input that opened
+    // the list is not the user's doing. Nothing human can click a view that
+    // has yet to paint, so the first focus after a mount is always that
+    // steal; hand the keyboard straight back. The steal event lands
+    // mid-transition and Chromium drops a reclaim made from inside it, so
+    // the hand-back waits for the next turn.
+    const returnFocus = (): void => {
+      lease.host.webContents.removeListener("focus", returnFocus);
+      setTimeout(this.#restoreFocus, 0);
+    };
+    lease.host.webContents.on("focus", returnFocus);
     // Registered before the load can finish: `loadURL` is asynchronous, so
     // this cannot miss the event it is waiting for.
     lease.host.webContents.once("did-finish-load", () => {

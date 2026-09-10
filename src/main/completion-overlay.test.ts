@@ -17,6 +17,8 @@ function state(...labels: string[]): CompletionOverlayState {
 }
 
 /** One fake overlay view, plus controls for the lifecycle events main watches. */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 function createLease() {
   const listeners = new Map<string, (() => void)[]>();
   const sent: { channel: string; payload: unknown }[] = [];
@@ -37,6 +39,15 @@ function createLease() {
       eventListeners.push(listener);
       listeners.set(event, eventListeners);
       return webContents;
+    },
+    on: (event: string, listener: () => void) => {
+      webContents.once(event, listener);
+      return webContents;
+    },
+    removeListener: (event: string, listener: () => void) => {
+      const eventListeners = listeners.get(event) ?? [];
+      const at = eventListeners.indexOf(listener);
+      if (at >= 0) eventListeners.splice(at, 1);
     },
     send: (channel: string, payload: unknown) => {
       sent.push({ channel, payload });
@@ -60,6 +71,8 @@ function createLease() {
     lease,
     log,
     finishLoad: () => emit("did-finish-load"),
+    /** What a freshly mounted view does on Linux: take the window's focus. */
+    stealFocus: () => emit("focus"),
     crash: () => emit("render-process-gone"),
     destroy,
     visible: () => lease.host.setVisible.mock.calls.at(-1)?.[0],
@@ -72,18 +85,63 @@ function createLease() {
 function setup(css = "") {
   const view = createLease();
   const open = vi.fn(() => view.lease);
+  const restoreFocus = vi.fn();
   const overlay = new CompletionOverlay(
     open,
     () => content,
     () => css,
+    restoreFocus,
   );
-  return { overlay, view, open };
+  return { overlay, view, open, restoreFocus };
 }
 
 test("no view is built until something is completed", () => {
   const { open } = setup();
 
   expect(open).not.toHaveBeenCalled();
+});
+
+test("focus taken while the view attaches is handed straight back", async () => {
+  const { overlay, view, restoreFocus } = setup();
+
+  overlay.show(state("a"));
+  view.stealFocus();
+  await tick();
+
+  expect(restoreFocus).toHaveBeenCalledTimes(1);
+});
+
+test("only the attach steal is answered — a later focus is a user's click", async () => {
+  const { overlay, view, restoreFocus } = setup();
+
+  overlay.show(state("a"));
+  view.stealFocus();
+  view.stealFocus();
+  await tick();
+
+  expect(restoreFocus).toHaveBeenCalledTimes(1);
+});
+
+test("a rebuilt view steals focus again, and it is handed back again", async () => {
+  const first = createLease();
+  const second = createLease();
+  const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+  const restoreFocus = vi.fn();
+  const overlay = new CompletionOverlay(
+    open,
+    () => content,
+    () => "",
+    restoreFocus,
+  );
+
+  overlay.show(state("a"));
+  first.stealFocus();
+  first.crash();
+  overlay.show(state("b"));
+  second.stealFocus();
+  await tick();
+
+  expect(restoreFocus).toHaveBeenCalledTimes(2);
 });
 
 test("the first completion builds the view once, and later ones reuse it", () => {
@@ -266,6 +324,7 @@ test("a retheme after the overlay is up is pushed to it", () => {
     () => view.lease,
     () => content,
     () => css,
+    () => {},
   );
 
   overlay.show(state("a"));
@@ -346,6 +405,7 @@ test("a crashed renderer is released and replaced on the next show", () => {
     open,
     () => content,
     () => "",
+    () => {},
   );
 
   overlay.show(state("a"));
@@ -367,6 +427,7 @@ test("a destroyed renderer releases its view and is replaced on the next show", 
     open,
     () => content,
     () => "",
+    () => {},
   );
 
   overlay.show(state("a"));

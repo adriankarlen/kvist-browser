@@ -6,7 +6,10 @@ import type { Rect } from "../shared/ipc";
  * Narrowed with `Pick` for the same reason `PageContents` is: an adapter that
  * cannot contain logic is an adapter a fake cannot drift from.
  */
-export type OverlayContents = Pick<WebContents, "once" | "send" | "isDestroyed">;
+export type OverlayContents = Pick<
+  WebContents,
+  "once" | "on" | "removeListener" | "send" | "isDestroyed"
+>;
 
 export interface OverlayHost {
   webContents: OverlayContents;

@@ -273,6 +273,9 @@ function createWindow(
     },
     () => win.getContentBounds(),
     () => current.css,
+    () => {
+      if (!win.isDestroyed()) win.webContents.focus();
+    },
   );
 
   if (process.env.VITE_DEV_SERVER_URL) {
