@@ -96,24 +96,6 @@ pnpm test      # vitest, via vp
 The toolchain is [Vite+](https://npmjs.com/package/vite-plus). `vp` is the
 entry point behind every script above.
 
-### Release builds
-
-`pnpm package` only builds for the host it runs on. For a multi-platform
-release, push a `v*` tag and let
-[`.github/workflows/release.yml`](./.github/workflows/release.yml) build
-Linux (`AppImage`, `deb`, `rpm`), macOS (`dmg`, `zip`) and Windows (`nsis`)
-artifacts in parallel and upload them as a GitHub Release:
-
-```sh
-git tag v0.0.1
-git push --tags
-```
-
-The resulting artifacts are unsigned; installing the macOS or Windows build
-requires a right-click → Open the first time, and Windows SmartScreen shows
-a "More info" prompt. Code signing is a separate initiative tracked as a
-GitHub issue.
-
 ## Keybindings
 
 Kvist has six modes: **normal** (default, keys are commands), **insert**
