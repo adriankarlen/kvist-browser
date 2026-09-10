@@ -1,8 +1,7 @@
 /**
- * Shared budget for prose comments, used by the oxlint rule for script
- * sources and by the document scanner for CSS, HTML, and Svelte templates:
- * what counts as a word, which comments are exempt, and how consecutive
- * line comments merge into one comment.
+ * Shared budget for prose comments across script sources, CSS, HTML, and
+ * Svelte templates: word counting rules, exemptions, and consecutive
+ * line-comment merging.
  */
 export const COMMENT_WORD_LIMIT = 40;
 
@@ -56,11 +55,7 @@ export function commentRuns<T extends ProseComment>(comments: readonly T[]): Com
 	const runs: CommentRun<T>[] = [];
 	let open: CommentRun<T> | null = null;
 	for (const comment of comments) {
-		if (isLicenseText(comment.value)) {
-			open = null;
-			continue;
-		}
-		if (comment.type === "Line" && isDirectiveText(comment.value)) {
+		if (isLicenseText(comment.value) || isDirectiveText(comment.value)) {
 			open = null;
 			continue;
 		}

@@ -111,8 +111,9 @@ export function templateComments(source: string): SourceComment[] {
 export function svelteComments(source: string): SourceComment[] {
   const scripts = spannedRegions(source, "script");
   const styles = spannedRegions(source, "style");
+  const regions = [...scripts, ...styles].sort((a, b) => b.start - a.start);
   let blanked = source;
-  for (const region of [...scripts, ...styles]) {
+  for (const region of regions) {
     blanked =
       blanked.slice(0, region.start) + "\n".repeat(region.newlines) + blanked.slice(region.end);
   }

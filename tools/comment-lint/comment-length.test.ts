@@ -112,7 +112,7 @@ describe("exemptions", () => {
     expect(checked([blockComment(` @license ${words(80)} `, 1, 3)]).overLimit).toHaveLength(0);
   });
 
-  it("skips every recognized directive", () => {
+  it("skips every recognized directive as line or block comment", () => {
     for (const directive of [
       " @ts-expect-error reason ",
       " @ts-ignore reason ",
@@ -125,6 +125,7 @@ describe("exemptions", () => {
       " svelte-ignore a11y_click ",
     ]) {
       expect(checked([lineComment(directive, 1)]).overLimit).toHaveLength(0);
+      expect(checked([blockComment(directive, 1, 1)]).overLimit).toHaveLength(0);
     }
   });
 
@@ -209,6 +210,26 @@ describe("svelte documents", () => {
     const found = svelteComments(source);
     expect(found).toHaveLength(2);
     expect(found.map((comment) => comment.line)).toEqual([6, 9]);
+  });
+
+  it("excludes comments from both module and instance script blocks", () => {
+    const source = [
+      '<script context="module" lang="ts">',
+      `\t// module script comment with ${words(50)}`,
+      "\texport const moduleItem = true;",
+      "</script>",
+      "",
+      '<script lang="ts">',
+      `\t// instance script comment with ${words(50)}`,
+      "\texport let item = false;",
+      "</script>",
+      "",
+      `<!-- template comment with ${words(45)} -->`,
+    ].join("\n");
+    const found = svelteComments(source);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.line).toBe(11);
+    expect(found[0]?.text).toContain("template comment");
   });
 
   it("reports directive comments but the scan filters them out", () => {
