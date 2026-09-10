@@ -7,12 +7,10 @@
   const labels = $derived(prompt ? buttonLabels(prompt) : null);
 
   /**
-   * Stop propagation on the container so window-level click-outside
-   * dismissal in `App.svelte` does not fire on clicks inside. Button
-   * onclick handlers still call `prompts.answer(allow)` and run before
-   * the stop, so answering clicks dismiss. The click handler is purely
-   * defensive (no user-facing behaviour), so the a11y rule about
-   * keyboard handlers does not apply.
+   * Stop propagation on the container so click-outside dismissal in
+   * `App.svelte` does not fire on clicks inside; button handlers answer
+   * before the stop, so answering clicks still dismiss. The handler is
+   * defensive only, so the keyboard a11y rule does not apply.
    */
   function stopBubble(event: Event): void {
     event.stopPropagation();

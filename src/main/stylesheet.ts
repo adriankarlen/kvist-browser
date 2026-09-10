@@ -18,21 +18,10 @@ const logFailure =
     console.error(what, error);
 
 /**
- * One swappable sheet per page: inserting the next removes the last, rather
- * than stacking another on top. Both users of this — the ad blocker's
- * URL-scoped hiding rules and the user's own styles — key their CSS on the
- * whole URL rather than the document, so the sheet has to be replaced on every
- * navigation for the lifetime of a tab.
- *
- * The swaps are serialized per target because `insertCSS` answers with the key
- * needed to remove it later: two navigations in flight at once would otherwise
- * race over which key is current, and the loser's sheet would never come off.
- *
- * The origin is fixed per instance rather than passed per call — it is a
- * property of what the CSS *is*, not of one insertion. `user` outranks a
- * page's own `!important` (what hiding rules need); `author` cascades
- * alongside the page's own sheets (what a user stylesheet wants, so a site
- * can still win on specificity the way UserCSS authors already expect).
+ * One sheet per page: insert removes the last. Swaps serialize per target
+ * because `insertCSS` answers the removal key — racers would leak. Origin
+ * is per instance — the CSS's own property: `user` beats `!important`,
+ * `author` cascades.
  */
 export class ReplaceableStylesheet {
   #origin: "user" | "author";

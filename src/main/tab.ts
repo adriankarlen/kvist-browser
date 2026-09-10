@@ -55,21 +55,19 @@ export interface TabCallbacks {
   /** tokens + menu styles + the user's config.css, as they stand right now. */
   menuCss(): string;
   /**
-   * A URL the desktop, not the tab, should open — mailto: and kin. `scheme`
-   * is `externalProtocolTarget(url)`'s own result, passed through rather
-   * than re-derived by the receiver. `origin` is the page that asked, or
-   * null when it named nothing nameable; `selfInitiated` is true when
-   * nothing asked on a page's behalf at all (an omnibox-typed URL has no
-   * page behind it).
+   * A URL the desktop, not the tab, should open — mailto: and kin.
+   * `scheme` is `externalProtocolTarget(url)` passed through, not
+   * re-derived; `origin` is the page that asked or null; `selfInitiated`
+   * means nothing asked (a typed URL has no page).
    */
   externalRequest(url: string, scheme: string, origin: string | null, selfInitiated: boolean): void;
 }
 
 /**
- * One page and everything keyed to it: what the strip shows, the find session,
- * the error-page state and the context menu. Closed, it goes inert — reaching
- * through a view for a destroyed webContents hangs the process, so a dead Tab
- * answers every verb with nothing rather than defending each call site.
+ * One page and everything keyed to it: strip, find session, error state,
+ * context menu. Closed, it goes inert — reaching a destroyed webContents
+ * hangs the process, so a dead Tab answers every verb with nothing rather
+ * than defending each call site.
  */
 export class Tab {
   readonly id: TabId;
@@ -141,9 +139,9 @@ export class Tab {
   }
 
   /**
-   * True while the failure page stands in for a dead load. The snapshot's URL
-   * is the failed site's even then, so anything keyed to the page's URL — the
-   * zoom store, most visibly — must not treat that origin as what's on screen.
+   * True while the failure page stands in for a dead load. The snapshot's
+   * URL stays the failed site's, so anything keyed to that URL — the zoom
+   * store, most visibly — must not read it as what is on screen.
    */
   get showsErrorPage(): boolean {
     return this.#failedUrl !== null;
@@ -178,12 +176,10 @@ export class Tab {
   }
 
   /**
-   * Sets the zoom level of this tab's webContents, if it is still alive.
-   * Returns the level that was applied (Chromium may clamp), or null when
-   * the tab is closed. Notifies the collection so the snapshot republishes
-   * the new level — a programmatic `setZoomLevel` does not itself emit a
-   * `zoom-changed` event, so without this the chrome would never see the
-   * level change.
+   * Sets this webContents' zoom, if alive. Returns the applied level
+   * (Chromium may clamp), or null when closed. Notifies the collection so
+   * the snapshot republishes: a programmatic set emits no `zoom-changed`,
+   * so the chrome would never see the change.
    */
   setZoomLevel(level: number): number | null {
     if (this.#closed) return null;
@@ -212,14 +208,10 @@ export class Tab {
   }
 
   /**
-   * Tells the page to give up HTML fullscreen it asked for but this did
-   * not agree to honor — a second tab claiming it while another already
-   * owns the window's fullscreen, say. Without this the document's own
-   * `fullscreenElement`/`:fullscreen` state stays true forever: the tab's
-   * view never grows past its ordinary bounds, so the page paints its
-   * fullscreen layout squeezed into the content rect, and a later, genuine
-   * `leave-html-full-screen` never arrives to say otherwise. Best-effort:
-   * a page that never actually entered fullscreen just rejects the call.
+   * Tells the page to give up HTML fullscreen it took but was not agreed
+   * to. Otherwise the page's fullscreen state sticks: the view never grows,
+   * and no later `leave-html-full-screen` arrives. Best-effort; a page that
+   * never entered simply rejects.
    */
   cancelFullscreen(): void {
     if (this.#closed) return;
@@ -627,11 +619,10 @@ export class Tab {
   }
 
   /**
-   * Applies the saved zoom for the page's current origin, if any. Called on
-   * every main-frame navigation: Chromium propagates zoom within a session
-   * automatically, but a brand-new tab on a previously-visited origin lands
-   * at default zoom until we re-apply. Persisted state is the only way the
-   * preference survives a restart.
+   * Re-applies the saved zoom for the page's origin. Chromium propagates
+   * zoom within a session, but a new tab on a visited origin starts at
+   * default until this runs; persistence is what makes the preference
+   * survive a restart.
    */
   #applyOriginZoom(): void {
     if (this.#closed) return;

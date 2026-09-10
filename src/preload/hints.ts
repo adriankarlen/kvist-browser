@@ -1,9 +1,7 @@
 /**
- * Link hinting, running in every tab's preload.
- *
- * Main owns the mode and feeds keys in one at a time; this file only renders
- * labels and decides what a keystroke selected. Keeping the matching here
- * means a keystroke never costs a round trip.
+ * Link hinting, in every tab's preload. Main owns the mode and feeds keys;
+ * this file renders labels and decides what a keystroke selected. Matching
+ * here keeps a keystroke from costing a round trip.
  */
 
 import type { Point } from "../shared/ipc";
@@ -130,13 +128,10 @@ export function show(): boolean {
 }
 
 /**
- * Returns where main should click, if anywhere.
- *
- * A scripted `.click()` carries no user activation, and Chromium then marks
- * any history entry it creates as skippable — following a hint would quietly
- * break the back button. So the click is handed to main, which can inject a
- * real one. Only when the point does not actually hit the element, because
- * something overlaps it, is the scripted click used instead.
+ * Where main should click. A scripted `.click()` has no user activation,
+ * so the history entry would be marked skippable and the back button
+ * break; main injects a real click. Only an overlapped point falls back to
+ * the scripted click.
  */
 function activate(element: HTMLElement): Point | undefined {
   // Focusing rather than clicking a field, so hinting into a search box lands

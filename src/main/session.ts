@@ -6,10 +6,9 @@ import { session } from "./db/schema";
 import { parse } from "./db/validation";
 
 /**
- * What the save path produces and the load path returns. The shape is the
- * one the IPC and `TabManager` care about, not the row — the JSON column is
- * decoded at this seam so a malformed payload fails fast here rather than
- * corrupting the snapshot the chrome renders.
+ * What the save path produces and the load path returns: the shape IPC and
+ * `TabManager` need, not the row. The JSON column is decoded here so a
+ * malformed payload fails fast instead of corrupting the snapshot.
  */
 export interface SessionState {
   tabs: string[];
@@ -22,20 +21,10 @@ export interface SessionState {
 }
 
 /**
- * App-scoped, like `History`: a window's restore state belongs to no other
- * window, and the row is overwritten on every close. Singleton by convention
- * (`id = 1`); the table does not enforce it because Drizzle's `primaryKey`
- * is enough of an invariant for a single writer.
- *
- * `load` is forgiving: a missing row, a malformed JSON column, or a payload
- * that fails the per-field validators all collapse to `null`, so a corrupted
- * row from a previous version of the app cannot brick startup. The session
- * is a "best effort restore", not a contract.
- *
- * `save` validates the input and silently drops failures rather than
- * throwing — the throw site is `win.on("close")`, where an exception would
- * surface to the user as a quit that takes down the window with no session
- * to restore. A failed query is dropped the same way, for the same reason.
+ * App-scoped; the row is overwritten on every close. `load` collapses
+ * missing rows, bad JSON, and invalid fields to null, so an old-version row
+ * cannot brick startup. `save` drops failures: the call site is
+ * `win.on("close")`, where a throw quits unsaved.
  */
 export class Session {
   #db: Database;
@@ -85,11 +74,9 @@ export class Session {
   }
 
   /**
-   * Removes the row. Called when a window closes with no tabs — the user
-   * closed everything deliberately, so the next launch should look like a
-   * fresh first launch rather than resurrect tabs the user has done with.
-   * The close handler is the only caller; `win.on("close")` fires before
-   * the window is destroyed, so the DB is still open and writes are safe.
+   * Removes the row when a window closes with no tabs — the user is done,
+   * so the next launch looks fresh rather than resurrecting closed tabs.
+   * Runs in `win.on("close")`, before destruction, so the DB is open.
    */
   clear(): void {
     try {
@@ -100,11 +87,9 @@ export class Session {
   }
 
   /**
-   * Returns the persisted state, or `null` when no row exists, when the query
-   * itself fails, when the JSON column does not decode, when the URL list is
-   * empty, when the active index is out of range, or when the orientation
-   * string is not a known value. Each failure mode collapses to `null` so the
-   * startup path can treat "no session" uniformly.
+   * The persisted state, or null: no row, failed query, undecodable JSON,
+   * empty URL list, out-of-range active index, or unknown orientation all
+   * collapse to null, so startup can treat "no session" uniformly.
    */
   load(): SessionState | null {
     let rows;
@@ -163,16 +148,11 @@ export class Session {
 }
 
 /**
- * Save-side validation. Tab URLs are anything `loadURL` would accept — the
- * `navigate` and `setWindowOpenHandler` paths are the only producers and
- * both pass through `externalProtocolTarget` for mailto/tel — so a non-empty
- * string array is sufficient at this seam; deeper URL parsing is the loader's
- * job and outside this layer's scope.
+ * Tab URLs are anything `loadURL` accepts — producers already pass
+ * `externalProtocolTarget` — so a non-empty string array suffices.
  *
- * The cross-field narrow matches what `load()` already enforces: empty tab
- * entries and `activeIndex >= tabs.length` would otherwise produce a row the
- * load path later drops, leaving the user staring at a "no session" launch
- * for a session they thought was saved.
+ * The cross-field narrow mirrors `load()`: an empty entry or bad index
+ * would make a row the load path drops, leaving nothing restored.
  */
 const inputValidator = type({
   tabs: "string[] > 0",

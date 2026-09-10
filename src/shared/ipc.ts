@@ -108,22 +108,20 @@ export interface Point {
 export type PromptablePermission = "media" | "geolocation" | "notifications" | "clipboard-read";
 
 /**
- * What `toChrome.restoreSession` carries on startup when a saved session
- * exists. Only the orientation reaches the chrome: main owns the tab
- * restore (creating tabs in order, activating the saved one) and reads the
- * URL list and bounds from its local SessionState — the IPC channel exists
- * only so the chrome can seed its orientation override from the saved
- * flip before the first paint. `null` means "follow config".
+ * Payload of `toChrome.restoreSession`, sent on startup when a saved
+ * session exists. Main restores the tabs itself; only the orientation
+ * reaches the chrome, which seeds its override from the saved flip before
+ * the first paint. `null` means "follow config".
  */
 export interface RestoreSessionState {
   orientation: TabOrientation | null;
 }
 
 /**
- * A question the chrome renders as a one-line prompt. Three kinds ship
- * today; the union leaves room for future ones without a channel change.
- * The id travels separately over the wire (see `toChrome.prompt`) so the
- * queue owns it end-to-end and the asker never invents or strips one.
+ * A question the chrome renders as a one-line prompt. The union leaves
+ * room for future kinds without a channel change. The id travels
+ * separately so the queue owns it end-to-end and the asker never invents
+ * or strips one.
  */
 export type PromptState =
   | {
@@ -139,11 +137,10 @@ export type PromptState =
   | {
       kind: "external-protocol";
       /**
-       * The page asking, or null when nothing asked on a page's behalf —
-       * an omnibox-typed URL, `:tabnew`, or a restored session tab. Those
-       * are the user's own choice rather than a site's, but still get
-       * asked once: the same scheme reaching the OS either way, and the
-       * answer is remembered so it is only ever asked once per scheme.
+       * The page asking, or null when nothing asked on a page's behalf — a
+       * typed URL, `:tabnew`, or a restored session tab. The user's own
+       * choice, but still asked once per scheme: the OS sees the same
+       * request either way.
        */
       origin: string | null;
       scheme: string;
@@ -159,9 +156,8 @@ export interface PromptWire {
 
 /**
  * One row offered while typing in the omnibox: a concrete destination, not
- * typed search text — accepting one navigates straight to `value` rather
- * than going through `resolveUrl` again. `kind` picks the badge `completion
- * .svelte.ts` renders (and, for `bookmark`, its own colour token) so a
+ * typed search text — accepting one navigates straight to `value`, without
+ * a re-resolve. `kind` picks the badge `completion.svelte.ts` renders so a
  * bookmarked row reads differently from a history-only one.
  */
 export interface OmniboxSuggestion {
@@ -209,13 +205,11 @@ export interface CompletionOverlayState {
 }
 
 /**
- * Where the list sits inside its view, in CSS pixels.
+ * Position of the list inside its view, in CSS pixels.
  *
- * A view's bounds are whole pixels, but the input the list hangs from is
- * rarely on one — the chrome measures its padding in `ch`. The view is
- * therefore made slightly larger than the list and the list is placed at
- * this fractional offset inside it, so its border lands exactly on the
- * chrome's rather than a device pixel away from it.
+ * View bounds are whole pixels but the omnibox sits on fractions (`ch`
+ * padding), so the view contains the list, whose border lands exactly on
+ * the chrome's.
  */
 export interface CompletionInset {
   left: number;
@@ -235,12 +229,10 @@ export type AnyTable = Record<string, Channel<unknown>>;
 export type PayloadOf<C> = C extends Channel<infer T> ? T : never;
 
 /**
- * A query channel: chrome asks, main answers. `toMain`/`toChrome` are
- * fire-and-forget sends — a channel that needs the answer back in the same
- * call (e.g. "what matches this omnibox query") cannot be modelled as two
- * independent sends, so this rides `ipcRenderer.invoke`/`ipcMain.handle`
- * instead. `request`/`response` are phantom, the same way `Channel`'s
- * `payload` is.
+ * A query channel: chrome asks, main answers, riding
+ * `ipcRenderer.invoke`/`ipcMain.handle`. Two fire-and-forget sends cannot
+ * return an answer in the same call. `request`/`response` are phantom,
+ * the same way `Channel`'s `payload` is.
  */
 export interface Query<Req, Res> {
   readonly request: Req;
@@ -356,12 +348,10 @@ export const toMain = table({
   /** Answers the prompt carrying the id; anything else is stale and ignored. */
   answerPrompt: channel<{ id: number; allow: boolean }>(),
   /**
-   * The chrome's current orientation override — null when the chrome is
-   * following the config default. Mirrored on every flip and on every
-   * config-driven clear so main can persist it as part of the session and
-   * replay it on relaunch. The `null` case is sent explicitly: a fresh
-   * window that has never flipped must not be confused with a window whose
-   * override has been cleared.
+   * The chrome's orientation override — null when following config.
+   * Mirrored on every flip and clear so main persists it with the session
+   * and replays it on relaunch. Sent explicitly even when null: a
+   * never-flipped window differs from a cleared one.
    */
   orientationOverride: channel<TabOrientation | null>(),
   /**
@@ -388,11 +378,10 @@ export const toChrome = table({
   /** The prompt waiting for an answer, or null when none is. */
   prompt: channel<PromptWire | null>(),
   /**
-   * A saved session exists. Sent once, after the chrome finishes loading,
-   * when the `session` table has a row. The chrome seeds its orientation
-   * override from the payload; main owns the tab restore itself, so the
-   * URL list and bounds never need to leave main. Not sent when the row
-   * is missing or malformed — those cases look like a fresh first launch.
+   * A saved session exists, sent once the chrome loads. The chrome
+   * seeds its orientation override from the payload; main restores the
+   * tabs itself, so URLs and bounds never leave main. Missing or
+   * malformed rows look like a first launch.
    */
   restoreSession: channel<RestoreSessionState>(),
   /** A row the user clicked in the completion overlay, relayed back to accept. */

@@ -1,11 +1,9 @@
 import type { Action, Actions } from "./actions";
 
 /**
- * Every command Kvist has, and the action each one runs. Names are written out
- * rather than derived from the actions they point at: a command name is the
- * closest thing Kvist has to a published surface — keybinds use it, `:lines`
- * use it, and user keybinds will — so renaming a method must not rename a
- * command under a user's config.
+ * Every command Kvist has, and the action each runs. Names are not derived
+ * from actions: a command name is Kvist's published surface — keybinds and
+ * `:` lines use it — so renaming a method must not rename a command.
  */
 function table(actions: Actions) {
   return {

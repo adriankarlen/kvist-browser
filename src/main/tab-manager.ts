@@ -14,10 +14,9 @@ interface CreateOptions {
   after?: TabId;
   background?: boolean;
   /**
-   * The page that asked for this tab, if any — `window.open`/`target="_blank"`
-   * and the context menu's "open in new tab" both name an opener; a saved
-   * session row, `:tabnew`, and the default homepage do not. Only read when
-   * the URL turns out to be an external-protocol one.
+   * The page that asked for this tab, if any — `window.open`/'target=_blank'
+   * and "open in new tab" name an opener; saved rows, `:tabnew`, and the
+   * homepage do not. Read only when the URL turns out external-protocol.
    */
   origin?: string | null;
   /** The opener's webContents, paired with `origin` for the same reason. */
@@ -49,13 +48,10 @@ export class TabManager {
   #zoom: ZoomStore;
   #tabs = new Map<TabId, Tab>();
   /**
-   * The views, kept beside the tabs: only the window needs the real thing.
-   * Invariant: a view leaves the window exactly once, in `close`. A page that
-   * dies on its own (e.g. `window.close()`) takes its webContents down before
-   * anyone can act, and reaching through the view to unparent it afterwards
-   * hangs the process — so the `died` path forgets the view while it stays
-   * parented. That is a deliberate, bounded leak: the view is inert, and the
-   * window owns it until the window itself closes.
+   * The views, kept beside the tabs. A view leaves the window once, in
+   * `close`. A page that dies itself takes its webContents first;
+   * unparenting afterwards hangs the process, so `died` forgets it while
+   * parented — a bounded, inert leak.
    */
   #hosts = new Map<TabId, WebContentsView>();
   #order: TabId[] = [];
@@ -168,9 +164,9 @@ export class TabManager {
 
   /**
    * A URL the desktop, not a tab, should open — mailto: and kin. Wired once
-   * per window like the other observers; the URL has already been
-   * classified as a scheme this browser does not load itself before it
-   * reaches here, but whether it is actually opened is still to be decided.
+   * per window like the other observers; the URL is already classified as a
+   * scheme this browser does not load, but whether it opens is still
+   * undecided.
    */
   observeExternal(
     handler: (
@@ -204,11 +200,10 @@ export class TabManager {
   }
 
   /**
-   * Closes a tab that never committed a navigation. A download reached through
-   * `target="_blank"` leaves one behind: the window-open handler cannot tell a
-   * download URL from a page, so a tab is built for it and then nothing ever
-   * loads. A download started from a loaded page has a committed entry, and
-   * that tab is left alone.
+   * Closes a tab that never committed a navigation: a download through
+   * `target="_blank"` leaves one behind, since the window-open handler
+   * cannot tell a download URL from a page. A download from a loaded page
+   * has a committed entry and stays.
    */
   closeIfUncommitted(sender: WebContents): void {
     const tab = this.tabFor(sender);
@@ -261,14 +256,9 @@ export class TabManager {
   }
 
   /**
-   * The ordered URLs and the active tab's position, in one walk over
-   * `#tabs`/`#order`. Used by the session-save path so the close handler
-   * does not have to reach through the tabs to ask each one for its URL.
-   * Returns null when the user has closed every tab (the last close
-   * triggers `#window.close()` via `#forget`) — the close handler treats
-   * that as "clear the saved row" rather than "leave the previous
-   * session in place", because resurrecting tabs the user has done with
-   * is the wrong answer.
+   * The ordered URLs and active position, so session-save need not ask each
+   * tab. Null when every tab is closed — the close handler then clears the
+   * saved row rather than resurrecting tabs the user is done with.
    */
   urlsForSession(): { urls: string[]; activeIndex: number } | null {
     if (this.#order.length === 0) return null;

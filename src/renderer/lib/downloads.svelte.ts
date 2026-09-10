@@ -5,8 +5,7 @@ export type Downloads = ReturnType<typeof createDownloads>;
 /**
  * How long the panel stays up after the last transfer stops. A download off a
  * local network finishes between two frames, so without this the only
- * completion signal is a panel that flickers and is gone — which is the
- * complaint this whole thing exists to answer.
+ * completion signal is a panel that flickers and vanishes.
  */
 const LINGER_MS = 5000;
 

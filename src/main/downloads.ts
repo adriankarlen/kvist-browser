@@ -52,10 +52,10 @@ export class Downloads {
   }
 
   /**
-   * Must be attached before the first tab can start a transfer, and only once:
-   * a second handler would fight this one over the save path. The list is
-   * session-scoped and outlives any window, which is why this is not the
-   * window's to attach — the observers below are.
+   * Must attach before the first tab can transfer, and only once: a second
+   * handler would fight this one over the save path. The list is
+   * session-scoped, outliving any window, so this is not the window's to
+   * attach — the observers are.
    */
   attach(session: Session): void {
     session.on("will-download", (_event, item, webContents) => {

@@ -28,27 +28,18 @@ const logFailure =
     console.error(what, error);
 
 /**
- * The tab's URL-scoped cosmetic filter stylesheet. `$generichide` and friends
- * are matched against the whole URL, path included, so the hiding rules are
- * not fixed for the lifetime of a document — the sheet is swapped on every
- * navigation rather than appended to.
- *
- * `user` origin, because a hiding rule has to beat the page's own
- * `!important`; that is the whole job.
+ * The tab's URL-scoped cosmetic-filter sheet. `$generichide` and friends
+ * match the whole URL, so hiding rules are not fixed per document — the
+ * sheet swaps on each navigation. `user` origin, because a hiding rule
+ * must beat the page's own `!important`.
  */
 const urlSheet = new ReplaceableStylesheet("user", "kvist: could not apply hiding rules:");
 
 /**
- * Runs a uBO scriptlet in an isolated scope to prevent global scope pollution.
- * uBO scriptlets are self-contained bundles that declare their helpers at the
- * top level — several of the YouTube ones declare `class JSONPath`. The library
- * runs each as its own top-level `executeJavaScript`, so they share one global
- * lexical scope and every declaration after the first dies with a redeclaration
- * SyntaxError, taking its whole scriptlet with it. An IIFE gives each one its
- * own scope.
- *
- * The trailing `undefined` keeps a scriptlet's final expression from being
- * serialized back over IPC.
+ * Runs a uBO scriptlet, isolated: the library executes each at top level,
+ * and scriptlets' top-level helpers share one global scope — every second
+ * declaration dies on a redeclaration. An IIFE scopes each. The trailing
+ * `undefined` keeps the final expression off IPC.
  */
 function runScriptlet(sender: WebContents, script: string): void {
   sender
@@ -140,10 +131,10 @@ const fetchWithTimeout: typeof fetch = (input, init) => {
 };
 
 /**
- * The engine is a few MB of parsed filter lists, cached as a binary blob. The
- * library only invalidates that cache when its own serialization version
- * changes, which would pin a user to whatever lists they first downloaded, so
- * age is enforced here instead.
+ * The engine is a few MB of parsed filter lists cached as a binary blob.
+ * The library only invalidates that cache when its serialization version
+ * changes, which would pin a user to their first downloads, so age is
+ * enforced here.
  */
 async function engine(): Promise<ElectronBlocker> {
   if (blocker) return blocker;
@@ -175,12 +166,10 @@ async function engine(): Promise<ElectronBlocker> {
 }
 
 /**
- * Blocking attaches to `session.webRequest`, which allows only one listener per
- * event — so nothing else in main may claim `onBeforeRequest` or
- * `onHeadersReceived`.
- *
- * Failure here is not fatal: the first run needs the network to fetch lists,
- * and a browser that starts without blocking beats one that does not start.
+ * Attaches to `session.webRequest`, which allows one listener per event —
+ * nothing else may claim the same events. Failure is not fatal: the first
+ * run needs the network for lists, and a browser without blocking beats no
+ * browser.
  */
 export async function applySettings(config: {
   settings: Pick<Settings, "adblock">;

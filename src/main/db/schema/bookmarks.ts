@@ -1,15 +1,11 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * One row per bookmark. Two rows for the same URL are intentional: a user can
- * save the same page under more than one name, and any "did you mean to
- * bookmark this twice?" question is a UI concern, not a storage one — the
- * writer never has to reach past `add` to find out.
+ * One row per bookmark; two rows for one URL are intentional — a page may
+ * sit under several names, and "did you mean twice?" is a UI question, not
+ * a storage one.
  *
- * No `origin` denormalization the way `history` carries one: bookmarks are
- * keyed by URL and named by the user at the moment of save, so the URL is
- * already the row's identity and an `originOf`-style projection would be a
- * stored copy of something the URL already says.
+ * No `origin` column: the URL already is the identity.
  */
 export const bookmarks = sqliteTable("bookmarks", {
   id: integer("id").primaryKey({ autoIncrement: true }),

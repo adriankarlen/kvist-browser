@@ -8,14 +8,14 @@ import { clamp, STEP } from "./zoom";
 
 /**
  * Every action takes the command's argument, because a command line is the
- * only thing that calls one and a command line carries strings. Most ignore it.
+ * only caller and it carries strings. Most ignore it.
  */
 export type Action = (arg?: string) => void;
 
 /**
  * The system clipboard, narrowed to the two verbs Kvist uses. Reads return
  * whatever the OS has — a yank from another app is still a yank — and the
- * caller decides what an empty string means.
+ * caller decides what empty means.
  */
 export interface Clipboard {
   read(): string;
@@ -23,10 +23,9 @@ export interface Clipboard {
 }
 
 /**
- * The bit of `electron.shell` `:style` needs: handing a path to whatever the
- * OS (or a user's own `xdg-mime`/file-association setup) opens `.css` files
- * with. Narrowed to one method for the same reason `Clipboard` is narrowed —
- * a test can satisfy it without touching the real shell.
+ * The bit of `electron.shell` `:style` needs: handing a path to whatever
+ * the OS opens `.css` files with. Narrowed like `Clipboard`, so a test can
+ * satisfy it without touching the real shell.
  */
 export interface FileOpener {
   /** Empty string on success; any other string is the OS's own error text. */
@@ -49,10 +48,9 @@ export interface ZoomStoreAccess {
 }
 
 /**
- * What the action layer actually needs from a prompt queue: the ability to
- * answer whatever the chrome is showing. Anything richer (the head's
- * shape, individual answer by id, cancellation) belongs in the layer that
- * queues the prompt, not in the layer that answers one.
+ * What the action layer needs from a prompt queue: answering whatever the
+ * chrome shows. Richer abilities (head shape, per-id answers, cancellation)
+ * belong in the layer that queues prompts, not the layer that answers one.
  */
 interface PromptAnswerer {
   answerHead(allow: boolean): void;

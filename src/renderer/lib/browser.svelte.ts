@@ -26,9 +26,8 @@ export function createBrowser(bridge: Pick<KvistApi, "onState">) {
 
 /**
  * Keeps main in sync with wherever the chrome leaves room for page content.
- * Reports the content box, not the border box: the tab's WebContentsView is a
- * native layer painted over this element, so it would cover any border or
- * padding included in the rectangle.
+ * Reports the content box, not the border box: the tab's WebContentsView is
+ * a native layer that would cover a border in the rectangle.
  */
 export function createContentRect(bridge: Pick<KvistApi, "setContentRect">) {
   return (node: HTMLElement) => {

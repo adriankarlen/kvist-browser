@@ -1,10 +1,8 @@
 /**
- * How fast a transfer is moving, kept pure so it can be tested without a
- * `DownloadItem` and a stopwatch. The Electron side lives in `downloads.ts`.
- *
- * The rate is computed in main rather than in the chrome because main is the
- * only place with a real stream of samples — the chrome sees a snapshot every
- * 100 ms at best, and nothing at all once a transfer stalls.
+ * How fast a transfer moves, pure so it tests without a `DownloadItem`.
+ * The Electron side lives in `downloads.ts`. Computed in main, which alone
+ * sees a real sample stream — the chrome gets a snapshot every 100 ms,
+ * nothing when stalled.
  */
 
 /** Samples closer together than this are ignored; see `sampleRate`. */
@@ -31,16 +29,10 @@ export function startRate(bytes: number, at: number): RateState {
 }
 
 /**
- * Folds one `updated` report into the running average.
- *
- * `updated` fires per chunk, so a naive delta over a delta measures scheduling
- * noise rather than throughput — anything sooner than `MIN_SAMPLE_MS` after the
- * last accepted sample is therefore held rather than measured, and the previous
- * state is returned unchanged so the next sample spans the whole gap.
- *
- * A stalled transfer keeps reporting the same byte count, which reads as an
- * instant rate of zero and decays the average towards zero — which is what the
- * user should see, rather than the speed it managed before it stopped.
+ * `updated` fires per chunk, so a naive delta measures scheduling noise:
+ * samples sooner than `MIN_SAMPLE_MS` are held, letting the next sample
+ * span the gap. A stalled transfer reads as zero — what a stopped one
+ * should show.
  */
 export function sampleRate(prev: RateState, bytes: number, at: number): RateState {
   const elapsed = at - prev.at;

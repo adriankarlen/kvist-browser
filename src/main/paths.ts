@@ -26,12 +26,11 @@ export const dataDir = xdg("XDG_DATA_HOME", join(".local", "share"));
 export const dbPath = join(dataDir, "kvist.db");
 
 /**
- * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium's profile
- * state would bury the hand-edited config that belongs there. Keeps
- * ~/.config/kvist free for the user. Must run before app ready.
- *
- * Chromium's caches stay inside the profile directory: Electron derives them
- * from sessionData and ignores both --disk-cache-dir and the `cache` path.
+ * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium
+ * profile state would bury the hand-edited config. Keeps ~/.config/kvist
+ * for the user. Must run before app ready. Chromium caches stay in the
+ * profile: Electron derives them from sessionData and ignores
+ * --disk-cache-dir.
  */
 export function applyXdgPaths(): void {
   app.setPath("userData", dataDir);

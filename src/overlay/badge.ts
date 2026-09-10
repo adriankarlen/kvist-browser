@@ -9,20 +9,17 @@ export function kindBadge(candidate: Pick<CompletionCandidate, "kind">): string 
 }
 
 /**
- * `kind` is free-form and ends up in a CSS custom property *name*, not a
- * value, so `var()`'s own escaping does nothing for it — a kind containing
- * `)`, `;`, or whitespace could close the declaration early and inject
- * arbitrary CSS. Restricted to the characters a token name can use; anything
- * else is treated the same as no kind at all.
+ * `kind` ends up in a CSS custom property *name*, not a value, so a kind
+ * containing `)`, `;`, or whitespace could close the declaration and inject
+ * CSS. Restricted to token-name characters; anything else is no kind.
  */
 const KIND_TOKEN_PATTERN = /^[a-z0-9-]+$/i;
 
 /**
- * Inline style for a candidate's badge: the kind's own colour, and a
- * background tinted towards it by `color-mix`. A kind with no dedicated
- * `--kv-completion-kind-<kind>-fg`, and a candidate with no kind at all,
- * both fall back to the default badge colour — every row gets the same
- * tinted-square look, never a blank space where the colour would be.
+ * Inline style for a candidate's badge: the kind's colour, and a background
+ * tinted towards it via `color-mix`. Without a dedicated
+ * `--kv-completion-kind-<kind>-fg`, or without a kind at all, the default
+ * badge colour applies — every row keeps its tinted square.
  */
 export function kindBadgeStyle(candidate: Pick<CompletionCandidate, "kind">): string {
   const kind =

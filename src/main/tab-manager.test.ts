@@ -7,10 +7,10 @@ import { ViewStack } from "./view-stack";
 import { ZoomStore } from "./zoom";
 
 /**
- * One fake `WebContentsView` per tab, captured in creation order so a test
- * can reach the Nth tab's page without threading ids through the mock.
- * `vi.hoisted` because `vi.mock` below is itself hoisted above these
- * imports, and the factory has to close over the same array a test reads.
+ * One fake `WebContentsView` per tab, in creation order, so a test reaches
+ * the Nth tab's page without threading ids. `vi.hoisted` because `vi.mock`
+ * below is hoisted above these imports, and the factory must close over the
+ * same array tests read.
  */
 const views = vi.hoisted(
   () =>

@@ -2,10 +2,9 @@ import { homedir } from "node:os";
 import { extname, join } from "node:path";
 
 /**
- * Where a download lands, and under what name. Kept pure — the Electron side
- * lives in `downloads.ts` — so both decisions are unit-testable: the directory
- * comes from three places that shadow each other, and the name has to dodge
- * whatever is already on disk.
+ * Where a download lands, under what name. Pure — the Electron side lives
+ * in `downloads.ts` — so both decisions are testable: the directory comes
+ * from three shadowing sources, and the name must dodge what is on disk.
  */
 
 export interface DownloadDirSources {
@@ -25,12 +24,10 @@ function expandTilde(path: string): string {
 }
 
 /**
- * First of configured, environment, fallback that is set to something.
- *
- * The fallback gets one correction: Chromium answers `$HOME` when
- * `user-dirs.dirs` names no download directory, and dumping files loose in the
- * home directory is not something a browser should do on its own — so that one
- * answer becomes `$HOME/Downloads`, the conventional XDG default.
+ * First of configured, environment, fallback that is set. One correction:
+ * Chromium answers `$HOME` when `user-dirs.dirs` names no download
+ * directory, and a browser should not dump files loose in the home — so
+ * that answer becomes `$HOME/Downloads`, the XDG default.
  */
 export function resolveDownloadDir({
   configured,
@@ -46,10 +43,9 @@ export function resolveDownloadDir({
 }
 
 /**
- * A path in `dir` that nothing occupies yet, counting up as Chromium's own
- * download list does. Setting a save path suppresses Chromium's prompt, and
- * with it the collision handling it would have done — so a second copy of the
- * same file would overwrite the first without this.
+ * A path in `dir` that nothing occupies, counting up like Chromium's own
+ * list. Setting a save path suppresses Chromium's prompt and its collision
+ * handling, so without this a second copy would overwrite the first.
  */
 export function uniqueSavePath(
   dir: string,

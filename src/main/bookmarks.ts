@@ -50,14 +50,9 @@ export interface SearchOptions {
 }
 
 /**
- * App-scoped, like `History`: a bookmark outlives the window the user
- * saved it in, so the store lives at the top of `index.ts` and every caller
- * writes through the same one.
- *
- * Writes are filtered at this seam so a malformed call cannot pollute the
- * table from any layer above. The same `false`/`[]`/`null` vocabulary as
- * `History`: callers are all in main and the rejection is intentional, so
- * the noise of a log line on every filtered call would not pay for itself.
+ * App-scoped like `History`: a bookmark outlives its window, so one store
+ * serves every caller. Writes are filtered here so a malformed call cannot
+ * pollute the table — same silent-false vocabulary as `History`.
  */
 export class Bookmarks {
   #db: Database;
@@ -67,14 +62,10 @@ export class Bookmarks {
   }
 
   /**
-   * Appends one row. Returns `false` when the input fails the schema
-   * validation — same silent-drop shape as `History.record`, for the same
-   * reason: a malformed call is a programming mistake at the layer that
-   * called it, and a log line on every filtered call would be noise.
-   *
-   * `createdAt` defaults to `Date.now()`: a bookmark's creation time is a
-   * fact about the call itself, not about some upstream event the caller
-   * observed, so making every caller pass it would just be a footgun.
+   * Appends one row, false on schema-invalid input, silently, like
+   * `History.record` — a malformed call is a programming mistake.
+   * `createdAt` defaults to now because it dates the call, not an upstream
+   * event, so callers need not pass it.
    */
   add(input: AddInput): boolean {
     const createdAt = input.createdAt === undefined ? Date.now() : input.createdAt;
@@ -104,10 +95,9 @@ export class Bookmarks {
   }
 
   /**
-   * Fetches one row by id, or `null` when no such row exists. Bad input is
-   * treated as "no such row" rather than thrown — the only way a wrong id
-   * arrives is a stale UI snapshot, and a thrown error there would surface
-   * as a chrome that broke because a row disappeared in the same tick.
+   * Fetches one row by id, or null. Bad input reads as "no such row": the
+   * only wrong id is a stale UI snapshot, and an error there would break
+   * the chrome over a row that vanished.
    */
   get(id: number): BookmarkRow | null {
     if (!Number.isInteger(id) || id < 1) return null;
@@ -141,12 +131,10 @@ export class Bookmarks {
   }
 
   /**
-   * LIKE-pattern match against URL and title. Returns the newest rows
-   * first, capped by `options.limit` (default 50, max 500). The pattern is
-   * wrapped with `%`s so callers pass the thing they are searching for,
-   * not a complete LIKE expression; `%`, `_` and `\` in the input are
-   * escaped so a query like `%` is a search for the literal `%`, not "any
-   * string".
+   * LIKE-pattern match against URL and title, newest first, capped by
+   * `options.limit` (default 50, max 500). The pattern is wrapped with
+   * `%`s so callers pass what they search for; `%`, `_` and `\` are
+   * escaped so a query like `%` means the literal `%`.
    */
   search(pattern: string, options: SearchOptions = {}): BookmarkRow[] {
     const validation = parse(nonEmptyString, pattern);

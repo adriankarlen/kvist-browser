@@ -45,11 +45,10 @@ export class Vim {
   }
 
   /**
-   * A permission request appearing or being answered. A pending question
-   * captures normal mode — the only mode whose keys are safe to borrow — so
-   * the prompt's y/n work whenever it shows; a user mid-typing in insert or
-   * command is never yanked, and lands in the prompt on the way back through
-   * normal instead.
+   * A permission appearing or being answered. A pending question captures
+   * normal mode — the only mode whose keys are safe to borrow — so the
+   * prompt's y/n work; typing in insert or command is never yanked,
+   * returning through normal instead.
    */
   setPromptPending(pending: boolean): void {
     this.#promptPending = pending;
@@ -64,11 +63,10 @@ export class Vim {
   }
 
   /**
-   * A tab reporting that focus moved on or off something typable. Text fields
-   * own their keys, so normal mode has to step aside rather than swallow them.
-   *
-   * This arrives asynchronously, unlike keys — safe only because it is cached
-   * state, so handleKey still decides synchronously.
+   * A tab reporting focus on or off something typable. Text fields own
+   * their keys, so normal mode steps aside. It arrives asynchronously,
+   * unlike keys — safe only because it is cached state, so handleKey still
+   * decides synchronously.
    */
   setEditable(editable: boolean): void {
     // A chrome prompt is up and holds the keyboard; the page is a bystander.

@@ -1,34 +1,20 @@
 /**
- * A FIFO queue of questions, generic over the state shape. Coalescing is
- * deliberately not built in: it is a domain concern (Permissions matches on
- * origin + permission + mediaTypes; session restore never coalesces), and
- * pushing it down here would mean a `key` function the queue cannot enforce
- * a useful default for.
+ * A FIFO queue of questions, generic over the state shape, coalescing
+ * deliberately absent (each asker matches differently).
  *
- * The observer only fires with the current head. The chrome renders one
- * prompt line at a time, so a tail-of-queue change that does not move the
- * head (a second ask after the head) is invisible until the head is
- * answered — and the observer runs exactly once when the head changes,
- * whether by enqueue, settle, or cancel. That keeps the renderer's
- * `$state` updates to one per real change.
- *
- * The id lives in the queue, not in the state. Asker-side `T` carries no
- * id, so neither the renderer nor main ever has to invent or strip one
- * from the state — the queue stamps the id once on `ask` and carries the
- * pair `{ id, state }` to the observer. `cancel` removes the entry without
- * firing its callback; Permissions uses this when the last waiter for a
- * permission ask has its tab destroyed.
+ * Head-only notification: one `$state` update per real change. The id
+ * lives here — the asker's state carries none — and `cancel` removes
+ * without firing.
  */
 export class Prompts<T> {
   #pending: Entry<T>[] = [];
   #observers = new Set<(head: { id: number; state: T } | null) => void>();
   #nextId = 1;
   /**
-   * The head the observer was last told about. Reference equality is enough
-   * because the queue never mutates an entry's state object in place —
-   * surviving entries get pulled off and re-pushed, and a new head is a
-   * different reference. Skipping a notification on a tail enqueue keeps
-   * the renderer's `$state` updates to one per real head change.
+   * The head the observer last reported. Reference equality suffices
+   * because the queue never mutates an entry's state in place — entries
+   * re-queue, and a new head is a new reference. Skipping tail
+   * notifications keeps renderer updates to one per real change.
    */
   #lastEntry: Entry<T> | null = null;
 
@@ -117,10 +103,9 @@ interface Entry<T> {
   id: number;
   state: T;
   /**
-   * What to do when the entry is settled by an answer. Wired up by the
-   * asker — `Prompts` does not know or care what the callback does, only
-   * that it must run exactly once on a real answer (and not at all on
-   * `cancel`).
+   * What runs when an entry is settled by an answer. Wired by the asker —
+   * the queue neither knows nor cares what it does, only that it runs once
+   * on a real answer and never on `cancel`.
    */
   answer: (allow: boolean) => void;
 }

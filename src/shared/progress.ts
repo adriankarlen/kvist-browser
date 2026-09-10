@@ -1,12 +1,10 @@
 import { formatBytes } from "./bytes";
 
 /**
- * The numbers a download row shows besides its byte counts: how far along it
- * is, how fast it is going, and how long that leaves. Pure and shared, like
- * `bytes.ts` — the chrome renders them, but nothing here needs a DOM.
- *
- * A server that sent no length leaves nothing to count towards, so every
- * function here has an answer for a total of 0 rather than a caller-side guard.
+ * The numbers a download row shows beside its byte counts: progress, rate,
+ * and time left. Pure and shared, like `bytes.ts` — the chrome renders
+ * them; nothing here needs a DOM. A missing total reads as 0, so callers
+ * need no guard.
  */
 
 /**
@@ -27,11 +25,11 @@ export function formatRate(bytesPerSecond: number): string {
 }
 
 /**
- * How long is left at the current rate, as "21s", "4m 10s" or "1h 02m".
+ * Time left at the current rate: `21s`, `4m 10s`, `1h 02m`.
  *
- * The empty string is the answer whenever the question cannot be asked — no
- * length, no movement, or already finished — and the row then shows nothing
- * rather than a placeholder that means the same thing but takes up more space.
+ * Empty whenever the question cannot be asked — no length, no movement, or
+ * done — so the row shows nothing rather than a placeholder meaning the
+ * same thing.
  */
 export function formatEta(received: number, total: number, bytesPerSecond: number): string {
   if (!Number.isFinite(received)) return "";

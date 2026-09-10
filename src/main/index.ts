@@ -73,30 +73,26 @@ const messages = new Messages();
 const downloads = new Downloads((text) => messages.warn(text));
 
 /**
- * The single prompt queue: permission asks and the session-restore ask
- * share one mechanism, one observer wiring, one keybind set, one IPC
- * channel. App-scoped because the chrome renders one line at a time and
- * a permission prompt outliving its tab is the only cross-window concern
- * — already handled inside `Permissions` via `Prompts.cancel`. Created at
- * module load so `Permissions` can queue through the same instance from
- * its first request handler.
+ * Permission and session-restore asks share one queue, observer, and
+ * channel. App-scoped — the chrome shows one line at a time, and a prompt
+ * outliving its tab is handled by `Prompts.cancel`. Created at load, so
+ * `Permissions` queues from its first handler.
  */
 const prompts = new Prompts<PromptState>();
 
 /**
- * Permission prompts, session-scoped like the downloads: the session allows
- * only one handler pair, a remembered answer belongs to no window, and a
- * window only subscribes to the queue. Shares the app-wide `prompts` queue
- * with the session-restore ask — one observer, one chrome line.
+ * Permission prompts, session-scoped like downloads: the session allows
+ * one handler pair, a remembered answer belongs to no window, and a window
+ * only subscribes to the queue. Shares the app-wide queue with the
+ * session-restore ask — one observer, one chrome line.
  */
 const permissions = new Permissions(prompts);
 
 /**
- * External-protocol asks, app-scoped for the same reason as Permissions: a
- * remembered "always open bankid: links" belongs to no one window, and the
- * session-restore ask shares the same queue. Deciding whether a scheme
- * makes it to `shell.openExternal` lives entirely here; every window just
- * hands it a URL, a scheme, and who asked.
+ * External-protocol asks, app-scoped like Permissions: a remembered
+ * "always open bankid:" belongs to no window, and the session-restore ask
+ * shares the queue. Whether a scheme reaches `shell.openExternal` is
+ * decided here; windows only hand over a URL, scheme, and asker.
  */
 const externalProtocols = new ExternalProtocols(
   prompts,
@@ -107,10 +103,10 @@ const externalProtocols = new ExternalProtocols(
 );
 
 /**
- * The user's own stylesheets, session-scoped for the same reason as the rest:
- * a style belongs to no window, and every tab gets the same answer for the
- * same URL. Filled from the watched styles directory on startup and on every
- * change to it (KVI-22), and applied on every navigation from here.
+ * The user's stylesheets, session-scoped: a style belongs to no window,
+ * and every tab gets the same answer for a URL. Filled from the watched
+ * directory at startup and on change (KVI-22), and applied on every
+ * navigation.
  */
 const userStyles = new UserStyles();
 
@@ -122,10 +118,10 @@ const userStyles = new UserStyles();
 const windows = new Set<(config: UserConfig) => void>();
 
 /**
- * Every open window's tabs, so a styles-directory change can reach pages
- * already open rather than waiting for their next navigation. Separate from
- * `windows`: that fan-out is the chrome and each tab's *next* navigation,
- * this one is restyling what is on screen right now.
+ * Every open window's tabs, so a styles-directory change reaches pages
+ * already open, not just their next navigation. Separate from `windows`:
+ * that feeds the chrome and each tab's next navigation; this restyles what
+ * is on screen now.
  */
 const tabManagers = new Set<TabManager>();
 
@@ -168,10 +164,10 @@ function reportStyleProblems(problems: UserStyleProblem[]): void {
 }
 
 /**
- * Fans a config change out to everything that cares. The order is
- * load-bearing: blocking attaches to the session before the first tab can
- * load, and the local pages are configured before one can be served. Startup
- * and reload are the same call.
+ * Fans a config change out to everything that cares, in load-bearing
+ * order: blocking attaches to the session before the first tab loads, and
+ * local pages are configured before one is served. Startup and reload are
+ * the same call.
  */
 function applyConfig(config: UserConfig): Promise<void> {
   applying = applying
@@ -591,16 +587,10 @@ function createWindow(
 }
 
 /**
- * A second launch of the app is a relaunch, not a new instance: the OS
- * reuses the running process when the user clicks the dock icon, but only
- * if the process holds the single-instance lock. Without this, two processes
- * open the same kvist.db. SQLite's WAL allows concurrent readers but not
- * concurrent writers, so the second one waits out the busy timeout on any
- * transaction the first holds and then fails the query.
- *
- * `requestSingleInstanceLock` returns false on the second copy, which quits
- * immediately. The first copy gets a `second-instance` event and refocuses
- * its window — a dock click opens the app, not a second one.
+ * A second launch is a relaunch: the lock keeps two processes from opening
+ * kvist.db, since WAL forbids concurrent writers. The lock-false copy
+ * quits; the first refocuses its window, so a dock click opens, not
+ * another instance.
  */
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {

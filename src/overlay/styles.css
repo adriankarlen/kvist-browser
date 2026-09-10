@@ -1,10 +1,7 @@
 /*
- * Layer order for the overlay, declared here for the same reason the chrome
- * declares its own: user CSS is injected unlayered and beats every layer, so
- * the dropdown is as retheme-able as the window around it.
- *
- * The document itself is transparent. The view is sized to the list, but a
- * rounded corner still shows what is behind it, and behind it is the page.
+ * Layer order for the overlay, like the chrome's: user CSS is unlayered,
+ * so the dropdown stays retheme-able. The view is sized to the list;
+ * rounded corners show the page through the transparent document.
  */
 @layer kvist.reset, kvist.tokens, kvist.components;
 

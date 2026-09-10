@@ -1,8 +1,8 @@
 /*
- * This file is not bundled into a page — it is raw-imported by main and
- * injected into the menu's shadow root together with tokens.css and the
- * user's config.css, so it themes exactly like any chrome component. Every
- * colour therefore comes from a --kv-menu-* token, never a literal.
+ * Not bundled into a page — raw-imported by main and injected into the
+ * menu's shadow root with tokens.css and the user's config.css, so it
+ * themes like any chrome component. Every colour comes from a --kv-menu-*
+ * token, never a literal.
  */
 @layer kvist.components {
   .kv-menu {

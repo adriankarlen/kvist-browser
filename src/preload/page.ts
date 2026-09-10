@@ -11,11 +11,10 @@ const fromMain = listeners(toPage, (channel, listener) => {
 });
 
 /**
- * Runs in every tab, and deliberately exposes nothing over contextBridge — a
- * page must never reach the kvist API. It reports when focus lands on
- * something that accepts typing, so normal mode can step out of the way
- * instead of swallowing the keys, and it owns the half of vim that needs the
- * DOM: scrolling and link hints.
+ * Runs in every tab, exposing nothing over contextBridge — a page must
+ * never reach the kvist API. It reports focus landing on something typable,
+ * so normal mode steps aside, and owns the DOM half of vim: scrolling and
+ * link hints.
  */
 
 // Blocklisted rather than allowlisted: anything that is not one of these takes

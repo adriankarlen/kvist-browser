@@ -4,19 +4,17 @@ import { httpOrigin } from "../shared/url";
 import { Prompts } from "./prompts";
 
 /**
- * The head of the prompts queue, formatted the way the IPC channel expects
- * it: a flat pair of id and state. Permissions' state carries no id of its
- * own (the queue owns it), so `head` here is `{id, state}` and the IPC
- * sender just passes it through.
+ * The head of the prompts queue as the IPC channel expects it: `{id, state}`.
+ * Permissions' state carries no id (the queue owns it), so the sender passes
+ * the pair through.
  */
 type PromptHead = { id: number; state: PromptState };
 
 /**
- * What a permission gets without anyone being asked. `grant` is for what
- * Chrome also grants silently — denying fullscreen or pointer lock breaks
- * video players and games, and denying sanitized writes breaks every "copy
- * link" button. Everything not listed is denied: Electron's default is to
- * grant all of it without a word, which is the thing this class exists to end.
+ * What a permission gets without asking. `grant` covers what Chrome grants
+ * silently — denying fullscreen or pointer lock breaks video and games, and
+ * denying sanitized writes breaks "copy link". Everything else is denied:
+ * Electron's grant-everything default is what this class ends.
  */
 const GRANT = new Set(["fullscreen", "pointerLock", "clipboard-sanitized-write"]);
 const ASK = new Set<string>(["media", "geolocation", "notifications", "clipboard-read"]);
@@ -59,19 +57,17 @@ interface Waiter {
   contents: WebContents;
   callback: (granted: boolean) => void;
   /**
-   * Undoes the `destroyed` listener acquired for this waiter. Paired at the
-   * point of acquisition, same as the downloads' `updated`/`done` pair — a
-   * tab that keeps asking for permissions across a long session must not
-   * accumulate one dead listener per question it already got an answer to.
+   * Undoes the `destroyed` listener for this waiter, paired at acquisition
+   * like the downloads' `updated`/`done` pair — a tab asking many questions
+   * across a session must not collect dead listeners.
    */
   release: () => void;
 }
 
 /**
- * A coalesced entry: one prompt for the chrome to show, plus every
- * webContents waiting on its answer. The `promptsId` is what `Prompts`
- * generated for the entry's IPC state, and what `prompts.cancel(...)`
- * needs if every waiter goes away before the user answers.
+ * A coalesced entry: one prompt for the chrome, plus every waiting
+ * webContents. `promptsId` is what `Prompts` stamped on the entry's state,
+ * and what `prompts.cancel` needs if every waiter vanishes.
  */
 interface PendingRequest {
   promptsId: number;
@@ -82,19 +78,10 @@ interface PendingRequest {
 }
 
 /**
- * The permission policy and the prompt queue. Session-scoped like the
- * downloads: a page's camera grant is no window's business, and the session
- * allows only one request handler, so this is attached once by the app and
- * windows subscribe.
- *
- * Answers are remembered per origin for the session — both ways, or a denied
- * site would re-ask on every click. Persistence is Phase 6's to add; until
- * then a restart is how a decision is revoked.
- *
- * The queue, observer, and answer mechanics live in `Prompts`. This class
- * keeps only the policy: coalescing matches, per-origin decisions, and the
- * waiter list whose lifecycle is owned by Chromium (a destroyed tab must
- * not strand a callback).
+ * The permission policy over the shared prompt queue, session-scoped:
+ * attached once at app level; windows subscribe. Answers are remembered
+ * per origin, both ways, or a denied site re-asks every click. `Prompts`
+ * owns the queue; this class owns coalescing, decisions, waiters.
  */
 export class Permissions {
   #prompts: Prompts<PromptState>;
@@ -103,10 +90,9 @@ export class Permissions {
   #pending: PendingRequest[] = [];
 
   /**
-   * The queue is shared with the rest of the app — the session-restore ask
-   * uses the same `Prompts<PromptState>`, so permission prompts and the
-   * restore ask reach one observer and one chrome line. Permissions owns
-   * nothing about the queue's lifecycle; it only owns the policy on top.
+   * The queue is shared with the app — the session-restore ask uses the
+   * same `Prompts`, so permission prompts and the restore ask reach one
+   * observer and one chrome line. Permissions owns only the policy on top.
    */
   constructor(prompts: Prompts<PromptState>) {
     this.#prompts = prompts;
@@ -208,10 +194,9 @@ export class Permissions {
   }
 
   /**
-   * A camera grant must not silently cover the microphone too, and the other
-   * way round: each device kind the request names is checked — and later
-   * remembered — on its own. Only once every kind asked about is already
-   * known can this skip the prompt outright.
+   * A camera grant must not cover the microphone, or the reverse: each
+   * requested device kind is checked — and remembered — on its own. Only
+   * when every kind is already known does the prompt get skipped outright.
    */
   #requestMedia(
     contents: WebContents,
@@ -239,10 +224,10 @@ export class Permissions {
   }
 
   /**
-   * A second request for what is already being asked joins the wait rather
-   * than stacking a prompt the user has already read — matched on the exact
-   * device kinds too, so a camera-only ask and a combined ask do not merge
-   * into the wrong question.
+   * A second request for an in-flight ask joins the wait rather than
+   * stacking a prompt the user already read — matched on exact device
+   * kinds, so a camera-only ask and a combined one do not merge into the
+   * wrong question.
    */
   #queue(
     contents: WebContents,
@@ -316,12 +301,10 @@ export class Permissions {
   }
 
   /**
-   * A tab that dies with its question unanswered is not a denial: nobody
-   * answered anything, so the per-origin decision stays untouched. Only
-   * that tab's own wait ends here — a second tab that coalesced onto the
-   * same question is still waiting, and the prompt stays up until every
-   * waiter is gone. With no waiters left the prompt is removed without
-   * firing its callback, which is `cancel` on the queue.
+   * A tab dying with its question open is no denial — nobody answered, so
+   * the decision stays. Only that wait ends; a coalesced sibling keeps
+   * waiting, and once no waiters remain the prompt is removed without
+   * firing — the queue's `cancel`.
    */
   #dropWaiter(promptsId: number, contents: WebContents): void {
     const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);

@@ -1,12 +1,10 @@
 import type { Message } from "../shared/ipc";
 
 /**
- * The echo area's source, Neovim-style: main says one thing at a time, and it
- * stands until the user does something else.
- *
- * Everything here also reaches the log. A packaged browser's stderr is nobody's
- * idea of a user interface, which is the whole reason this exists — but the
- * log is still where a bug report comes from.
+ * The echo area's source, Neovim-style: one message at a time from main,
+ * standing until the user does something else. Everything also reaches the
+ * log — stderr is nobody's UI, but the log is where a bug report comes
+ * from.
  */
 export class Messages {
   #observers = new Set<(message: Message | null) => void>();

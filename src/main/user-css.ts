@@ -1,13 +1,9 @@
 /**
- * The UserCSS metadata format, parsed from the published convention rather
- * than from Stylus's source: Stylus is GPLv3, and the format itself — the
- * `==UserStyle==` comment, the `@-moz-document` match rules — is a documented
- * convention, not their code.
+ * The UserCSS metadata format, from the published convention, not Stylus's
+ * GPLv3 code.
  *
- * Nothing here compiles anything. A file that declares a preprocessor is
- * reported as declaring one and left alone; resolving LESS or Stylus-lang down
- * to plain CSS is a separate tool's job, out of this repo entirely. What this
- * module does is decide *which* CSS applies to a URL, and hand it over
+ * Nothing compiles here: declared preprocessors are reported and left
+ * alone. This module decides which CSS applies to a URL and hands it over
  * unmodified.
  */
 
@@ -30,11 +26,10 @@ export type Matcher =
 const MATCHER_TYPES: readonly Matcher["type"][] = ["domain", "url", "url-prefix", "regexp"];
 
 /**
- * A run of CSS and what it applies to. `matchers: null` is CSS that was not
- * wrapped in an `@-moz-document` at all, which applies everywhere; an empty
- * list is a block whose matchers were all unusable, which applies nowhere.
- * The difference matters: a block nobody can match must not silently become a
- * block that matches everything.
+ * A run of CSS and what it applies to. `matchers: null` is CSS with no
+ * `@-moz-document` wrapper, applying everywhere; an empty list is an
+ * unusable block, applying nowhere. An unmatchable block must not silently
+ * become an everywhere block.
  */
 export interface UserCssBlock {
   matchers: Matcher[] | null;
@@ -92,14 +87,10 @@ interface SplitSource {
 }
 
 /**
- * The metadata block and the CSS around it. The block is a comment, so it is
- * found by its markers rather than by parsing CSS: `/* ==UserStyle== ...
- * ==/UserStyle== *​/`.
- *
- * A start marker with no end is a truncated file rather than a style with no
- * metadata — reported as such, and nothing after it is treated as CSS: what
- * follows an unterminated metadata block is more metadata, and guessing
- * otherwise would inject the header into the page.
+ * The metadata block and the CSS around it; the block is a comment, found
+ * by its markers, not by parsing CSS. A start marker with no end is
+ * truncation, not a style without metadata — nothing after it counts as
+ * CSS.
  */
 function splitMetadata(source: string, problems: UserCssProblem[]): SplitSource | null {
   const start = source.indexOf(METADATA_START);
@@ -186,12 +177,10 @@ function decodeHexEscape(match: string): string {
 }
 
 /**
- * Strips one layer of matching quotes and decodes CSS escape sequences.
- * Applied in the order the CSS spec requires:
- *   1. Hex escapes `\<1–6 hex digits><optional whitespace>` → Unicode char.
- *      Processed first so `\41` is not half-eaten by the single-char pass.
- *   2. Escaped newlines (line-continuation): `\<CR><LF>`, `\<CR>`, `\<LF>` → ""
- *   3. Single-char escapes `\<char>` → `<char>`. Handles `\\` → `\` and `\.` → `.`.
+ * Strips one layer of matching quotes and decodes CSS escapes, in spec
+ * order: hex escapes first (`\41` must not be half-eaten by the
+ * single-char pass), then escaped newlines, then single-char escapes
+ * (`\\` → `\`).
  */
 function unquote(value: string): string {
   const first = value[0];
@@ -238,9 +227,8 @@ function splitMatchers(prelude: string): string[] {
 
 /**
  * One matching function, or nothing. `media-document()` is real `@document`
- * syntax we do not implement, and an unknown function is a typo — both are
- * reported, and both leave the block matching on its *other* matchers rather
- * than taking the whole block down.
+ * syntax we do not implement, and an unknown function is a typo — both
+ * reported, both leaving the block matching on its other matchers.
  */
 function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null {
   const match = /^([a-z-]+)\s*\(([\s\S]*)\)$/i.exec(part);
@@ -271,11 +259,9 @@ function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null 
 }
 
 /**
- * The index just past a `/* … *​/` comment starting at `index`, or -1 when one
- * does not start there. Comments have to be skipped *before* quotes are
- * counted: `/* Don't override *​/` is prose, not a string, and treating that
- * apostrophe as an opening quote runs the scan to the end of the file. An
- * unterminated comment consumes the rest, which is what it does in CSS too.
+ * The index just past a `/* … *​/` comment starting at `index`, or -1.
+ * Comments skip before quotes: `/* Don't override *​/` is prose, and reading
+ * its apostrophe as a quote would run the scan off the file's end.
  */
 function skipComment(source: string, index: number): number {
   if (source[index] !== "/" || source[index + 1] !== "*") return -1;
@@ -311,9 +297,8 @@ function findOpenBrace(source: string, from: number): number {
 }
 
 /**
- * Finds the `}` closing the `{` at `open`, counting nesting and skipping both
- * comments and strings. Still not a CSS parser — the body is passed through
- * untouched, so a full AST would buy nothing — but it has to agree with one
+ * Finds the `}` closing the `{` at `open`, counting nesting, skipping
+ * comments and strings. Still not a parser — but it must agree with one
  * about where a block ends, or a valid file is silently dropped.
  */
 function findBlockEnd(source: string, open: number): number {
@@ -346,10 +331,10 @@ function findBlockEnd(source: string, open: number): number {
 const DOCUMENT_RULE = /@(?:-moz-)?document\b/gi;
 
 /**
- * Splits a CSS body into its `@-moz-document` blocks and everything between
- * them. No browser has run `@-moz-document` in page content for years — Chrome
- * never did, and Firefox restricted it to user sheets in 59 — so the rule is
- * ours to interpret; leaving it in the injected CSS would be inert.
+ * Splits a CSS body into its `@-moz-document` blocks and the rest. No
+ * browser runs `@-moz-document` in pages — Chrome never did, Firefox
+ * restricted it in 59 — so the rule is ours to interpret; left in injected
+ * CSS it would be inert.
  */
 function parseBlocks(body: string, problems: UserCssProblem[]): UserCssBlock[] {
   const blocks: UserCssBlock[] = [];
@@ -399,15 +384,12 @@ function parseBlocks(body: string, problems: UserCssProblem[]): UserCssBlock[] {
 }
 
 /**
- * Parses one style file. Never throws and never logs: a hand-edited,
- * hot-reloaded file being half-wrong must still leave the rest of it usable,
- * and who gets told is the caller's decision.
+ * Parses one style file — never throws, never logs: a half-wrong
+ * hand-edited file must stay usable.
  *
- * `@-moz-document` is only looked for when a metadata block is present. A file
- * without one is plain CSS the user dropped in, injected everywhere as-is —
- * which is what KVI-22's watched directory promises — and scanning it for at-
- * rules would mean a stray `@document` in a comment could silently scope
- * somebody's whole stylesheet to nothing.
+ * `@-moz-document` counts only with a metadata block present: without one
+ * the file is plain CSS, and a stray `@document` must not scope it to
+ * nothing.
  */
 export function parseUserCss(source: string): ParsedUserCss {
   const problems: UserCssProblem[] = [];
@@ -434,13 +416,9 @@ export function parseUserCss(source: string): ParsedUserCss {
 }
 
 /**
- * Whether a `regexp()` matcher covers the whole URL. The spec is explicit that
- * the expression must match the entire URL, so an unanchored pattern is
- * anchored here rather than being left to match a substring — `regexp("http")`
- * matching every page on the web is not what anyone wrote it for.
- *
- * An unparseable pattern matches nothing. It cannot be reported from here, so
- * it is silently inert rather than throwing on every navigation.
+ * Whether a `regexp()` matcher covers the whole URL: the spec wants a full
+ * match, so unanchored patterns anchor here. An unparseable pattern matches
+ * nothing — it cannot be reported here, so it stays inert.
  */
 function matchesRegexp(pattern: string, url: string): boolean {
   try {

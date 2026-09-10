@@ -12,15 +12,10 @@ export interface TestDatabase {
 }
 
 /**
- * Opens a throwaway, fully-migrated SQLite DB for a store test. Copies the
- * real migrations into a fresh temp directory so `Database.open` runs them
- * against a folder that is not the project's own `kvist.db` — every store
- * test (`history.test.ts`, `bookmarks.test.ts`, `omnibox.test.ts`, ...)
- * wants exactly this, so it lives here once rather than once per file.
- *
- * `label` names the temp directory (e.g. `"history"`) purely so a leftover
- * one after a crashed run is identifiable by hand; it has no effect on the
- * test itself.
+ * Opens a throwaway, fully migrated SQLite DB for store tests: migrations
+ * copy into a fresh temp directory so `Database.open` never touches the
+ * project's kvist.db. `label` names the temp directory so a crashed run's
+ * leftover is findable.
  */
 export function openTestDatabase(label: string): TestDatabase {
   const dir = mkdtempSync(join(tmpdir(), `kvist-${label}-`));

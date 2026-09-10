@@ -13,12 +13,9 @@ interface OwnedBlock {
   id: string;
   block: UserCssBlock;
   /**
-   * False for a block whose file declared a preprocessor Kvist does not run.
-   * Its matchers are real — parsing them does not require compiling anything
-   * — so `:style` can still find the file by them; only its CSS is withheld
-   * from injection. A user reaching for `:style` on a page one of these
-   * covers is exactly the person who needs to get at the file, typo'd
-   * `@preprocessor` and all.
+   * False for a block whose file declared a preprocessor Kvist does not
+   * run. Its matchers are real, so `:style` still finds the file; only its
+   * CSS is withheld — the user typing `:style` there is who needs the file.
    */
   injectable: boolean;
 }
@@ -29,27 +26,24 @@ export interface UserStyleProblem extends UserCssProblem {
 }
 
 /**
- * The styles in force, and their application to pages. Session-scoped and
- * created once: a style belongs to no window, and every tab in every window
- * gets the same answer for the same URL.
+ * The styles in force, and their application. Session-scoped, created
+ * once: every tab sees the same answer.
  *
- * Injection is `author` origin — a user stylesheet cascades alongside the
- * page's own sheets rather than outranking them wholesale, so a site can still
- * win on specificity and a UserCSS author reaches for `!important` exactly
- * when the format's own docs say to. The ad blocker's hiding rules are the
- * other case, and use `user` for the opposite reason.
+ * Injection is `author` origin: user CSS cascades beside the page's
+ * sheets, so sites can win. The blocker's hiding rules are the opposite,
+ * using `user`.
  */
 export class UserStyles {
   #blocks: OwnedBlock[] = [];
   #sheet = new ReplaceableStylesheet("author", "kvist: could not apply user styles:");
 
   /**
-   * Replaces every style in force. A full snapshot rather than a diff, like
-   * the rest of the config path: the watched directory (KVI-22) rescans and
-   * hands over what it found, and working out what changed would buy nothing.
+   * Replaces every style in force — a full snapshot like the config path:
+   * the directory rescan hands over what it found, and diffing buys
+   * nothing.
    *
-   * Answers with everything wrong with what it was given. Nothing is logged
-   * from here — who gets told, and how loudly, is the caller's decision.
+   * Answers with everything wrong with the input; logging is the caller's
+   * call.
    */
   setSources(sources: UserStyleSource[]): UserStyleProblem[] {
     const problems: UserStyleProblem[] = [];
@@ -85,15 +79,11 @@ export class UserStyles {
   }
 
   /**
-   * Every distinct file whose CSS currently applies to a URL, in the order
-   * its file was first given — what `:style` (KVI-23) jumps to. A file can
-   * contribute more than one matching block (a global rule plus a
-   * domain-scoped one, say); it is named once regardless, since there is only
-   * one file to open for it.
+   * Every file whose CSS applies to a URL — what `:style` opens. A file
+   * may contribute several blocks but is named once: one file to open.
    *
-   * Unlike `cssFor`, a preprocessor-skipped file's matchers still count here:
-   * nothing of its CSS reaches a page, but a user who typed `:style` on a page
-   * that file was written for is exactly who needs it opened.
+   * Unlike `cssFor`, a skipped file's matchers count here: the `:style`
+   * user still needs the file.
    */
   filesFor(url: string): string[] {
     const seen = new Set<string>();
@@ -109,13 +99,10 @@ export class UserStyles {
   }
 
   /**
-   * Puts this URL's styles on a page in place of the last URL's. Called on
-   * every committed navigation *and* on history-API ones: the styles are keyed
-   * to the URL, not the document, so a SPA moving between routes has to be
-   * restyled without anything reloading.
-   *
-   * A URL that matches nothing clears the sheet rather than leaving the
-   * previous page's styles behind.
+   * Puts this URL's styles on the page, replacing the last URL's. Runs on
+   * committed and history-API navigations alike: styles key on URL, not
+   * document, so a SPA must restyle without reloading. A URL matching
+   * nothing clears the sheet.
    */
   applyTo(target: StylesheetTarget, url: string): void {
     this.#sheet.replace(target, this.cssFor(url));

@@ -7,15 +7,10 @@ import { drizzle, type NodeSQLiteDatabase } from "drizzle-orm/node-sqlite";
 import { migrate } from "drizzle-orm/node-sqlite/migrator";
 
 /**
- * Where the runtime should look for SQL migrations.
- *
- * In dev the main process is served as ESM, so `import.meta.url` is an
- * `http://` URL and `fileURLToPath` would throw on it — the migrations
- * live at the source tree, and `app.getAppPath()` is the project root
- * regardless of the working directory. In prod the bundle sits at
- * `dist/main/index.js` and the build copies the migrations to
- * `dist/main/migrations/` alongside it; `fileURLToPath` (not `.pathname`,
- * which decodes percent escapes) handles paths with spaces.
+ * Where the runtime finds migrations. In dev they live at the source tree,
+ * `app.getAppPath()` being the project root; in prod they sit beside
+ * `dist/main/index.js`. `fileURLToPath`, not `.pathname`, so paths with
+ * spaces survive.
  */
 export function defaultMigrationsFolder(): string {
   if (process.env.VITE_DEV_SERVER_URL !== undefined) {
@@ -25,13 +20,11 @@ export function defaultMigrationsFolder(): string {
 }
 
 /**
- * The single connection the app holds to its SQLite database. App-scoped,
- * like `Downloads` / `Permissions` / `ZoomStore`: opened once in
- * `app.whenReady`, released on `will-quit`, never re-opened. The Drizzle
- * instance is exposed so consumers compose queries against it directly.
- *
- * The driver is `node:sqlite` so Electron version bumps never trigger a
- * native-module rebuild dance — that is the whole reason this class exists.
+ * The single connection to SQLite. App-scoped like `Downloads` and
+ * `Permissions`: opened once in `app.whenReady`, released on quit, never
+ * re-opened; `drizzle` is exposed so consumers compose queries. The driver
+ * is `node:sqlite`, which is why version bumps never trigger a native
+ * rebuild.
  */
 export class Database {
   #client: DatabaseSync;
@@ -44,11 +37,10 @@ export class Database {
   }
 
   /**
-   * Opens the database, runs pending migrations, and returns the wrapped
-   * connection. The parent directory is created so first launch never
-   * fails on a missing `~/.local/share/kvist/`. Throws on a bad
-   * migration or corrupted DB — `index.ts` catches and quits so a
-   * startup failure does not leave the process alive with no window.
+   * Opens the database, migrates, and returns the wrapped connection,
+   * creating the parent directory so first launch never misses the folder.
+   * Throws on bad migrations or a corrupt DB — `index.ts` quits, so a
+   * failed startup leaves no windowless process.
    */
   static open(path: string, migrationsFolder: string = defaultMigrationsFolder()): Database {
     mkdirSync(dirname(path), { recursive: true });
