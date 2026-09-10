@@ -1,14 +1,6 @@
 import type { Rect } from "../../shared/ipc";
 
-/**
- * Tracks where an input sits, so the completion overlay can be anchored to
- * it. The list is painted in a `WebContentsView` main places, and this is
- * the half of that placement only the chrome can measure.
- *
- * Reports the border box rather than the content box, the opposite of
- * `createContentRect`: a tab's view has to stay clear of the chrome's own
- * border, but the dropdown is drawn flush against the input's outer edge.
- */
+/** Report the element's border box so the dropdown meets its outer edge. */
 export function createAnchor() {
   // Raw, not deep: the box is replaced wholesale on every report, and a
   // `$state` proxy cannot cross IPC — structured clone rejects it, which

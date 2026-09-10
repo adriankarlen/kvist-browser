@@ -40,15 +40,6 @@ function createLease() {
       listeners.set(event, eventListeners);
       return webContents;
     },
-    on: (event: string, listener: () => void) => {
-      webContents.once(event, listener);
-      return webContents;
-    },
-    removeListener: (event: string, listener: () => void) => {
-      const eventListeners = listeners.get(event) ?? [];
-      const at = eventListeners.indexOf(listener);
-      if (at >= 0) eventListeners.splice(at, 1);
-    },
     send: (channel: string, payload: unknown) => {
       sent.push({ channel, payload });
       log.push(`send ${channel}`);

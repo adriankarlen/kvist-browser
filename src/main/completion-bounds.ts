@@ -18,26 +18,8 @@ function clamp(value: number, max: number): number {
 }
 
 /**
- * Where the completion overlay's view goes: the anchor says which input the
- * list belongs to, the overlay says how tall it rendered, and this puts the
- * two together.
- *
- * A view's bounds are whole device-independent pixels, but the input it hangs
- * from rarely sits on one — the chrome's padding is measured in `ch`, so the
- * omnibox lands on fractions. Rounding the view to the nearest whole pixel
- * leaves its border up to one device pixel away from the panel's, and the two
- * vertical lines visibly fail to meet.
- *
- * So the view is the smallest whole-pixel rectangle that *contains* the true
- * span, and the list is placed at its exact fractional offset inside it,
- * where CSS can still address sub-pixels. The slack is invisible: the
- * overlay's document is transparent.
- *
- * The list is clamped to the space on the side it grows into rather than
- * flipped to the other one. Each caller has a side that always fits — the
- * omnibox sits at the top of the chrome and the command line at the bottom —
- * so flipping would be a rule that only ever fires in a window too short to
- * use, and it would move the list away from the input it belongs to.
+ * Round view bounds outward and retain a fractional inset to keep borders aligned.
+ * Clamp to the requested side rather than flipping.
  */
 export function placeCompletion(
   anchor: Rect,

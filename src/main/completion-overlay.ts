@@ -4,7 +4,6 @@ import { type ContentSize, placeCompletion } from "./completion-bounds";
 import type { OverlayLease } from "./overlay-host";
 
 const HIDDEN: Rect = { x: 0, y: 0, width: 0, height: 0 };
-/** What the overlay is left showing while it is closed: nothing. */
 const EMPTY: CompletionOverlayState = {
   candidates: [],
   index: -1,
@@ -13,24 +12,8 @@ const EMPTY: CompletionOverlayState = {
 };
 
 /**
- * The completion menu's own view: a window-scoped overlay that paints the
- * chrome's dropdown above the page.
- *
- * It exists because a tab's `WebContentsView` is a native layer composited
- * over the chrome, so a list rendered in the chrome's document is hidden by
- * the page no matter what CSS says. Rendering it in the page instead — the
- * way the context menu does — was rejected: the page rect starts below the
- * omnibox, so a list anchored to that input could never touch it.
- *
- * The view is built on first use and then kept, hidden between openings
- * rather than destroyed. That is the same choice `TabManager` makes for
- * inactive tabs, and for the same reason: building a renderer costs process
- * startup, and doing it per opening would put that cost in the path of a
- * keystroke.
- *
- * Sizing runs the opposite way to the content rect. The chrome reports the
- * anchor it is completing for, the overlay reports how tall it rendered, and
- * this puts the two together — so main never has to model row heights.
+ * Chrome HTML cannot paint above tab views, so the dropdown uses a cached native view.
+ * Chrome supplies the anchor; the overlay measures its own height.
  */
 export class CompletionOverlay {
   #open: () => OverlayLease;
@@ -40,16 +23,10 @@ export class CompletionOverlay {
   #lease: OverlayLease | null = null;
   #loaded = false;
   #state: CompletionOverlayState | null = null;
-  /** Gives the keyboard back to whoever the focus steal just blurred. */
   #restoreFocus: () => void;
   /**
-   * The last positive height the overlay reported, kept across openings. A list with
-   * the same height as the one before it triggers no `ResizeObserver` and so
-   * no new report, and reusing the last answer is what makes that silence
-   * correct rather than a stall.
-   *
-   * Fractional, because the list is laid out at the input's true sub-pixel
-   * width — rounding here would put the bottom border a pixel out.
+   * Keep the last positive height across openings: unchanged sizes may produce no new report.
+   * Preserve fractions to keep borders aligned.
    */
   #height: number | null = null;
 
@@ -99,7 +76,6 @@ export class CompletionOverlay {
     this.#lease.host.setBounds(HIDDEN);
   }
 
-  /** How tall the overlay rendered, which is the half of its bounds only it knows. */
   setHeight(height: number): void {
     // An empty slot reports zero before rows arrive, including after reopening.
     // Hiding on that report would stall the observer needed to measure the rows.
@@ -108,7 +84,6 @@ export class CompletionOverlay {
     this.#place();
   }
 
-  /** A retheme, so the dropdown does not go on looking like the old config. */
   applyCss(): void {
     if (this.#lease === null || !this.#loaded) return;
     this.#send(this.#lease).completionCss(this.#css());
@@ -125,18 +100,11 @@ export class CompletionOverlay {
   #start(): OverlayLease {
     const lease = this.#open();
     this.#lease = lease;
-    // Mounting a fresh view pulls the window's keyboard focus into it as its
-    // renderer starts producing output — the blur of the input that opened
-    // the list is not the user's doing. Nothing human can click a view that
-    // has yet to paint, so the first focus after a mount is always that
-    // steal; hand the keyboard straight back. The steal event lands
-    // mid-transition and Chromium drops a reclaim made from inside it, so
-    // the hand-back waits for the next turn.
-    const returnFocus = (): void => {
-      lease.host.webContents.removeListener("focus", returnFocus);
+    // A newly mounted view takes keyboard focus. Restore it next turn;
+    // Chromium ignores restoration during the focus event.
+    lease.host.webContents.once("focus", () => {
       setTimeout(this.#restoreFocus, 0);
-    };
-    lease.host.webContents.on("focus", returnFocus);
+    });
     // Registered before the load can finish: `loadURL` is asynchronous, so
     // this cannot miss the event it is waiting for.
     lease.host.webContents.once("did-finish-load", () => {
@@ -148,18 +116,14 @@ export class CompletionOverlay {
       this.#place();
       send.completionState(this.#state);
     });
-    lease.host.webContents.once("render-process-gone", () => {
+    const retire = (): void => {
       if (this.#lease !== lease) return;
       this.#lease = null;
       this.#loaded = false;
       lease.release();
-    });
-    lease.host.webContents.once("destroyed", () => {
-      if (this.#lease !== lease) return;
-      this.#lease = null;
-      this.#loaded = false;
-      lease.release();
-    });
+    };
+    lease.host.webContents.once("render-process-gone", retire);
+    lease.host.webContents.once("destroyed", retire);
     return lease;
   }
 
@@ -170,14 +134,8 @@ export class CompletionOverlay {
   }
 
   /**
-   * A view with nothing to show is concealed. One that has rows but no
-   * measurement yet is given every pixel it could use, and shown at that
-   * size until the overlay answers with the real height.
-   *
-   * Waiting for the measurement before showing anything would deadlock: a
-   * hidden view has no viewport, so it never lays out, so it never reports.
-   * The oversized rectangle costs nothing to look at — the document is
-   * transparent, and only the rows themselves are painted.
+   * Hidden views cannot measure their content. Show unmeasured lists at the available size,
+   * then shrink after the height report.
    */
   #place(): void {
     if (this.#lease === null) return;

@@ -1,14 +1,4 @@
-/*
- * The candidate dropdown. It fills an overlay view of its own rather than
- * floating inside the chrome's document: a tab's `WebContentsView` is a
- * native layer painted over the chrome, so a list positioned here would be
- * hidden behind the page. Main sizes and places that view, which is why
- * nothing here positions anything.
- *
- * The badge never gets a per-kind selector: its colour and tint arrive as an
- * inline style from `kindBadgeStyle`, keyed off whatever string the caller's
- * candidate carries as `kind`. This file only supplies the fallback look.
- */
+/* Main positions the view; this stylesheet controls the list's appearance. */
 @layer kvist.components {
   .kv-completion {
     margin: 0;

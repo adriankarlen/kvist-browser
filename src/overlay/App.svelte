@@ -28,14 +28,8 @@
   window.kvistOverlay.onCompletionCss((css) => injectUserCss(css));
 
   /**
-   * Reports how tall the list rendered. Main sizes this view from the answer,
-   * because the height follows the row count and the styling — neither of
-   * which main should have to model. Unrounded, for the same reason the
-   * anchor is: a rounded height puts the bottom border a pixel out.
-   *
-   * Nothing is reported when a new list happens to be exactly as tall as the
-   * one it replaced. That is correct rather than a gap: main keeps the last
-   * height it was told, and an unchanged height needs no correction.
+   * Report the unrounded height so main need not model row styles.
+   * Main retains the last height when the size stays unchanged.
    */
   const reportHeight: Attachment<HTMLElement> = (node) => {
     const report = (): void =>

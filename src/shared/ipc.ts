@@ -424,10 +424,8 @@ export const fromOverlay = table({
    */
   completionHeight: channel<number>(),
   /**
-   * A clicked row. Carries the candidate rather than its index because the
-   * click moves focus off the chrome, which blurs the input and clears the
-   * list before this lands — an index would point into an array that is
-   * already empty.
+   * Send the candidate, not its index: clicking blurs the input
+   * and may clear its list before this arrives.
    */
   completionPick: channel<CompletionCandidate>(),
 });

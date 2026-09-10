@@ -245,12 +245,6 @@ function createWindow(
   const tabs = new TabManager(win, views, pagePreload, zoom, (state) => chrome.state(state));
   tabManagers.add(tabs);
 
-  /**
-   * The completion menu's view, built the first time something is completed
-   * and kept after that. The factory both creates and mounts, because an
-   * overlay that exists but is not in the stack is invisible for a reason
-   * no caller could debug.
-   */
   const completion = new CompletionOverlay(
     () => {
       const view = new WebContentsView({ webPreferences: { preload: overlayPreload } });
@@ -258,21 +252,13 @@ function createWindow(
       const contents = view.webContents;
       view.setBackgroundColor("#00000000");
       views.addOverlay(view);
-      if (process.env.VITE_DEV_SERVER_URL) {
-        const loaded = contents.loadURL(
-          new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href,
-        );
-        // A failed load leaves the client waiting on did-finish-load forever.
-        // Closing the contents trips the overlay's destroyed handler, which
-        // frees the lease so the next completion builds a fresh view.
-        void loaded.catch(() => {
-          if (!contents.isDestroyed()) contents.close();
-        });
-      } else {
-        void contents.loadFile(overlayHtml).catch(() => {
-          if (!contents.isDestroyed()) contents.close();
-        });
-      }
+      const loaded = process.env.VITE_DEV_SERVER_URL
+        ? contents.loadURL(new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href)
+        : contents.loadFile(overlayHtml);
+      // Destroy failed loads so the next completion can build a fresh view.
+      void loaded.catch(() => {
+        if (!contents.isDestroyed()) contents.close();
+      });
       return {
         host: view,
         release: () => {

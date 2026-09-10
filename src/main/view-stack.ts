@@ -1,24 +1,11 @@
 import type { View } from "electron";
 
-/**
- * The part of a window's `contentView` a stack drives. Narrowed with `Pick`
- * for the same reason `PageHost` is: an adapter that cannot contain logic is
- * an adapter a fake cannot drift from.
- */
+/** The part of a window's contentView a stack drives. */
 export type StackRoot = Pick<View, "addChildView" | "removeChildView">;
 
 /**
- * Who sits on top of whom inside a window's `contentView`.
- *
- * Tab views and chrome overlays are siblings composited in the order they
- * were added, so a tab opened while a completion menu is up would be painted
- * straight over it. Electron re-orders a child to the top when it is added a
- * second time, which is what every `addPage` ends with: the overlays go back
- * over the page they belong in front of.
- *
- * The alternative — raising the overlay from each site that mounts a tab —
- * is one forgotten call away from the bug it fixes, so the invariant lives
- * here instead.
+ * Keep overlays above newly mounted tabs.
+ * Electron raises an existing child when it is added again.
  */
 export class ViewStack {
   #root: StackRoot;

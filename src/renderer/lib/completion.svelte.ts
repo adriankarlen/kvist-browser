@@ -3,11 +3,6 @@
  * The caller supplies a source (query -> candidates) and decides what
  * accepting one does to its input; this module only owns the list, the
  * selection, and the keys that drive both.
- *
- * The rows are rendered in an overlay view rather than in this document — a
- * tab's `WebContentsView` paints over the chrome, so a dropdown here would be
- * hidden by the page. A candidate makes the trip through main to get there,
- * which is why its type lives in `shared/ipc.ts`.
  */
 import type { CompletionCandidate } from "../../shared/ipc";
 
