@@ -1,20 +1,6 @@
-/*
- * The candidate dropdown that sits under a text input. Positioned absolute
- * against the nearest positioned ancestor, so a consumer only needs
- * `position: relative` on its own wrapper — nothing here assumes which
- * input it belongs to.
- *
- * The badge never gets a per-kind selector: its colour and tint arrive as an
- * inline style from `kindBadgeStyle`, keyed off whatever string the caller's
- * candidate carries as `kind`. This file only supplies the fallback look.
- */
+/* Main positions the view; this stylesheet controls the list's appearance. */
 @layer kvist.components {
   .kv-completion {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 1;
     margin: 0;
     padding: 4px 0;
     list-style: none;
@@ -34,6 +20,7 @@
     gap: 1ch;
     padding: 0 2ch;
     cursor: default;
+    user-select: none;
   }
 
   .kv-completion__item.is-active {

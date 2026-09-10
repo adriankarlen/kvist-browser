@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { app, BrowserWindow, session, shell } from "electron";
+import { app, BrowserWindow, session, shell, WebContentsView } from "electron";
 import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
 import {
@@ -16,6 +16,7 @@ import { omniboxSuggestions } from "./omnibox";
 import { Prompts } from "./prompts";
 import { Session, type SessionState } from "./session";
 import {
+  fromOverlay,
   fromPage,
   type Point,
   type PromptState,
@@ -42,6 +43,8 @@ import { applyXdgPaths, dbPath } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
+import { CompletionOverlay } from "./completion-overlay";
+import { ViewStack } from "./view-stack";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
@@ -52,7 +55,9 @@ registerKvistScheme();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
+const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
+const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 /**
@@ -236,8 +241,38 @@ function createWindow(
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
 
-  const tabs = new TabManager(win, pagePreload, zoom, (state) => chrome.state(state));
+  const views = new ViewStack(win.contentView);
+  const tabs = new TabManager(win, views, pagePreload, zoom, (state) => chrome.state(state));
   tabManagers.add(tabs);
+
+  const completion = new CompletionOverlay(
+    () => {
+      const view = new WebContentsView({ webPreferences: { preload: overlayPreload } });
+      // The view drops this reference during destruction; cleanup still needs it.
+      const contents = view.webContents;
+      view.setBackgroundColor("#00000000");
+      views.addOverlay(view);
+      const loaded = process.env.VITE_DEV_SERVER_URL
+        ? contents.loadURL(new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href)
+        : contents.loadFile(overlayHtml);
+      // Destroy failed loads so the next completion can build a fresh view.
+      void loaded.catch(() => {
+        if (!contents.isDestroyed()) contents.close();
+      });
+      return {
+        host: view,
+        release: () => {
+          views.remove(view);
+          if (!contents.isDestroyed()) contents.close();
+        },
+      };
+    },
+    () => win.getContentBounds(),
+    () => current.css,
+    () => {
+      if (!win.isDestroyed()) win.webContents.focus();
+    },
+  );
 
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -250,6 +285,7 @@ function createWindow(
   const applyToWindow = (next: UserConfig): void => {
     tabs.applySettings(next);
     chrome.config(next);
+    completion.applyCss();
   };
 
   downloads.observe((list) => chrome.downloads(list));
@@ -518,16 +554,39 @@ function createWindow(
         // typing.
         vim.requestMode("normal");
       },
+      completionOverlay: (state) => {
+        if (state === null) completion.hide();
+        else completion.show(state);
+      },
     },
     (sender) => sender === win.webContents,
+  );
+
+  // The completion overlay's own channels, accepted from its view and from
+  // nothing else — the same shape the page channels take.
+  const releaseOverlay = handle(
+    fromOverlay,
+    {
+      completionHeight: (height) => completion.setHeight(height),
+      completionPick: (candidate) => {
+        chrome.completionAccept(candidate);
+        // The click moved focus into the overlay's webContents. Without this
+        // the keyboard is stranded there: the omnibox has lost focus and the
+        // mode machine sees nothing the user types next.
+        win.webContents.focus();
+      },
+    },
+    (sender) => completion.owns(sender),
   );
 
   // ipcMain is process-global; these belong to this window.
   win.on("closed", () => {
     releaseChrome();
     releasePage();
+    releaseOverlay();
     releaseMessages();
     releasePermissions();
+    completion.release();
   });
 }
 

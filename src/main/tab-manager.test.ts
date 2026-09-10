@@ -3,6 +3,7 @@ import type { BaseWindow } from "electron";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 import type { Rect } from "../shared/ipc";
 import { TabManager } from "./tab-manager";
+import { ViewStack } from "./view-stack";
 import { ZoomStore } from "./zoom";
 
 /**
@@ -143,7 +144,8 @@ function createFakeWindow(initial: Rect = { x: 0, y: 0, width: 1280, height: 800
 
 function setup(windowRect?: Rect) {
   const win = createFakeWindow(windowRect);
-  const tabs = new TabManager(win.base, "preload.js", new ZoomStore(), vi.fn());
+  const stack = new ViewStack(win.base.contentView);
+  const tabs = new TabManager(win.base, stack, "preload.js", new ZoomStore(), vi.fn());
   return { win, tabs };
 }
 

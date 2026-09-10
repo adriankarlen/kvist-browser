@@ -139,6 +139,16 @@ export default defineConfig({
   build: {
     outDir: "dist/renderer",
     emptyOutDir: true,
+    // Two documents, because the completion menu paints in a
+    // `WebContentsView` of its own — chrome HTML can never overlap a tab's
+    // native layer, so a dropdown anchored to the omnibox needs a view that
+    // sits above it.
+    rollupOptions: {
+      input: {
+        index: "index.html",
+        overlay: "overlay.html",
+      },
+    },
   },
   plugins: [
     svelte(),
@@ -187,8 +197,9 @@ export default defineConfig({
           },
         },
       },
-      // index is the chrome's bridge; page runs in every tab and exposes nothing.
-      preload: [preload("index"), preload("page")],
+      // index is the chrome's bridge; page runs in every tab and exposes
+      // nothing; overlay backs the completion menu's own view.
+      preload: [preload("index"), preload("page"), preload("overlay")],
     }),
   ],
 });

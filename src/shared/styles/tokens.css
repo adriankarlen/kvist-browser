@@ -150,9 +150,8 @@
     /* Fallback badge colour for a candidate whose kind has no dedicated
        --kv-completion-kind-<kind>-fg of its own. */
     --kv-completion-badge-fg: var(--kv-color-muted);
-    /* A bookmarked omnibox suggestion reads differently from a history-only
-       one — see kindBadgeStyle in completion.svelte.ts. */
-    --kv-completion-kind-bookmark-fg: var(--kv-color-accent-alt);
+    --kv-completion-kind-bookmark-fg: var(--kv-color-warning);
+    --kv-completion-kind-history-fg: var(--kv-color-accent-alt);
     /* How much of the badge colour bleeds into its own background. */
     --kv-completion-badge-tint: 25%;
     --kv-completion-badge-width: 2ch;

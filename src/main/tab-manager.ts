@@ -5,6 +5,7 @@ import { composeContextMenuCss } from "./context-menu";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
+import type { ViewStack } from "./view-stack";
 import type { KeyInput, KeySource } from "./vim";
 import type { ZoomStore } from "./zoom";
 
@@ -30,6 +31,7 @@ interface CreateOptions {
  */
 export class TabManager {
   #window: BaseWindow;
+  #views: ViewStack;
   #emit: (state: BrowserState) => void;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #onEditable: (editable: boolean) => void = () => {};
@@ -55,7 +57,7 @@ export class TabManager {
    * parented. That is a deliberate, bounded leak: the view is inert, and the
    * window owns it until the window itself closes.
    */
-  #views = new Map<TabId, WebContentsView>();
+  #hosts = new Map<TabId, WebContentsView>();
   #order: TabId[] = [];
   #activeId: TabId | null = null;
   #contentRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -72,11 +74,13 @@ export class TabManager {
 
   constructor(
     window: BaseWindow,
+    views: ViewStack,
     pagePreload: string,
     zoom: ZoomStore,
     emit: (state: BrowserState) => void,
   ) {
     this.#window = window;
+    this.#views = views;
     this.#pagePreload = pagePreload;
     this.#zoom = zoom;
     this.#emit = emit;
@@ -248,7 +252,7 @@ export class TabManager {
       }
     }
     const tab = this.#adopt(url, options.after);
-    this.#window.contentView.addChildView(this.#viewOf(tab));
+    this.#views.addPage(this.#viewOf(tab));
     tab.setVisible(false);
     tab.navigate(url);
     if (options.background) this.#publish();
@@ -283,7 +287,7 @@ export class TabManager {
       this.#fullscreenId = null;
       if (!this.#window.isDestroyed()) this.#window.setFullScreen(false);
     }
-    this.#window.contentView.removeChildView(this.#viewOf(tab));
+    this.#views.remove(this.#viewOf(tab));
     tab.close();
     this.#forget(id);
   }
@@ -351,7 +355,7 @@ export class TabManager {
     const id = this.#nextId++;
     const view = new WebContentsView({ webPreferences: { preload: this.#pagePreload } });
     const tab = new Tab(id, view, this.#callbacks(id), this.#zoom, url);
-    this.#views.set(id, view);
+    this.#hosts.set(id, view);
 
     this.#tabs.set(id, tab);
     const index = after === undefined ? -1 : this.#order.indexOf(after);
@@ -363,7 +367,7 @@ export class TabManager {
 
   /** The views, kept beside the tabs: only the window needs the real thing. */
   #viewOf(tab: Tab): WebContentsView {
-    return this.#views.get(tab.id)!;
+    return this.#hosts.get(tab.id)!;
   }
 
   /** The whole window's client area, in the coordinate frame `setBounds` takes. */
@@ -445,7 +449,7 @@ export class TabManager {
 
     this.#tabs.get(id)?.markDead();
     this.#tabs.delete(id);
-    this.#views.delete(id);
+    this.#hosts.delete(id);
     this.#order.splice(index, 1);
 
     if (this.#order.length === 0) {

@@ -3,7 +3,8 @@ import { createDownloads } from "./downloads.svelte";
 import { createFind } from "./find.svelte";
 import { createMessages } from "./messages.svelte";
 import { createPrompts } from "./prompts.svelte";
-import { createUi, injectUserCss } from "./settings.svelte";
+import { createUi } from "./settings.svelte";
+import { injectUserCss } from "../../shared/inject-css";
 import { createVim } from "./vim.svelte";
 
 /**
