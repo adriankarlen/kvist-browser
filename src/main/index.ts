@@ -259,9 +259,19 @@ function createWindow(
       view.setBackgroundColor("#00000000");
       views.addOverlay(view);
       if (process.env.VITE_DEV_SERVER_URL) {
-        void contents.loadURL(new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href);
+        const loaded = contents.loadURL(
+          new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href,
+        );
+        // A failed load leaves the client waiting on did-finish-load forever.
+        // Closing the contents trips the overlay's destroyed handler, which
+        // frees the lease so the next completion builds a fresh view.
+        void loaded.catch(() => {
+          if (!contents.isDestroyed()) contents.close();
+        });
       } else {
-        void contents.loadFile(overlayHtml);
+        void contents.loadFile(overlayHtml).catch(() => {
+          if (!contents.isDestroyed()) contents.close();
+        });
       }
       return {
         host: view,
