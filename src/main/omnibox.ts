@@ -53,11 +53,15 @@ export function omniboxSuggestions(sources: OmniboxSources, query: unknown): Omn
   );
 
   return [
-    ...bookmarkRows.map(
-      (row): OmniboxSuggestion => ({ label: row.title, value: row.url, kind: "bookmark" }),
-    ),
-    ...historyRows.map(
-      (row): OmniboxSuggestion => ({ label: row.title, value: row.url, kind: "history" }),
-    ),
+    ...bookmarkRows.map((row): OmniboxSuggestion => ({
+      label: row.title,
+      value: row.url,
+      kind: "bookmark",
+    })),
+    ...historyRows.map((row): OmniboxSuggestion => ({
+      label: row.title,
+      value: row.url,
+      kind: "history",
+    })),
   ];
 }
