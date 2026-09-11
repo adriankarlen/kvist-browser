@@ -19,8 +19,8 @@ afterEach(() => vi.restoreAllMocks());
  */
 function createClipboardStub(readText = "https://clipboard.example") {
   return {
-    read: vi.fn<() => string>(() => readText),
-    write: vi.fn<(text: string) => void>(),
+    read: vi.fn<() => Promise<string>>(() => Promise.resolve(readText)),
+    write: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()),
   };
 }
 
@@ -344,95 +344,105 @@ test("yank with an empty URL warns rather than writing an empty string", () => {
   expect(messages.warn).toHaveBeenCalledWith("no URL to yank");
 });
 
-test("open reads the clipboard and navigates the active tab through resolveUrl", () => {
+test("open reads the clipboard and navigates the active tab through resolveUrl", async () => {
   const { commands, active, clipboard } = createStubs();
 
   commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(clipboard.read).toHaveBeenCalled();
   expect(active.navigate).toHaveBeenCalledWith("https://clipboard.example");
 });
 
-test("open turns a search phrase on the clipboard into a search URL", () => {
+test("open turns a search phrase on the clipboard into a search URL", async () => {
   const { commands, active, clipboard } = createStubs();
-  clipboard.read.mockReturnValue("some words");
+  clipboard.read.mockResolvedValue("some words");
 
   commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(active.navigate).toHaveBeenCalledWith("https://duckduckgo.com/?q=some%20words");
 });
 
-test("open honours the configured search template", () => {
+test("open honours the configured search template", async () => {
   const { commands, active, clipboard } = createStubs(() => "https://search.example/find?q={q}");
-  clipboard.read.mockReturnValue("some words");
+  clipboard.read.mockResolvedValue("some words");
 
   commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(active.navigate).toHaveBeenCalledWith("https://search.example/find?q=some%20words");
 });
 
-test("open trims whitespace before resolving", () => {
+test("open trims whitespace before resolving", async () => {
   const { commands, active, clipboard } = createStubs();
-  clipboard.read.mockReturnValue("  https://x.example  \n");
+  clipboard.read.mockResolvedValue("  https://x.example  \n");
 
   commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(active.navigate).toHaveBeenCalledWith("https://x.example");
 });
 
-test("open warns and does nothing when the clipboard is empty", () => {
+test("open warns and does nothing when the clipboard is empty", async () => {
   const { commands, active, clipboard, messages } = createStubs();
-  clipboard.read.mockReturnValue("");
+  clipboard.read.mockResolvedValue("");
 
   commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(messages.warn).toHaveBeenCalledWith("clipboard is empty");
   expect(active.navigate).not.toHaveBeenCalled();
 });
 
-test("open warns and does nothing when there is no active tab", () => {
+test("open warns and does nothing when there is no active tab", async () => {
   const stubs = createStubs();
   Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
 
   stubs.commands.execute("clipboard.open");
+  await Promise.resolve();
 
   expect(stubs.messages.warn).toHaveBeenCalledWith("no active tab");
   expect(stubs.active.navigate).not.toHaveBeenCalled();
 });
 
-test("openNewTab reads the clipboard and creates a tab with the resolved URL", () => {
+test("openNewTab reads the clipboard and creates a tab with the resolved URL", async () => {
   const { commands, tabs, clipboard } = createStubs();
 
   commands.execute("clipboard.openNewTab");
+  await Promise.resolve();
 
   expect(clipboard.read).toHaveBeenCalled();
   expect(tabs.create).toHaveBeenCalledWith("https://clipboard.example");
 });
 
-test("openNewTab treats a phrase as a search through the configured template", () => {
+test("openNewTab treats a phrase as a search through the configured template", async () => {
   const { commands, tabs, clipboard } = createStubs();
-  clipboard.read.mockReturnValue("what is a wren");
+  clipboard.read.mockResolvedValue("what is a wren");
 
   commands.execute("clipboard.openNewTab");
+  await Promise.resolve();
 
   expect(tabs.create).toHaveBeenCalledWith("https://duckduckgo.com/?q=what%20is%20a%20wren");
 });
 
-test("openNewTab warns and does nothing when the clipboard is empty", () => {
+test("openNewTab warns and does nothing when the clipboard is empty", async () => {
   const { commands, tabs, clipboard, messages } = createStubs();
-  clipboard.read.mockReturnValue("");
+  clipboard.read.mockResolvedValue("");
 
   commands.execute("clipboard.openNewTab");
+  await Promise.resolve();
 
   expect(messages.warn).toHaveBeenCalledWith("clipboard is empty");
   expect(tabs.create).not.toHaveBeenCalled();
 });
 
-test("openNewTab still creates a tab when there is no active one", () => {
+test("openNewTab still creates a tab when there is no active one", async () => {
   const stubs = createStubs();
   Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
 
   stubs.commands.execute("clipboard.openNewTab");
+  await Promise.resolve();
 
   expect(stubs.tabs.create).toHaveBeenCalledWith("https://clipboard.example");
   expect(stubs.messages.warn).not.toHaveBeenCalled();

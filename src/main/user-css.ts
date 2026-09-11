@@ -96,8 +96,8 @@ function splitMetadata(source: string, problems: UserCssProblem[]): SplitSource 
   const start = source.indexOf(METADATA_START);
   if (start === -1) return null;
 
-  // Back to the comment's own opener: `start` is inside `/* … *​/`, so slicing
-  // to it would leave a dangling `/*` that swallows the CSS above it.
+  // Back to the comment's own opener: `start` is inside a block comment, so
+  // slicing to it leaves a dangling `/*` that swallows the CSS above it.
   const commentStart = source.lastIndexOf("/*", start);
   const leading = source.slice(0, commentStart === -1 ? start : commentStart);
 
@@ -259,9 +259,9 @@ function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null 
 }
 
 /**
- * The index just past a `/* … *​/` comment starting at `index`, or -1.
- * Comments skip before quotes: `/* Don't override *​/` is prose, and reading
- * its apostrophe as a quote would run the scan off the file's end.
+ * The index just past a block comment starting at `index`, or -1.
+ * Comments skip before quotes: an inline comment is prose, and reading its
+ * apostrophe as a quote would run the scan off the file's end.
  */
 function skipComment(source: string, index: number): number {
   if (source[index] !== "/" || source[index + 1] !== "*") return -1;
