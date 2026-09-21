@@ -392,7 +392,9 @@ export class TabManager {
       inPageNavigation: (page, url) => this.#onInPageNavigation(page, url),
       navigated: (page, url) => this.#onNavigated(page, url),
       key: (input, source) => this.#onKey(input, source),
-      copyText: (text) => clipboard.writeText(text),
+      copyText: (text) => {
+        void clipboard.writeText(text);
+      },
       menuCss: () => this.#menuCss,
       fullscreenChange: (entering) => {
         if (entering) {
