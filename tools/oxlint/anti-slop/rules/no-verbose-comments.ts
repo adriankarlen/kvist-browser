@@ -1,4 +1,4 @@
-import { defineRule } from "@oxlint/plugins";
+import { defineRule } from "vite-plus/lint/plugins";
 
 import { COMMENT_WORD_LIMIT, checkComments } from "../shared/verbose-comments.ts";
 import { verboseCommentScriptScope } from "../verbose-comment-baseline.ts";
