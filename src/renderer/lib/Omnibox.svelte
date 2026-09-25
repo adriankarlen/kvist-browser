@@ -1,7 +1,7 @@
 <script lang="ts">
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
-  import { browser, ui, vim } from "./stores.svelte";
+  import { browser, completionOverlay, ui, vim } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -50,6 +50,14 @@
     return () => clearTimeout(timer);
   });
 
+  // A clicked row comes back through main: the overlay is a webContents of
+  // its own, so its clicks cannot reach this document directly.
+  const overlay = completionOverlay.claim((candidate) => {
+    completion.close();
+    acceptSuggestion(candidate);
+  });
+  $effect(() => () => overlay.release());
+
   /**
    * Mirrors the list to main, which paints it in an overlay view above the
    * page — chrome HTML can never overlap a tab's native layer, so the rows
@@ -59,10 +67,10 @@
   $effect(() => {
     const box = anchor.current;
     if (!focused || box === null || !completion.open) {
-      window.kvist.completionOverlay(null);
+      overlay.hide();
       return;
     }
-    window.kvist.completionOverlay({
+    overlay.show({
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
       anchor: box,
@@ -117,13 +125,6 @@
   }
 
   window.kvist.onFocusOmnibox(() => input?.focus());
-
-  // A clicked row comes back through main: the overlay is a webContents of
-  // its own, so its clicks cannot reach this document directly.
-  window.kvist.onCompletionAccept((candidate) => {
-    completion.close();
-    acceptSuggestion(candidate);
-  });
 </script>
 
 <form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>

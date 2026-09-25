@@ -1,4 +1,5 @@
 import { createBrowser, createContentRect } from "./browser.svelte";
+import { createCompletionOverlay } from "./completion-overlay";
 import { createDownloads } from "./downloads.svelte";
 import { createFind } from "./find.svelte";
 import { createMessages } from "./messages.svelte";
@@ -15,6 +16,7 @@ import { createVim } from "./vim.svelte";
 const bridge = window.kvist;
 
 export const browser = createBrowser(bridge);
+export const completionOverlay = createCompletionOverlay(bridge);
 export const contentRect = createContentRect(bridge);
 export const downloads = createDownloads(bridge);
 export const find = createFind(bridge);
