@@ -146,6 +146,8 @@
     --kv-completion-badge-fg: var(--kv-color-muted);
     --kv-completion-kind-bookmark-fg: var(--kv-color-warning);
     --kv-completion-kind-history-fg: var(--kv-color-accent-alt);
+    --kv-completion-kind-command-fg: var(--kv-color-accent);
+    --kv-completion-kind-alias-fg: var(--kv-color-warning);
     /* How much of the badge colour bleeds into its own background. */
     --kv-completion-badge-tint: 25%;
     --kv-completion-badge-width: 2ch;
