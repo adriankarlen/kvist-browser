@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { wire } from "../shared/ipc";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions, type ZoomStoreAccess } from "./actions";
-import { createCommands } from "./commands";
+import { completeCommand, createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
 import type { Prompts } from "./prompts";
@@ -640,4 +640,61 @@ test("a file that fails to open is warned about without holding up the rest", as
     "could not open /config/styles/broken.css: no application can open this file",
   );
   expect(messages.warn).toHaveBeenCalledTimes(1);
+});
+
+test("completion offers aliases first, then commands, by prefix", () => {
+  expect(completeCommand("zo").map(({ label }) => label)).toEqual([
+    "zo",
+    "zoom",
+    "zoom.in",
+    "zoom.out",
+    "zoom.reset",
+    "zoom.set",
+  ]);
+});
+
+test("completion labels an argument on both the alias and the command", () => {
+  const candidates = completeCommand("zoom");
+  expect(candidates.find(({ label }) => label === "zoom")).toEqual({
+    label: "zoom",
+    value: "zoom",
+    kind: "alias",
+    hint: "zoom.set <level>",
+  });
+  expect(candidates.find(({ label }) => label === "zoom.set")).toMatchObject({
+    kind: "command",
+    hint: "<level>",
+  });
+  expect(candidates.find(({ label }) => label === "zoom.in")?.hint).toBeUndefined();
+});
+
+test("completion ignores case but fills in the name as declared", () => {
+  expect(completeCommand("CLIPBOARD.OPENN")).toMatchObject([{ value: "clipboard.openNewTab" }]);
+});
+
+test("completion skips commands only a keybind can use", () => {
+  for (const prefix of ["hints", "focus", "insert", "prompt"]) {
+    expect(completeCommand(prefix), prefix).toEqual([]);
+  }
+});
+
+test("completion offers nothing for an empty line or once an argument starts", () => {
+  expect(completeCommand("")).toEqual([]);
+  expect(completeCommand("   ")).toEqual([]);
+  expect(completeCommand("zoom ")).toEqual([]);
+  expect(completeCommand("zoom 1")).toEqual([]);
+  expect(completeCommand("nope")).toEqual([]);
+});
+
+test("completion tolerates leading space, as running a line does", () => {
+  expect(completeCommand("  qa").map(({ label }) => label)).toEqual(["qa"]);
+});
+
+test("every completed name runs", () => {
+  const { commands } = createStubs();
+  const offered = "abcdefghijklmnopqrstuvwxyz0".split("").flatMap((c) => completeCommand(c));
+  expect(offered.length).toBeGreaterThan(0);
+  for (const { value } of offered) {
+    expect(commands.execute(value), value).toBe(true);
+  }
 });

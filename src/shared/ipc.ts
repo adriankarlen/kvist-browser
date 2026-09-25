@@ -427,6 +427,8 @@ export const fromOverlay = table({
 export const toMainQueries = queryTable({
   /** Candidates for the omnibox's dropdown, merged from history and bookmarks. */
   omniboxSuggestions: query<string, OmniboxSuggestion[]>(),
+  /** Command names and aliases the `:` line's first word could complete into. */
+  commandCompletions: query<string, CompletionCandidate[]>(),
 });
 
 /**
