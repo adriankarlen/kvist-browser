@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+import { type } from "arktype";
 import { app, BrowserWindow, session, shell, WebContentsView } from "electron";
 import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
@@ -10,6 +11,7 @@ import {
 import { createActions } from "./actions";
 import { Bookmarks } from "./bookmarks";
 import { Database } from "./db/database";
+import { parse } from "./db/validation";
 import { systemClipboard } from "./clipboard";
 import { History } from "./history";
 import { omniboxSuggestions } from "./omnibox";
@@ -27,7 +29,7 @@ import {
   toMainQueries,
 } from "../shared/ipc";
 import { handle, handleQueries } from "./ipc";
-import { createCommands } from "./commands";
+import { completeCommand, createCommands } from "./commands";
 import {
   createConfigStore,
   describeProblem,
@@ -59,6 +61,8 @@ const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
+/** A `:` line as it arrives over IPC, parsed rather than trusted. */
+const commandLine = type("string");
 
 /**
  * The echo area, app-scoped like the downloads: what main has to say outlives
@@ -625,17 +629,19 @@ if (!gotTheLock) {
     const config = createConfigStore();
     const history = new History(db);
     const bookmarks = new Bookmarks(db);
-    // Bookmarks/History are app-scoped, not per-window, so this query is
-    // registered once for the app's whole life rather than re-registered per
-    // `createWindow` — `ipcMain.handle` throws on a second registration for
-    // the same channel, which a second window would hit immediately if this
-    // lived inside `createWindow` instead. Same exception AGENTS.md documents
-    // for `Downloads`/`Permissions`: nothing narrower to release into, so the
-    // release this returns is never called.
+    // Bookmarks, History and the command table are app-scoped, not
+    // per-window, so these queries are registered once for the app's whole
+    // life. `ipcMain.handle` throws on a second registration, which a second
+    // window would hit at once. Nothing narrower to release into, as with
+    // `Downloads`/`Permissions`.
     handleQueries(
       toMainQueries,
       {
         omniboxSuggestions: (query) => omniboxSuggestions({ history, bookmarks }, query),
+        commandCompletions: (line) => {
+          const parsed = parse(commandLine, line);
+          return parsed.problem === undefined ? completeCommand(parsed.value) : [];
+        },
       },
       (sender) => BrowserWindow.getAllWindows().some((window) => window.webContents === sender),
     );

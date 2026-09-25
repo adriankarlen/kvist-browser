@@ -169,6 +169,12 @@ which clears the list before the pick lands — an index would point into an
 empty array. Main refocuses the chrome afterwards, or the keyboard is
 stranded in the overlay.
 
+There is one overlay and two inputs, and main relays a pick to the whole
+chrome. `completion-overlay.ts` in the renderer routes it to whichever input
+showed the list last. That owner survives `hide()`, because the blur that
+hides the list lands before the pick does. An input that does not own the
+overlay cannot hide it.
+
 ## In-page vim
 
 Hints live in the preload, mode stays in main. Hint labels are inline-styled
