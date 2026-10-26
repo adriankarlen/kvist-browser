@@ -215,6 +215,7 @@ function isPromptAnswer(value: unknown): value is { id: number; allow: boolean }
 function createWindow(
   zoom: ZoomStore,
   history: History,
+  bookmarks: Bookmarks,
   sessions: Session,
   saved: SessionState | null,
 ): void {
@@ -242,7 +243,15 @@ function createWindow(
   });
 
   const views = new ViewStack(win.contentView);
-  const tabs = new TabManager(win, views, pagePreload, zoom, (state) => chrome.state(state));
+  const tabs = new TabManager(
+    win,
+    views,
+    pagePreload,
+    zoom,
+    (state) => chrome.state(state),
+    (url) => bookmarks.has(url),
+  );
+  const releaseBookmarks = bookmarks.observe(() => tabs.refresh());
   tabManagers.add(tabs);
 
   const completion = new CompletionOverlay(
@@ -297,6 +306,7 @@ function createWindow(
     downloads,
     prompts,
     zoom,
+    bookmarks,
     win,
     messages,
     systemClipboard,
@@ -586,6 +596,7 @@ function createWindow(
     releaseOverlay();
     releaseMessages();
     releasePermissions();
+    releaseBookmarks();
     completion.release();
   });
 }
@@ -664,7 +675,7 @@ if (!gotTheLock) {
     // row is left behind by a crash.
     const sessions = new Session(db);
     const saved = sessions.load();
-    createWindow(zoom, history, sessions, saved);
+    createWindow(zoom, history, bookmarks, sessions, saved);
     const releaseConfig = await watchConfig(config, (next) => {
       reportProblems(next);
       void applyConfig(next.config);
@@ -695,7 +706,7 @@ if (!gotTheLock) {
       // session, same as cold start. Re-reading from the store is cheap and
       // avoids the alternative of carrying the row across the app's lifetime.
       if (BrowserWindow.getAllWindows().length === 0)
-        createWindow(zoom, history, sessions, sessions.load());
+        createWindow(zoom, history, bookmarks, sessions, sessions.load());
     });
   });
 }

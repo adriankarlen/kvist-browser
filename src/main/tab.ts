@@ -54,6 +54,8 @@ export interface TabCallbacks {
   copyText(text: string): void;
   /** tokens + menu styles + the user's config.css, as they stand right now. */
   menuCss(): string;
+  /** Read on every snapshot, so the strip never shows a stale bookmark state. */
+  isBookmarked(url: string): boolean;
   /**
    * A URL the desktop, not the tab, should open — mailto: and kin.
    * `scheme` is `externalProtocolTarget(url)` passed through, not
@@ -155,6 +157,7 @@ export class Tab {
       favicon: this.#favicon,
       loading: this.#loading,
       zoomLevel: this.#zoomLevel,
+      bookmarked: this.#url !== "" && this.#on.isBookmarked(this.#url),
     };
     // Read live rather than tracked: history depth changes without an event.
     // A closed page has no history left to ask.

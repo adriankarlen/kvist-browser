@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { BaseWindow } from "electron";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
-import type { Rect } from "../shared/ipc";
+import type { BrowserState, Rect } from "../shared/ipc";
 import { TabManager } from "./tab-manager";
 import { ViewStack } from "./view-stack";
 import { ZoomStore } from "./zoom";
@@ -145,8 +145,12 @@ function createFakeWindow(initial: Rect = { x: 0, y: 0, width: 1280, height: 800
 function setup(windowRect?: Rect) {
   const win = createFakeWindow(windowRect);
   const stack = new ViewStack(win.base.contentView);
-  const tabs = new TabManager(win.base, stack, "preload.js", new ZoomStore(), vi.fn());
-  return { win, tabs };
+  const emit = vi.fn<(state: BrowserState) => void>();
+  const bookmarked = new Set<string>();
+  const tabs = new TabManager(win.base, stack, "preload.js", new ZoomStore(), emit, (url) =>
+    bookmarked.has(url),
+  );
+  return { win, tabs, emit, bookmarked };
 }
 
 beforeEach(() => {
@@ -316,4 +320,15 @@ test("Escape leaves fullscreen through the same public seam the mode machine use
 
   expect(win.isFullScreen()).toBe(false);
   expect(tabs.isHtmlFullscreen).toBe(false);
+});
+
+test("refresh republishes, so a bookmark change reaches the strip", () => {
+  const { tabs, emit, bookmarked } = setup();
+  tabs.create("https://a.example");
+  expect(emit.mock.lastCall?.[0].tabs[0]?.bookmarked).toBe(false);
+
+  bookmarked.add("https://a.example");
+  tabs.refresh();
+
+  expect(emit.mock.lastCall?.[0].tabs[0]?.bookmarked).toBe(true);
 });

@@ -11,6 +11,7 @@ const tab = (id: number): TabState => ({
   canGoBack: false,
   canGoForward: false,
   zoomLevel: 0,
+  bookmarked: false,
 });
 
 function createBridge() {

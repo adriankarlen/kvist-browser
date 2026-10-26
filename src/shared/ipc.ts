@@ -20,6 +20,8 @@ export interface TabState {
    * here so the chrome can show it without reaching back into main.
    */
   zoomLevel: number;
+  /** Whether at least one bookmark points at this URL. */
+  bookmarked: boolean;
 }
 
 /** Where a find has got to, as `found-in-page` reports it. */
