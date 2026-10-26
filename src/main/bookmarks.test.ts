@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { Bookmarks } from "./bookmarks";
 import type { Database } from "./db/database";
 import { closeTestDatabase, openTestDatabase } from "./db/test-database";
@@ -174,6 +174,55 @@ test("remove only drops its own row", () => {
   const first = bookmarks.list().find((row) => row.url === "https://a.example/")!;
   expect(bookmarks.remove(first.id)).toBe(true);
   expect(bookmarks.list().map((row) => row.url)).toEqual(["https://b.example/"]);
+});
+
+test("removeUrl drops every row for the URL and nothing else", () => {
+  add("https://a.example/", "First", 1);
+  add("https://a.example/", "Second", 2);
+  add("https://b.example/", "B", 3);
+  expect(bookmarks.removeUrl("https://a.example/")).toBe(2);
+  expect(bookmarks.has("https://a.example/")).toBe(false);
+  expect(bookmarks.list().map((row) => row.url)).toEqual(["https://b.example/"]);
+});
+
+test("removeUrl returns 0 for an unknown or invalid URL", () => {
+  add("https://a.example/", "A", 1);
+  expect(bookmarks.removeUrl("https://b.example/")).toBe(0);
+  expect(bookmarks.removeUrl("not a url")).toBe(0);
+  expect(bookmarks.list()).toHaveLength(1);
+});
+
+test("observers hear about writes that changed a row", () => {
+  const observer = vi.fn();
+  bookmarks.observe(observer);
+
+  add("https://a.example/", "A", 1);
+  add("https://a.example/", "A again", 2);
+  bookmarks.remove(bookmarks.list()[0]!.id);
+  bookmarks.removeUrl("https://a.example/");
+
+  expect(observer).toHaveBeenCalledTimes(4);
+});
+
+test("observers hear nothing from writes that changed nothing", () => {
+  const observer = vi.fn();
+  bookmarks.observe(observer);
+
+  add("not a url");
+  bookmarks.remove(999);
+  bookmarks.removeUrl("https://a.example/");
+
+  expect(observer).not.toHaveBeenCalled();
+});
+
+test("an unsubscribed observer hears nothing more", () => {
+  const observer = vi.fn();
+  const release = bookmarks.observe(observer);
+  release();
+
+  add("https://a.example/", "A", 1);
+
+  expect(observer).not.toHaveBeenCalled();
 });
 
 test("search matches URL substrings", () => {
