@@ -167,6 +167,7 @@
     class:is-bookmarked={browser.active?.bookmarked}
     type="button"
     title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
+    aria-label="Bookmark this page"
     aria-pressed={browser.active?.bookmarked ?? false}
     onclick={() => window.kvist.runCommand("bookmark.toggle")}>*</button
   >
