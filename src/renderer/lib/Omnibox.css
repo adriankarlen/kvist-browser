@@ -65,6 +65,20 @@
     color: var(--kv-omnibox-placeholder-fg);
   }
 
+  .kv-omnibox__bookmark {
+    flex: none;
+    color: var(--kv-omnibox-bookmark-fg);
+    padding: 0 0.5ch;
+  }
+
+  .kv-omnibox__bookmark.is-bookmarked {
+    color: var(--kv-omnibox-bookmark-active-fg);
+  }
+
+  .kv-omnibox__bookmark:hover {
+    color: var(--kv-omnibox-button-hover-fg);
+  }
+
   .kv-omnibox__zoom {
     flex: none;
     color: var(--kv-omnibox-zoom-fg);

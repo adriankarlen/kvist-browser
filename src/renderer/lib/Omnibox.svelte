@@ -162,6 +162,14 @@
     {onblur}
     {onkeydown}
   />
+  <button
+    class="kv-omnibox__bookmark"
+    class:is-bookmarked={browser.active?.bookmarked}
+    type="button"
+    title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
+    aria-pressed={browser.active?.bookmarked ?? false}
+    onclick={() => window.kvist.runCommand("bookmark.toggle")}>*</button
+  >
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
   <button
