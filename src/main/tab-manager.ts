@@ -32,6 +32,7 @@ export class TabManager {
   #window: BaseWindow;
   #views: ViewStack;
   #emit: (state: BrowserState) => void;
+  #isBookmarked: (url: string) => boolean;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #onEditable: (editable: boolean) => void = () => {};
   #onFind: (result: FindResult | null) => void = () => {};
@@ -74,12 +75,14 @@ export class TabManager {
     pagePreload: string,
     zoom: ZoomStore,
     emit: (state: BrowserState) => void,
+    isBookmarked: (url: string) => boolean,
   ) {
     this.#window = window;
     this.#views = views;
     this.#pagePreload = pagePreload;
     this.#zoom = zoom;
     this.#emit = emit;
+    this.#isBookmarked = isBookmarked;
 
     // The single place fullscreen state resets, however the exit was
     // triggered — the page's own script, our Escape handling below, or the
@@ -396,6 +399,7 @@ export class TabManager {
         void clipboard.writeText(text);
       },
       menuCss: () => this.#menuCss,
+      isBookmarked: (url) => this.#isBookmarked(url),
       fullscreenChange: (entering) => {
         if (entering) {
           // A duplicate or re-entrant claim from the tab that already owns
@@ -455,6 +459,11 @@ export class TabManager {
     }
 
     this.activate(this.#order[Math.min(index, this.#order.length - 1)]!);
+  }
+
+  /** Republishes the snapshot after a change no tab can see, such as a bookmark. */
+  refresh(): void {
+    this.#publish();
   }
 
   #publish(): void {

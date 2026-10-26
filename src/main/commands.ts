@@ -61,6 +61,8 @@ const COMMANDS = {
 
   "style.open": { run: (a) => a.style.open },
 
+  "bookmark.toggle": { run: (a) => a.bookmark.toggle },
+
   "zoom.in": { run: (a) => a.zoom.in },
   "zoom.out": { run: (a) => a.zoom.out },
   "zoom.reset": { run: (a) => a.zoom.reset },
@@ -91,6 +93,7 @@ const ALIASES = {
   z0: "zoom.reset",
   zoom: "zoom.set",
   style: "style.open",
+  bookmark: "bookmark.toggle",
 } satisfies Record<string, CommandName>;
 
 // Maps, not records: a record lookup would find `toString` and every

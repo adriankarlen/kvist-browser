@@ -56,9 +56,20 @@ export interface SearchOptions {
  */
 export class Bookmarks {
   #db: Database;
+  #observers = new Set<() => void>();
 
   constructor(db: Database) {
     this.#db = db;
+  }
+
+  /** Called after every write that changed a row. Returns the unsubscribe. */
+  observe(observer: () => void): () => void {
+    this.#observers.add(observer);
+    return () => void this.#observers.delete(observer);
+  }
+
+  #changed(): void {
+    for (const observer of this.#observers) observer();
   }
 
   /**
@@ -80,6 +91,7 @@ export class Bookmarks {
         createdAt: validated.value.createdAt,
       })
       .run();
+    this.#changed();
     return true;
   }
 
@@ -91,7 +103,25 @@ export class Bookmarks {
   remove(id: number): boolean {
     if (!Number.isInteger(id) || id < 1) return false;
     const result = this.#db.drizzle.delete(bookmarks).where(eq(bookmarks.id, id)).run();
-    return result.changes > 0;
+    if (result.changes === 0) return false;
+    this.#changed();
+    return true;
+  }
+
+  /**
+   * Drops every row for the URL and returns how many went. Un-bookmarking a
+   * page must clear all its names, or the page still reads as bookmarked.
+   */
+  removeUrl(url: string): number {
+    const validation = parse(urlString, url);
+    if (validation.problem !== undefined) return 0;
+    const result = this.#db.drizzle
+      .delete(bookmarks)
+      .where(eq(bookmarks.url, validation.value))
+      .run();
+    const removed = Number(result.changes);
+    if (removed > 0) this.#changed();
+    return removed;
   }
 
   /**

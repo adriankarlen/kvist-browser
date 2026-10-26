@@ -47,6 +47,13 @@ export interface ZoomStoreAccess {
   set(origin: string, level: number): void;
 }
 
+/** The slice of `Bookmarks` the toggle needs: whether a URL is saved, and both writes. */
+export interface BookmarkAccess {
+  has(url: string): boolean;
+  add(input: { url: string; title: string }): boolean;
+  removeUrl(url: string): number;
+}
+
 /**
  * What the action layer needs from a prompt queue: answering whatever the
  * chrome shows. Richer abilities (head shape, per-id answers, cancellation)
@@ -134,6 +141,10 @@ export interface Actions {
      */
     open: Action;
   };
+  bookmark: {
+    /** Bookmark the active tab's URL, or remove every bookmark it already has. */
+    toggle: Action;
+  };
   zoom: {
     /** Add a step; clamped at the upper limit. */
     in: Action;
@@ -159,6 +170,7 @@ export function createActions(
   downloads: Downloads,
   prompts: PromptAnswerer,
   zoom: ZoomStoreAccess,
+  bookmarks: BookmarkAccess,
   win: BrowserWindow,
   messages: Messages,
   clipboard: Clipboard,
@@ -376,6 +388,25 @@ export function createActions(
             if (error !== "") messages.warn(`could not open ${file}: ${error}`);
           });
         }
+      },
+    },
+    bookmark: {
+      toggle: () => {
+        const snapshot = tabs.active?.snapshot();
+        if (snapshot === undefined || snapshot.url === "") {
+          messages.warn("no page to bookmark");
+          return;
+        }
+        const { url } = snapshot;
+        if (bookmarks.has(url)) {
+          bookmarks.removeUrl(url);
+          messages.say(`removed bookmark ${url}`);
+          return;
+        }
+        // `add` rejects an empty title, and a page that never set one has nothing better.
+        const title = snapshot.title.trim() || url;
+        if (bookmarks.add({ url, title })) messages.say(`bookmarked ${title}`);
+        else messages.warn(`cannot bookmark ${url}`);
       },
     },
     zoom: {

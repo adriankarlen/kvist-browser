@@ -131,6 +131,7 @@ prompt mode, where it denies the permission question instead.
 | `N`  | Previous match                      |
 | `i`  | Insert mode (focus the page)        |
 | `o`  | Insert mode, focused on the omnibox |
+| `B`  | Bookmark the page, or remove it     |
 | `:`  | Command mode                        |
 
 ### Commands
@@ -142,6 +143,7 @@ prompt mode, where it denies the permission question instead.
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
 | `:downloads`              | Keep the downloads panel open, or let it go |
+| `:bookmark`               | Bookmark the page, or remove its bookmarks  |
 | `:downloads.clear`        | Forget the downloads that have finished     |
 | `:downloads.cancel [n]`   | Stop row `n`, or the newest live transfer   |
 | `:qa`                     | Quit Kvist                                  |

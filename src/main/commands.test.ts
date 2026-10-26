@@ -31,8 +31,9 @@ function createClipboardStub(readText = "https://clipboard.example") {
  */
 function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const active = {
-    // SAFETY: cast narrows the literal `{ url: string }` for the test stub; the object is built right above.
-    snapshot: () => ({ url: "https://active.example" }) as { url: string },
+    // SAFETY: cast narrows the literal for the test stub; the object is built right above.
+    snapshot: () =>
+      ({ url: "https://active.example", title: "Active" }) as { url: string; title: string },
     navigate: vi.fn<(url: string) => void>(),
     goBack: vi.fn(),
     goForward: vi.fn(),
@@ -68,6 +69,15 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     set: vi.fn<(origin: string, level: number) => void>(),
     release: vi.fn(),
   };
+  const saved = new Set<string>();
+  const bookmarks = {
+    has: vi.fn((url: string) => saved.has(url)),
+    add: vi.fn((input: { url: string; title: string }) => {
+      saved.add(input.url);
+      return true;
+    }),
+    removeUrl: vi.fn((url: string) => (saved.delete(url) ? 1 : 0)),
+  };
   const sent: { channel: string; payload?: unknown }[] = [];
   const win = {
     isDestroyed: () => false,
@@ -88,6 +98,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     downloads as unknown as Downloads,
     prompts as unknown as Prompts<{ id: number }>,
     zoom as unknown as ZoomStoreAccess,
+    bookmarks,
     win as unknown as BrowserWindow,
     messages as unknown as Messages,
     clipboard,
@@ -103,6 +114,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     downloads,
     prompts,
     zoom,
+    bookmarks,
     sent,
     win,
     messages,
@@ -127,8 +139,19 @@ test("what every object inherits is not a command", () => {
 });
 
 test("every command reaches the thing it names", () => {
-  const { commands, tabs, active, downloads, prompts, sent, win, clipboard, userStyles, quit } =
-    createStubs();
+  const {
+    commands,
+    tabs,
+    active,
+    downloads,
+    prompts,
+    sent,
+    win,
+    clipboard,
+    userStyles,
+    bookmarks,
+    quit,
+  } = createStubs();
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -173,6 +196,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
     ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
+    ["bookmark.toggle", () => bookmarks.add.mock.calls.length === 1],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -640,6 +664,75 @@ test("a file that fails to open is warned about without holding up the rest", as
     "could not open /config/styles/broken.css: no application can open this file",
   );
   expect(messages.warn).toHaveBeenCalledTimes(1);
+});
+
+test("bookmark.toggle bookmarks the active page under its title", () => {
+  const { commands, bookmarks, messages } = createStubs();
+
+  commands.execute("bookmark.toggle");
+
+  expect(bookmarks.add).toHaveBeenCalledWith({ url: "https://active.example", title: "Active" });
+  expect(messages.say).toHaveBeenCalledWith("bookmarked Active");
+});
+
+test("bookmark.toggle falls back to the URL when the page has no title", () => {
+  const { commands, active, bookmarks } = createStubs();
+  Object.defineProperty(active, "snapshot", {
+    value: () => ({ url: "https://active.example", title: "  " }),
+    configurable: true,
+  });
+
+  commands.execute("bookmark.toggle");
+
+  expect(bookmarks.add).toHaveBeenCalledWith({
+    url: "https://active.example",
+    title: "https://active.example",
+  });
+});
+
+test("bookmark.toggle on a bookmarked page removes every bookmark for it", () => {
+  const { commands, bookmarks, messages } = createStubs();
+  commands.execute("bookmark.toggle");
+
+  commands.execute("bookmark.toggle");
+
+  expect(bookmarks.add).toHaveBeenCalledTimes(1);
+  expect(bookmarks.removeUrl).toHaveBeenCalledWith("https://active.example");
+  expect(messages.say).toHaveBeenLastCalledWith("removed bookmark https://active.example");
+});
+
+test("bookmark.toggle warns when the store refuses the URL", () => {
+  const { commands, bookmarks, messages } = createStubs();
+  bookmarks.add.mockReturnValue(false);
+
+  commands.execute("bookmark.toggle");
+
+  expect(messages.warn).toHaveBeenCalledWith("cannot bookmark https://active.example");
+});
+
+test("bookmark.toggle warns when there is no page to bookmark", () => {
+  const stubs = createStubs();
+  Object.defineProperty(stubs.active, "snapshot", {
+    value: () => ({ url: "", title: "" }),
+    configurable: true,
+  });
+  stubs.commands.execute("bookmark.toggle");
+  Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
+  stubs.commands.execute("bookmark.toggle");
+
+  expect(stubs.bookmarks.has).not.toHaveBeenCalled();
+  expect(stubs.messages.warn.mock.calls).toEqual([
+    ["no page to bookmark"],
+    ["no page to bookmark"],
+  ]);
+});
+
+test(":bookmark is an alias for bookmark.toggle", () => {
+  const { commands, bookmarks } = createStubs();
+
+  commands.execute("bookmark");
+
+  expect(bookmarks.add).toHaveBeenCalledTimes(1);
 });
 
 test("completion offers aliases first, then commands, by prefix", () => {

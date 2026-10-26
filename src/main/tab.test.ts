@@ -125,6 +125,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
     key: vi.fn(() => false),
     copyText: vi.fn(),
     menuCss: () => ".kv-menu {}",
+    isBookmarked: () => false,
     externalRequest: vi.fn(),
     fullscreenChange: vi.fn(),
     ...overrides,
@@ -171,7 +172,16 @@ test("the snapshot follows the page", () => {
     canGoBack: true,
     canGoForward: false,
     zoomLevel: 0,
+    bookmarked: false,
   });
+});
+
+test("the snapshot asks whether its URL is bookmarked", () => {
+  const isBookmarked = vi.fn((url: string) => url === "https://a.example");
+  const { tab } = createTab({ isBookmarked });
+
+  expect(tab.snapshot().bookmarked).toBe(true);
+  expect(isBookmarked).toHaveBeenCalledWith("https://a.example");
 });
 
 test("one failure reported twice renders one error page", () => {

@@ -129,6 +129,12 @@ test("zoom keys are bound in normal mode only", () => {
   expect(execute.mock.calls).toEqual([["zoom.in"], ["zoom.out"], ["zoom.reset"]]);
 });
 
+test("B toggles the bookmark in normal mode, and b does not", () => {
+  key("b");
+  key("B");
+  expect(execute.mock.calls).toEqual([["bookmark.toggle"]]);
+});
+
 test("z alone is a prefix and does not execute", () => {
   expect(key("z")).toBe(true);
   expect(execute).not.toHaveBeenCalled();

@@ -41,6 +41,7 @@ export const DEFAULT_KEYBINDS: readonly Keybind[] = [
   { mode: "normal", keys: "zi", command: "zoom.in" },
   { mode: "normal", keys: "zo", command: "zoom.out" },
   { mode: "normal", keys: "z0", command: "zoom.reset" },
+  { mode: "normal", keys: "B", command: "bookmark.toggle" },
 
   // ── insert mode ──────────────────────────────────────────────
   { mode: "insert", keys: "Escape", command: "insert.leave", enter: "normal" },

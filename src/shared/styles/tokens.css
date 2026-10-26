@@ -133,6 +133,8 @@
     --kv-omnibox-button-hover-fg: var(--kv-color-accent);
     --kv-omnibox-zoom-fg: var(--kv-color-subtle);
     --kv-omnibox-zoom-default-fg: var(--kv-color-muted);
+    --kv-omnibox-bookmark-fg: var(--kv-color-muted);
+    --kv-omnibox-bookmark-active-fg: var(--kv-color-accent);
 
     /* the candidate dropdown under a text input (command line, omnibox) */
     --kv-completion-bg: var(--kv-panel-bg);
