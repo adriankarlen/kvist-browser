@@ -419,9 +419,9 @@ Order chosen so each step has few dependents:
 
 ### Phase 5: enforcement and cleanup
 
-- [ ] Add the restricted-import and restricted-global lint rules from the table above. Fix what they find.
-- [ ] Prune `tools/oxlint/anti-slop/verbose-comment-baseline.ts` entries for deleted files.
-- [ ] Final `AGENTS.md` pass. Remove gotchas that no longer apply (the `$state` proxy, `contextBridge` patching, the ArkType module-instance comment).
+- [x] Add the restricted-import and restricted-global lint rules from the table above. Fix what they find.
+- [x] Prune `tools/oxlint/anti-slop/verbose-comment-baseline.ts` entries for deleted files.
+- [x] Final `AGENTS.md` pass. Remove gotchas that no longer apply (the `$state` proxy, `contextBridge` patching, the ArkType module-instance comment).
 
 ## Reuse
 

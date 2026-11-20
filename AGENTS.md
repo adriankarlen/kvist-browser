@@ -24,49 +24,47 @@ subcommands. Two footguns:
 **Read [`docs/architecture.md`](docs/architecture.md) first.** It is the
 rulebook: Effect services and layers, an Elm-style loop (Model, Msg, pure
 `update`, Cmds, view) in every process, scopes for lifetimes, and Schema at
-every boundary. The move onto it is tracked in
-[`plans/effect-migration.md`](plans/effect-migration.md); code not yet
-migrated still has the older shape described below.
+every boundary. The move onto it is recorded in
+[`plans/effect-migration.md`](plans/effect-migration.md).
 
-The shape of the project, with the _why_ living next to the code it
-constrains.
+Where things are, with the _why_ living next to the code it constrains.
 
-- **Three preloads.** `src/preload/index.ts` exposes `window.kvist`;
-  `src/preload/page.ts` runs in every tab and exposes nothing;
-  `src/preload/overlay.ts` exposes `window.kvistOverlay`, a list renderer's
-  worth of API and no more — the chrome's bridge would let a dropdown
-  navigate tabs. Each needs its own entry in `vite.config.ts` — the plugin
-  bundles a preload to one file.
-- **Tabs are `WebContentsView`s** owned by `TabManager` and hidden with
-  `setVisible(false)` rather than detached. `TabManager.ownsTab` is the
-  sender check for every tab→main channel (hints, context menu, page-editable).
+- **Four loops.** Main (`src/main/app/`, features in `src/main/features/`),
+  the chrome (`src/renderer/app/`, `src/renderer/features/`), the overlay
+  (`src/overlay/`) and each tab's page preload (`src/preload/page.ts`). Each
+  one is a `Store` from `src/shared/tea/`.
+- **Three preloads, each a port forwarder.** `src/preload/index.ts` and
+  `overlay.ts` expose one function, `window.kvist.connect()`, and forward the
+  port main replies with. `src/preload/page.ts` keeps its port in the
+  isolated world and exposes nothing. Each needs its own entry in
+  `vite.config.ts`; the plugin bundles a preload to one file.
+- **Tabs are `WebContentsView`s** made and destroyed by `TabViews` when the
+  tabs feature says so, and hidden with `setVisible(false)` rather than
+  detached. The visible tab and its bounds are derived (`layout`) and
+  reconciled; nothing calls `setVisible` by hand.
 - **`ViewStack` owns z-order.** Tab views and chrome overlays are siblings
   composited in the order they were added, so a tab opened while a dropdown
   is up would paint straight over it. Electron re-orders a child to the top
-  when it is added again, which is what every `addPage` ends with. Raising
-  the overlay from each site that mounts a tab would be one forgotten call
-  away from the bug it fixes, so the invariant lives in one place.
-- **Renderer owns layout.** The renderer measures its own content area with a
-  `ResizeObserver` and pushes a `Rect` over `kvist:content-rect`; main just
-  applies it via `view.setBounds`. Tab orientation is a pure CSS concern.
+  when it is added again, which is what every `addPage` ends with.
+- **Renderer owns layout.** The chrome measures its content area with a
+  `ResizeObserver` and sends `ContentRectMeasured`; main derives the bounds.
+  Tab orientation is a pure CSS concern.
 - **IPC is Effect RPC over a `MessagePort` per surface**, full snapshots
   main → renderer and `dispatch(intent)` back. The port is the capability:
   see [IPC](docs/architecture.md#ipc).
-- **Mode machine lives in main.** `before-input-event` is synchronous and
-  per-webContents, so keys are intercepted on both the page and the chrome.
-  Mode changes have two entry points — keys (intercepted) and `kvist:set-mode`
-  (called by the chrome). Any chrome control that accepts typing must call
-  `setMode("insert")` on focus, or normal mode eats every character.
-- **Downloads are session-scoped.** A transfer outlives the tab it started
-  in, so `Downloads` is owned by the app and `TabManager` only subscribes
-  through `observe` / `observeTabDownload`.
-- **Permissions are session-scoped too.** `Permissions` owns the handler
-  pair on `session.defaultSession` (request _and_ check — they answer
-  different APIs and default inconsistently). Deny by default, prompt in the
-  chrome for camera/mic, geolocation, notifications, clipboard-read; answers
-  are remembered per origin in memory until Phase 6 storage. A pending
-  question captures normal mode as `prompt` mode (`y`/`n`), which is why
-  `Vim.setPromptPending` exists.
+- **The mode machine lives in main** (`features/vim`). `before-input-event`
+  is synchronous and per-webContents, so keys are intercepted on both the
+  page and the chrome, and `resolveKey` answers "consumed?" on the same tick.
+  Any chrome control that accepts typing must ask for `insert` on focus, or
+  normal mode eats every character.
+- **Downloads, permissions and external protocols are session-scoped.** The
+  gates in `src/main/services/` own the session handlers for the app's whole
+  life and turn Chromium's callbacks into Msgs; the continuations wait in
+  `Requesters`, released when answered or when their tab dies. A pending
+  question captures normal mode as `prompt` mode (`y`/`n`).
+- **`LegacyWindow` is transitional.** It lets main's Cmds reach the window
+  glue in `src/main/app/window.ts` (commands, session restore, tab views).
+  Shrink it; do not grow it.
 
 ## Resource lifetimes
 
@@ -153,7 +151,7 @@ empty array. Main refocuses the chrome afterwards, or the keyboard is
 stranded in the overlay.
 
 There is one overlay and two inputs, and main relays a pick to the whole
-chrome. `completion-overlay.ts` in the renderer routes it to whichever input
+chrome. `completionOverlay` in `src/renderer/lib/stores.svelte.ts` routes it to whichever input
 showed the list last. That owner survives `hide()`, because the blur that
 hides the list lands before the pick does. An input that does not own the
 overlay cannot hide it.
@@ -288,15 +286,10 @@ right now, not a resumed backlog item. Revisit as a fresh initiative later.
 
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
-- **A `$state` proxy cannot cross IPC.** Structured clone rejects it with
-  "An object could not be cloned", thrown inside the effect that sends it —
-  which kills that effect for the rest of the page's life, so the symptom is
-  a feature that silently never runs again. Use `$state.raw` for anything
-  replaced wholesale (`anchor.svelte.ts`, the overlay's own state) and
-  `$state.snapshot` for anything read out of a deep one.
-- **`contextBridge` properties are not writable.** Patching `window.kvist.foo`
-  from a devtools console to trace calls fails silently and reads as "the
-  code never ran". Instrument the receiving end instead.
+- **Kernel dispatch is synchronous and re-entrant.** A Cmd starts on the
+  same tick as the Msg that produced it, so an interpreter that dispatches
+  synchronously queues its Msg behind the current one. Reading the model
+  right after `dispatch` sees the new state.
 
 ## Comments
 
