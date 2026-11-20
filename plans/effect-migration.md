@@ -408,7 +408,7 @@ Order chosen so each step has few dependents:
 - [x] `tabs` (`tab-manager.ts`, `tab.ts`, `view-stack.ts`, `page-host.ts`, `error-page.ts`, `context-menu.ts`). The `ViewReconciler` owns z-order and bounds, which replaces the `ViewStack` invariant. Per-tab scope plus an event stream.
 - [x] `completion` overlay (`completion-overlay.ts`, `completion-bounds.ts`, `overlay-host.ts`)
 - [x] `config` / `styles` / `adblock` / `local-pages` apply, as one serialized interpreter. That replaces the `applying` promise chain.
-- [ ] `history`, `bookmarks`, `zoom`, `session` persistence Cmds
+- [x] `history`, `bookmarks`, `zoom`, `session` persistence Cmds
 - [ ] `src/main/index.ts` reduced to the composition root
 
 ### Phase 4: renderers on TEA

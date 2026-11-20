@@ -7,12 +7,18 @@ import {
   registerKvistProtocol,
   registerKvistScheme,
 } from "./local-pages";
-import { createActions, type DownloadsAccess, type TabsAccess } from "./actions";
+import {
+  type BookmarkAccess,
+  createActions,
+  type DownloadsAccess,
+  type TabsAccess,
+} from "./actions";
+import { Msg as LibraryMsg } from "./features/library/library.program";
 import { databaseLayer, prepareDatabaseFile } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { omniboxSuggestions } from "./omnibox";
 import { BookmarksRepo } from "./services/bookmarks-repo";
-import { HistoryRepo, type RecordInput } from "./services/history-repo";
+import { HistoryRepo } from "./services/history-repo";
 import { SessionRepo, type SessionState } from "./services/session-repo";
 import type { TabId } from "../shared/schema/browser";
 import { completeCommand, createCommands } from "./commands";
@@ -83,9 +89,6 @@ const runtime = ManagedRuntime.make(
     Layer.mergeAll(PromptsGate.layer, DownloadsGate.layer).pipe(
       Layer.provideMerge(MainStore.layer),
     ),
-    Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer, ZoomRepo.layer).pipe(
-      Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
-    ),
   ).pipe(
     Layer.provideMerge(
       Layer.mergeAll(
@@ -94,6 +97,14 @@ const runtime = ManagedRuntime.make(
         LegacyWindow.layer,
         LiveDownloads.layer,
         ConfigApplier.layer,
+        Layer.mergeAll(
+          HistoryRepo.layer,
+          BookmarksRepo.layer,
+          SessionRepo.layer,
+          ZoomRepo.layer,
+        ).pipe(
+          Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
+        ),
       ),
     ),
     Layer.provideMerge(AppLayer),
@@ -114,40 +125,17 @@ function useSync<I extends MainServices, S, A>(
   return runtime.runSync(Effect.flatMap(Effect.service(tag), call));
 }
 
-const history = {
-  record: (input: RecordInput) => useSync(HistoryRepo, (repo) => repo.record(input)),
+const library = (msg: LibraryMsg): void => mainStore().dispatch(msg);
+
+/** Bookmarks as the commands use them: the toggle decides in the store. */
+const bookmarks: BookmarkAccess = {
+  toggle: (url, title) => library(LibraryMsg.cases.BookmarkToggled.make({ url, title })),
 };
 
-const bookmarks = {
-  has: (url: string) => useSync(BookmarksRepo, (repo) => repo.has(url)),
-  add: (input: { url: string; title: string }) => useSync(BookmarksRepo, (repo) => repo.add(input)),
-  removeUrl: (url: string) => useSync(BookmarksRepo, (repo) => repo.removeUrl(url)),
-  /** Calls `onChange` after every bookmark write, until the returned release. */
-  observe: (onChange: () => void): (() => void) => {
-    const fiber = runtime.runFork(
-      Effect.flatMap(Effect.service(BookmarksRepo), (repo) =>
-        Stream.runForEach(repo.changes, () => Effect.sync(onChange)),
-      ),
-    );
-
-    return () => fiber.interruptUnsafe();
-  },
-};
-
-type Bookmarks = typeof bookmarks;
-
-const sessions = {
-  save: (state: SessionState, savedAt: number) =>
-    useSync(SessionRepo, (repo) => repo.save(state, savedAt)),
-  clear: () => useSync(SessionRepo, (repo) => repo.clear),
-  load: () => useSync(SessionRepo, (repo) => repo.load),
-};
-
-type Sessions = typeof sessions;
-
+/** Per-origin zoom: read from the model on every navigation, saved by a Cmd. */
 const zoom: ZoomStoreAccess = {
-  get: (origin) => useSync(ZoomRepo, (repo) => repo.get(origin)),
-  set: (origin, level) => useSync(ZoomRepo, (repo) => repo.set(origin, level)),
+  get: (origin) => mainStore().get().library.zoom.get(origin) ?? 0,
+  set: (origin, level) => library(LibraryMsg.cases.ZoomChanged.make({ origin, level })),
 };
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
@@ -194,17 +182,15 @@ const userStyles = new UserStyles();
  */
 const tabManagers = new Set<TabViews>();
 
+/** The saved session, or null for a first launch: missing and malformed rows read the same. */
+const loadSession = (): SessionState | null => useSync(SessionRepo, (repo) => repo.load);
+
 /** The config in force; startup has applied one before any window opens. */
 const currentConfig = (): UserConfig => mainStore().get().config.current ?? defaultConfig;
 
 const defaultConfig: UserConfig = { css: "", settings: DEFAULT_SETTINGS };
 
-function createWindow(
-  zoom: ZoomStoreAccess,
-  bookmarks: Bookmarks,
-  sessions: Sessions,
-  saved: SessionState | null,
-): void {
+function createWindow(saved: SessionState | null): void {
   const win = new BrowserWindow({
     width: saved?.width ?? 1280,
     height: saved?.height ?? 800,
@@ -258,7 +244,7 @@ function createWindow(
   const tabViews = new TabViews(win, views, pagePreload, zoom, {
     dispatch: (msg) => mainStore().dispatch(msg),
     key: (input, source) => onKey(input, source),
-    isBookmarked: (url) => bookmarks.has(url),
+    isBookmarked: (url) => mainStore().get().library.bookmarked.has(url),
     connectPage,
     // Both halves of "the URL changed". Styles key on the URL, not the
     // document, so a SPA changing routes is restyled with nothing reloading.
@@ -266,7 +252,7 @@ function createWindow(
       userStyles.applyTo(contents, url);
       // The title at commit time is still the previous page's; the URL is
       // the truthful answer until the real title lands.
-      history.record({ url, title: url, visitedAt: Date.now() });
+      library(LibraryMsg.cases.VisitCommitted.make({ url, at: Date.now() }));
     },
     // SPA route changes are not history: every hash change would drown the
     // real visits.
@@ -323,7 +309,15 @@ function createWindow(
     ),
   );
 
-  const releaseBookmarks = bookmarks.observe(() => tabViews.refresh());
+  // The strip's star follows the bookmark set.
+  const bookmarksFiber = runtime.runFork(
+    project(
+      (model) => model.library.bookmarked,
+      () => tabViews.refresh(),
+    ),
+  );
+
+  const releaseBookmarks = () => bookmarksFiber.interruptUnsafe();
   tabManagers.add(tabViews);
 
   const completion = new CompletionOverlay(
@@ -548,24 +542,26 @@ function createWindow(
         // every tab of a restored session. Wiping the row makes the
         // next launch look like a fresh first launch, which is what
         // closing everything means.
-        sessions.clear();
+        library(LibraryMsg.cases.SessionEmptied.make({}));
       }
 
       return;
     }
 
     const bounds = win.getBounds();
-    sessions.save(
-      {
-        tabs: snapshot.urls,
-        activeIndex: snapshot.activeIndex,
-        width: bounds.width,
-        height: bounds.height,
-        x: bounds.x,
-        y: bounds.y,
-        orientation: orientationOverride,
-      },
-      Date.now(),
+    library(
+      LibraryMsg.cases.SessionClosed.make({
+        state: {
+          tabs: snapshot.urls,
+          activeIndex: snapshot.activeIndex,
+          width: bounds.width,
+          height: bounds.height,
+          x: bounds.x,
+          y: bounds.y,
+          orientation: orientationOverride,
+        },
+        at: Date.now(),
+      }),
     );
   });
 
@@ -858,7 +854,20 @@ if (!gotTheLock) {
     // null, which is indistinguishable from a fresh first launch — the right
     // answer when an old build has never written the table or when a corrupt
     // row is left behind by a crash.
-    createWindow(zoom, bookmarks, sessions, sessions.load());
+    const loaded = runtime.runSync(
+      Effect.all({
+        bookmarked: Effect.flatMap(Effect.service(BookmarksRepo), (repo) => repo.urls),
+        zoom: Effect.flatMap(Effect.service(ZoomRepo), (repo) => repo.all),
+      }),
+    );
+
+    library(
+      LibraryMsg.cases.LibraryLoaded.make({
+        bookmarked: [...loaded.bookmarked],
+        zoom: [...loaded.zoom],
+      }),
+    );
+    createWindow(loadSession());
 
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has
@@ -878,8 +887,7 @@ if (!gotTheLock) {
       // macOS reopen: a re-launched app with no windows restores the last
       // session, same as cold start. Re-reading from the store is cheap and
       // avoids the alternative of carrying the row across the app's lifetime.
-      if (BrowserWindow.getAllWindows().length === 0)
-        createWindow(zoom, bookmarks, sessions, sessions.load());
+      if (BrowserWindow.getAllWindows().length === 0) createWindow(loadSession());
     });
   });
 }

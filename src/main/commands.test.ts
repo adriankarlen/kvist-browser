@@ -72,16 +72,8 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     release: vi.fn(),
   };
 
-  const saved = new Set<string>();
-
   const bookmarks = {
-    has: vi.fn((url: string) => saved.has(url)),
-    add: vi.fn((input: { url: string; title: string }) => {
-      saved.add(input.url);
-
-      return true;
-    }),
-    removeUrl: vi.fn((url: string) => (saved.delete(url) ? 1 : 0)),
+    toggle: vi.fn<(url: string, title: string) => void>(),
   };
 
   const sent: { channel: string; payload?: unknown }[] = [];
@@ -210,7 +202,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
     ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
-    ["bookmark.toggle", () => bookmarks.add.mock.calls.length === 1],
+    ["bookmark.toggle", () => bookmarks.toggle.mock.calls.length === 1],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -682,48 +674,12 @@ test("a file that fails to open is warned about without holding up the rest", as
   expect(messages.warn).toHaveBeenCalledTimes(1);
 });
 
-test("bookmark.toggle bookmarks the active page under its title", () => {
-  const { commands, bookmarks, messages } = createStubs();
+test("bookmark.toggle hands the active page's URL and title to the store", () => {
+  const { commands, bookmarks } = createStubs();
 
   commands.execute("bookmark.toggle");
 
-  expect(bookmarks.add).toHaveBeenCalledWith({ url: "https://active.example", title: "Active" });
-  expect(messages.say).toHaveBeenCalledWith("bookmarked Active");
-});
-
-test("bookmark.toggle falls back to the URL when the page has no title", () => {
-  const { commands, active, bookmarks } = createStubs();
-  Object.defineProperty(active, "snapshot", {
-    value: () => ({ url: "https://active.example", title: "  " }),
-    configurable: true,
-  });
-
-  commands.execute("bookmark.toggle");
-
-  expect(bookmarks.add).toHaveBeenCalledWith({
-    url: "https://active.example",
-    title: "https://active.example",
-  });
-});
-
-test("bookmark.toggle on a bookmarked page removes every bookmark for it", () => {
-  const { commands, bookmarks, messages } = createStubs();
-  commands.execute("bookmark.toggle");
-
-  commands.execute("bookmark.toggle");
-
-  expect(bookmarks.add).toHaveBeenCalledTimes(1);
-  expect(bookmarks.removeUrl).toHaveBeenCalledWith("https://active.example");
-  expect(messages.say).toHaveBeenLastCalledWith("removed bookmark https://active.example");
-});
-
-test("bookmark.toggle warns when the store refuses the URL", () => {
-  const { commands, bookmarks, messages } = createStubs();
-  bookmarks.add.mockReturnValue(false);
-
-  commands.execute("bookmark.toggle");
-
-  expect(messages.warn).toHaveBeenCalledWith("cannot bookmark https://active.example");
+  expect(bookmarks.toggle).toHaveBeenCalledWith("https://active.example", "Active");
 });
 
 test("bookmark.toggle warns when there is no page to bookmark", () => {
@@ -736,7 +692,7 @@ test("bookmark.toggle warns when there is no page to bookmark", () => {
   Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
   stubs.commands.execute("bookmark.toggle");
 
-  expect(stubs.bookmarks.has).not.toHaveBeenCalled();
+  expect(stubs.bookmarks.toggle).not.toHaveBeenCalled();
   expect(stubs.messages.warn.mock.calls).toEqual([
     ["no page to bookmark"],
     ["no page to bookmark"],
@@ -748,7 +704,7 @@ test(":bookmark is an alias for bookmark.toggle", () => {
 
   commands.execute("bookmark");
 
-  expect(bookmarks.add).toHaveBeenCalledTimes(1);
+  expect(bookmarks.toggle).toHaveBeenCalledTimes(1);
 });
 
 test("completion offers aliases first, then commands, by prefix", () => {

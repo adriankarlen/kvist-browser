@@ -4,6 +4,8 @@ import * as Config from "../features/config/config.program";
 import * as ConfigFx from "../features/config/config.effects";
 import * as Downloads from "../features/downloads/downloads.program";
 import * as DownloadsFx from "../features/downloads/downloads.effects";
+import * as Library from "../features/library/library.program";
+import * as LibraryFx from "../features/library/library.effects";
 import * as Messages from "../features/messages/messages.program";
 import * as MessagesFx from "../features/messages/messages.effects";
 import * as Prompts from "../features/prompts/prompts.program";
@@ -13,7 +15,11 @@ import * as TabsFx from "../features/tabs/tabs.effects";
 import * as Vim from "../features/vim/vim.program";
 import * as VimFx from "../features/vim/vim.effects";
 import type { ConfigApplier } from "../services/config-applier";
+import type { BookmarksRepo } from "../services/bookmarks-repo";
 import type { Desktop } from "../services/desktop";
+import type { HistoryRepo } from "../services/history-repo";
+import type { SessionRepo } from "../services/session-repo";
+import type { ZoomRepo } from "../services/zoom-repo";
 import type { LegacyWindow } from "../services/legacy-window";
 import type { LiveDownloads } from "../services/live-downloads";
 import type { Requesters } from "../services/requesters";
@@ -23,17 +29,34 @@ const interpreter = interpretersFor<
   Msg,
   Cmd,
   never,
-  Requesters | Desktop | LegacyWindow | LiveDownloads | ConfigApplier
+  | Requesters
+  | Desktop
+  | LegacyWindow
+  | LiveDownloads
+  | ConfigApplier
+  | HistoryRepo
+  | BookmarksRepo
+  | SessionRepo
+  | ZoomRepo
 >();
 
 const interpret = interpretAll<
   Msg,
   Cmd,
   never,
-  Requesters | Desktop | LegacyWindow | LiveDownloads | ConfigApplier
+  | Requesters
+  | Desktop
+  | LegacyWindow
+  | LiveDownloads
+  | ConfigApplier
+  | HistoryRepo
+  | BookmarksRepo
+  | SessionRepo
+  | ZoomRepo
 >([
   interpreter(Config.Cmd, ConfigFx.interpret),
   interpreter(Downloads.Cmd, DownloadsFx.interpret),
+  interpreter(Library.Cmd, LibraryFx.interpret),
   interpreter(Messages.Cmd, MessagesFx.interpret),
   interpreter(Prompts.Cmd, PromptsFx.interpret),
   interpreter(Tabs.Cmd, TabsFx.interpret),

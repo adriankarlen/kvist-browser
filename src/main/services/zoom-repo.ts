@@ -11,6 +11,8 @@ export class ZoomRepo extends Context.Service<
     readonly get: (origin: string) => Effect.Effect<number>;
     /** Saves a level, clamped to what Chromium accepts. A non-finite level is ignored. */
     readonly set: (origin: string, level: number) => Effect.Effect<void>;
+    /** Every saved level, for loading into the model at startup. */
+    readonly all: Effect.Effect<ReadonlyArray<readonly [string, number]>>;
   }
 >()("kvist/ZoomRepo") {
   static layer = Layer.effect(
@@ -32,6 +34,16 @@ export class ZoomRepo extends Context.Service<
               Effect.as(Effect.logError("could not read zoom", cause), 0),
             ),
           ),
+        all: SqlSchema.findAll({
+          Request: Schema.Void,
+          Result: Schema.Struct({ origin: Schema.String, level: Schema.Finite }),
+          execute: () => sql`SELECT origin, level FROM zoom`,
+        })(undefined).pipe(
+          Effect.map((rows) => rows.map(({ origin, level }) => [origin, level] as const)),
+          Effect.catchCause((cause) =>
+            Effect.as(Effect.logError("could not read zoom", cause), []),
+          ),
+        ),
         set: (origin, level) =>
           Number.isFinite(level)
             ? sql`

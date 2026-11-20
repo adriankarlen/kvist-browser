@@ -10,7 +10,9 @@ test("a loaded config is applied, and only published once it has been", () => {
 
   expect(loaded.model.current).toBeNull();
   expect(loaded.cmds).toEqual([Cmd.cases.ApplyConfig.make({ config })]);
-  expect(update(Msg.cases.ConfigApplied.make({ config }), loaded.model).model.current).toEqual(config);
+  expect(update(Msg.cases.ConfigApplied.make({ config }), loaded.model).model.current).toEqual(
+    config,
+  );
 });
 
 test("the first problem is shown with a count, and the rest go to the log", () => {

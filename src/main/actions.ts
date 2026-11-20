@@ -53,11 +53,9 @@ export interface StyleFileLookup {
   filesFor(url: string): string[];
 }
 
-/** The slice of `Bookmarks` the toggle needs: whether a URL is saved, and both writes. */
 export interface BookmarkAccess {
-  has(url: string): boolean;
-  add(input: { url: string; title: string }): boolean;
-  removeUrl(url: string): number;
+  /** Bookmarks the page, or removes every bookmark it has; the store decides which. */
+  toggle(url: string, title: string): void;
 }
 
 /**
@@ -434,20 +432,7 @@ export function createActions(
           return;
         }
 
-        const { url } = snapshot;
-
-        if (bookmarks.has(url)) {
-          bookmarks.removeUrl(url);
-          messages.say(`removed bookmark ${url}`);
-
-          return;
-        }
-
-        // `add` rejects an empty title, and a page that never set one has nothing better.
-        const title = snapshot.title.trim() || url;
-
-        if (bookmarks.add({ url, title })) messages.say(`bookmarked ${title}`);
-        else messages.warn(`cannot bookmark ${url}`);
+        bookmarks.toggle(snapshot.url, snapshot.title);
       },
     },
     zoom: {
