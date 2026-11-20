@@ -381,7 +381,7 @@ Each phase is one PR (or a few), leaves the app working, and passes
 ### Phase 1: kernel and leaf services (main still imperative)
 
 - [x] `src/shared/tea/`: `Program`, `Next`, `Store` with sync dispatch, trampoline, keyed Cmds. Full unit tests.
-- [ ] `ManagedRuntime` in `src/main/index.ts` with `NodeServices.layer` and a `Logger` layer. Spike: the root scope closes synchronously on `quit`.
+- [x] `ManagedRuntime` in `src/main/index.ts` with `NodeServices.layer` and a `Logger` layer. Spike: the root scope closes synchronously on `quit`.
 - [ ] Schema replaces ArkType: `src/main/db/validation.ts` becomes a thin `SchemaIssue → Problem` adapter. Callers: `history.ts`, `bookmarks.ts`, `session.ts`, `index.ts`.
 - [ ] Config as a service: `src/main/config.ts` + `src/main/settings.ts` become `ConfigFiles` (`FileSystem.watch` → `Stream.debounce(50 millis)` → `Toml.parse` → Schema decode with per-field fallback). The "keep last good settings on a syntax error" rule moves into the stream (`Stream.scan`).
 - [ ] Style files: `src/main/user-style-files.ts` gets the same treatment.

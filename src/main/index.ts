@@ -51,10 +51,15 @@ import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
+import { AppLayer, disposeNow } from "./runtime";
+import { Effect, ManagedRuntime } from "effect";
 
 applyXdgPaths();
 
 registerKvistScheme();
+
+/** The app scope: closed on `quit`, never on `will-quit`, which can be cancelled. */
+const runtime = ManagedRuntime.make(AppLayer);
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -744,7 +749,11 @@ if (!gotTheLock) {
     // that keeps running with a closed database throws out of every later
     // query — `activate` calling `Session.load` is the one that surfaced.
     // `quit` only fires once the app is definitely going.
-    app.on("quit", () => db.close());
+    app.on("quit", () => {
+      db.close();
+      disposeNow(runtime);
+    });
+    runtime.runFork(Effect.logInfo("kvist started"));
     flushOnQuit(app, zoom);
 
     app.on("activate", () => {
