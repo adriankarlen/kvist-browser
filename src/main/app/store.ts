@@ -1,5 +1,7 @@
 import { Context, type Duration, Effect, Layer, Stream } from "effect";
 import { interpretAll, interpretersFor, make, type Store } from "../../shared/tea/store";
+import * as Config from "../features/config/config.program";
+import * as ConfigFx from "../features/config/config.effects";
 import * as Downloads from "../features/downloads/downloads.program";
 import * as DownloadsFx from "../features/downloads/downloads.effects";
 import * as Messages from "../features/messages/messages.program";
@@ -10,6 +12,7 @@ import * as Tabs from "../features/tabs/tabs.program";
 import * as TabsFx from "../features/tabs/tabs.effects";
 import * as Vim from "../features/vim/vim.program";
 import * as VimFx from "../features/vim/vim.effects";
+import type { ConfigApplier } from "../services/config-applier";
 import type { Desktop } from "../services/desktop";
 import type { LegacyWindow } from "../services/legacy-window";
 import type { LiveDownloads } from "../services/live-downloads";
@@ -20,15 +23,16 @@ const interpreter = interpretersFor<
   Msg,
   Cmd,
   never,
-  Requesters | Desktop | LegacyWindow | LiveDownloads
+  Requesters | Desktop | LegacyWindow | LiveDownloads | ConfigApplier
 >();
 
 const interpret = interpretAll<
   Msg,
   Cmd,
   never,
-  Requesters | Desktop | LegacyWindow | LiveDownloads
+  Requesters | Desktop | LegacyWindow | LiveDownloads | ConfigApplier
 >([
+  interpreter(Config.Cmd, ConfigFx.interpret),
   interpreter(Downloads.Cmd, DownloadsFx.interpret),
   interpreter(Messages.Cmd, MessagesFx.interpret),
   interpreter(Prompts.Cmd, PromptsFx.interpret),

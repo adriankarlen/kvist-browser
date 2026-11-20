@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { app, BrowserWindow, session, shell, WebContentsView } from "electron";
 import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
@@ -16,7 +16,7 @@ import { HistoryRepo, type RecordInput } from "./services/history-repo";
 import { SessionRepo, type SessionState } from "./services/session-repo";
 import type { TabId } from "../shared/schema/browser";
 import { completeCommand, createCommands } from "./commands";
-import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
+import { ConfigFiles } from "./services/config-files";
 import { Msg as DownloadsMsg } from "./features/downloads/downloads.program";
 import { DownloadsGate } from "./services/downloads-gate";
 import { LiveDownloads } from "./services/live-downloads";
@@ -35,6 +35,9 @@ import { Requesters } from "./services/requesters";
 import { Desktop } from "./services/desktop";
 import { LegacyWindow, type WindowHooks } from "./services/legacy-window";
 import { TabViews } from "./tab-views";
+import { Msg as ConfigMsg } from "./features/config/config.program";
+import { ConfigApplier } from "./services/config-applier";
+import { DEFAULT_SETTINGS } from "../shared/config";
 import { Msg as CompletionMsg } from "./features/completion/completion.program";
 import {
   activeFind,
@@ -54,13 +57,13 @@ import {
   Msg as VimMsgs,
   resolveKey,
 } from "./features/vim/vim.program";
-import { UserStyles, type UserStyleProblem } from "./user-styles";
+import { UserStyles } from "./user-styles";
 import { StyleFiles } from "./services/style-files";
 import { ZoomRepo } from "./services/zoom-repo";
 import type { ZoomStoreAccess } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
 import { Effect, Exit, Layer, ManagedRuntime, Stream } from "effect";
-import type { Context } from "effect";
+import type { Context, Fiber } from "effect";
 import { RpcServer } from "effect/rpc";
 import { ChromeIntent, ChromeRpcs } from "../shared/rpc/chrome";
 import { OverlayIntent, OverlayRpcs } from "../shared/rpc/overlay";
@@ -85,7 +88,13 @@ const runtime = ManagedRuntime.make(
     ),
   ).pipe(
     Layer.provideMerge(
-      Layer.mergeAll(Requesters.layer, Desktop.layer, LegacyWindow.layer, LiveDownloads.layer),
+      Layer.mergeAll(
+        Requesters.layer,
+        Desktop.layer,
+        LegacyWindow.layer,
+        LiveDownloads.layer,
+        ConfigApplier.layer,
+      ),
     ),
     Layer.provideMerge(AppLayer),
   ),
@@ -178,13 +187,6 @@ const prompts = {
 const userStyles = new UserStyles();
 
 /**
- * The windows' own share of a config change. A window subscribes once it has
- * loaded and drops out when it closes, so a second window neither misses a
- * change nor keeps answering after it is gone.
- */
-const windows = new Set<(config: UserConfig) => void>();
-
-/**
  * Every open window's tabs, so a styles-directory change reaches pages
  * already open, not just their next navigation. Separate from `windows`:
  * that feeds the chrome and each tab's next navigation; this restyles what
@@ -192,76 +194,10 @@ const windows = new Set<(config: UserConfig) => void>();
  */
 const tabManagers = new Set<TabViews>();
 
-/** The config as it stands, for a window opened after the last change. */
-let current: UserConfig;
+/** The config in force; startup has applied one before any window opens. */
+const currentConfig = (): UserConfig => mainStore().get().config.current ?? defaultConfig;
 
-/**
- * Applies run one at a time. Blocking has to fetch its lists, which can take
- * seconds, and two saves during that would otherwise race — leaving whichever
- * config finished last in charge rather than whichever the user wrote last.
- */
-let applying: Promise<void> = Promise.resolve();
-
-/**
- * Everything wrong with the file, as one line. The echo area holds one message,
- * so the first problem is shown and the rest are counted; the log has them all.
- */
-function reportProblems({ problems }: LoadedConfig): void {
-  const [first, ...rest] = problems;
-
-  if (first === undefined) return;
-
-  for (const problem of rest) console.error(`kvist: ${describeProblem(problem)}`);
-  const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
-  messages.warn(`${describeProblem(first)}${more}`);
-}
-
-/**
- * Same shape as reportProblems, one file's worth at a time: a style file is
- * hand-edited and hot-reloaded exactly like config.toml, so a typo in one
- * block must not blank out every style file that still parses.
- */
-function reportStyleProblems(problems: UserStyleProblem[]): void {
-  const [first, ...rest] = problems;
-
-  if (first === undefined) return;
-
-  for (const problem of rest) console.error(`kvist: ${problem.id}: ${problem.reason}`);
-  const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
-  // The echo area names the file, not the full path — the log line above
-  // already carries that, and a config directory nested a few levels deep
-  // pushes the reason itself off the end of the line.
-  messages.warn(`${basename(first.id)}: ${first.reason}${more}`);
-}
-
-/**
- * Fans a config change out to everything that cares, in load-bearing
- * order: blocking attaches to the session before the first tab loads, and
- * local pages are configured before one is served. Startup and reload are
- * the same call.
- */
-function applyConfig(config: UserConfig): Promise<void> {
-  applying = applying
-    .then(async () => {
-      await applyAdblockSettings(config);
-      applyLocalPageSettings(config);
-      useSync(DownloadsGate, (gate) =>
-        Effect.sync(() => gate.configure(config.settings.downloadDir)),
-      );
-      // Published only once everything process-wide has taken it, so a window
-      // opened mid-apply cannot configure itself from a config the local pages
-      // and the blocker have not seen yet.
-      current = config;
-
-      for (const apply of windows) apply(config);
-    })
-    // A failure must not poison the queue: the next save has to be applied
-    // even if this one could not be.
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejection reason is unknown; it is only logged
-    .catch((error: unknown) => console.error("kvist: could not apply the config:", error));
-
-  return applying;
-}
+const defaultConfig: UserConfig = { css: "", settings: DEFAULT_SETTINGS };
 
 function createWindow(
   zoom: ZoomStoreAccess,
@@ -420,7 +356,7 @@ function createWindow(
       };
     },
     () => win.getContentBounds(),
-    () => current.css,
+    () => currentConfig().css,
     () => {
       if (!win.isDestroyed()) win.webContents.focus();
     },
@@ -456,7 +392,7 @@ function createWindow(
     );
   };
 
-  configureTabs(current);
+  configureTabs(currentConfig());
 
   const applyToWindow = (next: UserConfig): void => {
     configureTabs(next);
@@ -497,7 +433,7 @@ function createWindow(
     () => app.quit(),
     // Read at call time, so a config save changes where the next search goes
     // without the window being recreated.
-    () => current.settings.searchUrl,
+    () => currentConfig().settings.searchUrl,
   );
 
   const commands = createCommands(actions);
@@ -634,15 +570,24 @@ function createWindow(
   });
 
   win.on("closed", () => {
-    windows.delete(applyToWindow);
+    configFiber?.interruptUnsafe();
     tabManagers.delete(tabViews);
     tabsFiber.interruptUnsafe();
     completionFiber.interruptUnsafe();
   });
 
+  // The window follows the config in force: now, and after every save.
+  let configFiber: Fiber.Fiber<void, unknown> | undefined;
+
   win.webContents.once("did-finish-load", () => {
-    windows.add(applyToWindow);
-    applyToWindow(current);
+    configFiber = runtime.runFork(
+      project(
+        (model) => model.config.current,
+        (config) => {
+          if (config !== null) applyToWindow(config);
+        },
+      ),
+    );
 
     // The observer already wired `chrome.prompt` to the queue head on
     // subscribe, and a question asked during page load (none today, but
@@ -848,50 +793,61 @@ if (!gotTheLock) {
     useSync(PromptsGate, (gate) => Effect.sync(() => gate.attach(session.defaultSession)));
     useSync(DownloadsGate, (gate) => Effect.sync(() => gate.attach(session.defaultSession)));
 
-    // The first load is the startup config; every later one is a save.
-    const configLoaded = Promise.withResolvers<void>();
+    const applier = runtime.runSync(Effect.service(ConfigApplier));
 
-    const configFiber = runtime.runFork(
-      Effect.gen(function* () {
-        const { changes } = yield* ConfigFiles;
-
-        yield* Stream.runForEach(changes, (loaded) =>
-          Effect.promise(async () => {
-            reportProblems(loaded);
-            await applyConfig(loaded.config);
-            configLoaded.resolve();
-          }),
+    applier.targets = {
+      // Load-bearing order: blocking attaches to the session before the
+      // first tab loads, and local pages are configured before one is served.
+      config: async (config) => {
+        await applyAdblockSettings(config);
+        applyLocalPageSettings(config);
+        useSync(DownloadsGate, (gate) =>
+          Effect.sync(() => gate.configure(config.settings.downloadDir)),
         );
-      }),
+      },
+      // An edit must restyle what is already open, not wait for each page's
+      // next navigation.
+      styles: (sources) => {
+        const problems = userStyles.setSources([...sources]);
+
+        for (const views of tabManagers) {
+          views.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+        }
+
+        return problems;
+      },
+    };
+
+    // Both watchers feed the store; startup waits for the first config to be
+    // applied and the first style scan to be in.
+    const configFiber = runtime.runFork(
+      Effect.flatMap(Effect.service(ConfigFiles), ({ changes }) =>
+        Stream.runForEach(changes, ({ config, problems }) =>
+          Effect.sync(() =>
+            mainStore().dispatch(ConfigMsg.cases.ConfigLoaded.make({ config, problems })),
+          ),
+        ),
+      ),
     );
-
-    await configLoaded.promise;
-    registerKvistProtocol();
-
-    // Like the config: the first scan is startup, every later one an edit.
-    const stylesLoaded = Promise.withResolvers<void>();
 
     const styleFiber = runtime.runFork(
-      Effect.gen(function* () {
-        const { changes } = yield* StyleFiles;
-
-        yield* Stream.runForEach(changes, (sources) =>
-          Effect.sync(() => {
-            reportStyleProblems(userStyles.setSources([...sources]));
-
-            // An edit must restyle what is already open, not wait for each
-            // page's next navigation.
-            for (const tabs of tabManagers) {
-              tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
-            }
-
-            stylesLoaded.resolve();
-          }),
-        );
-      }),
+      Effect.flatMap(Effect.service(StyleFiles), ({ changes }) =>
+        Stream.runForEach(changes, (sources) =>
+          Effect.sync(() => mainStore().dispatch(ConfigMsg.cases.StylesLoaded.make({ sources }))),
+        ),
+      ),
     );
 
-    await stylesLoaded.promise;
+    await runtime.runPromise(
+      Effect.flatMap(Effect.service(MainStore), (store) =>
+        store.changes.pipe(
+          Stream.filter((model) => model.config.current !== null),
+          Stream.take(1),
+          Stream.runDrain,
+        ),
+      ),
+    );
+    registerKvistProtocol();
 
     // The single prompt queue: permission asks and the session-restore ask
     // share one mechanism, one observer wiring, one keybind set, one IPC

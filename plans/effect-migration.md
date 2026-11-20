@@ -407,7 +407,7 @@ Order chosen so each step has few dependents:
 - [x] `downloads` (`downloads.ts`, `download-rate.ts`, `downloads-path.ts`). The throttle becomes `Stream.throttle`.
 - [x] `tabs` (`tab-manager.ts`, `tab.ts`, `view-stack.ts`, `page-host.ts`, `error-page.ts`, `context-menu.ts`). The `ViewReconciler` owns z-order and bounds, which replaces the `ViewStack` invariant. Per-tab scope plus an event stream.
 - [x] `completion` overlay (`completion-overlay.ts`, `completion-bounds.ts`, `overlay-host.ts`)
-- [ ] `config` / `styles` / `adblock` / `local-pages` apply, as one serialized interpreter. That replaces the `applying` promise chain.
+- [x] `config` / `styles` / `adblock` / `local-pages` apply, as one serialized interpreter. That replaces the `applying` promise chain.
 - [ ] `history`, `bookmarks`, `zoom`, `session` persistence Cmds
 - [ ] `src/main/index.ts` reduced to the composition root
 
