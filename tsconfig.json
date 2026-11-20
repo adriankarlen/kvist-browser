@@ -1,4 +1,5 @@
 {
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
   "compilerOptions": {
     "target": "ES2023",
     "module": "ESNext",
@@ -13,7 +14,12 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "*.config.ts", "*.config.js"]
 }

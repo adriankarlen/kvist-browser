@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "check": "vp check",
+    "check": "effect-tsgo vp check",
     "test": "vp test",
     "package": "vp build && electron-builder --publish never",
     "db:generate": "drizzle-kit generate",
@@ -20,14 +20,19 @@
     "postinstall": "install-electron"
   },
   "dependencies": {
+    "@effect/platform-node": "4.1.4",
+    "@effect/sql-sqlite-node": "4.1.4",
     "@ghostery/adblocker-electron": "^2.18.2",
     "arktype": "^2.2.3",
     "drizzle-arktype": "^0.1.3",
     "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "effect": "4.1.4",
     "smol-toml": "^1.8.0",
     "tldts-experimental": "^7.4.13"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.73.2",
+    "@effect/vitest": "4.1.4",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@types/node": "^24.13.6",
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
