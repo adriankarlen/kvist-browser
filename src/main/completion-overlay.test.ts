@@ -72,7 +72,7 @@ function createLease() {
     visible: () => lease.host.setVisible.mock.calls.at(-1)?.[0],
     bounds: () => lease.host.setBounds.mock.calls.at(-1)?.[0],
     payloads: (channel: string) =>
-      sent.filter((message) => message.channel === channel).map((message) => message.payload),
+      sent.flatMap((message) => (message.channel === channel ? [message.payload] : [])),
   };
 }
 

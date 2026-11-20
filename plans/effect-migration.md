@@ -368,7 +368,7 @@ Each phase is one PR (or a few), leaves the app working, and passes
 - [x] Bump `vite-plus` and the `vite` catalog to 1.x (bundles vitest 5.1, which `@effect/vitest` 4.x needs). Fall back to a small local `it.effect` helper over `effect/testing` `TestClock` if the bump breaks the build.
 - [x] Add `effect`, `@effect/platform-node`, `@effect/sql-sqlite-node` (exact pins), `@effect/vitest`, `@effect/tsgo`.
 - [x] `vite.config.ts`: externalize `effect` and `@effect/*` as one unit in the main build. A bundled copy plus an externalized `@effect/sql-sqlite-node` would be two `Context` instances, and services would not be found. That is the same lesson as the ArkType comment. Preloads and renderers bundle everything.
-- [ ] **Refresh anti-slop** (its own PR, before any Effect code lands):
+- [x] **Refresh anti-slop** (its own PR, before any Effect code lands):
   - Re-add the `install-anti-slop` skill, pinned to upstream `13909c9`, with a `skills-lock.json` entry.
   - Follow its `references/update.md`. Back up `tools/oxlint/anti-slop/` first. Stage incoming with `install.mjs` into a temp dir. Extract the base from `b38cf42`. Merge three-way, keeping the local deviations.
   - Register the new generic rules and `oxc/no-accumulating-spread`. Register the `anti-slop-effect` plugin with all five rules. All at `error`.

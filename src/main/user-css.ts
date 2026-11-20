@@ -237,7 +237,11 @@ function splitMatchers(prelude: string): string[] {
 
   parts.push(prelude.slice(start));
 
-  return parts.map((part) => part.trim()).filter((part) => part !== "");
+  return parts.flatMap((part) => {
+    const trimmed = part.trim();
+
+    return trimmed === "" ? [] : [trimmed];
+  });
 }
 
 /**

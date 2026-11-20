@@ -114,9 +114,9 @@ function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
   }
 
   const links = value.flatMap((entry) => {
-    const { name, url } = asTable(entry);
+    const link = asTable(entry);
 
-    return isString(name) && isString(url) ? [{ name, url }] : [];
+    return isString(link.name) && isString(link.url) ? [{ name: link.name, url: link.url }] : [];
   });
 
   // All-or-nothing: one malformed entry falls back to the defaults rather than

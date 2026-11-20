@@ -136,23 +136,17 @@ export function completeCommand(line: string): CompletionCandidate[] {
   const prefix = word.toLowerCase();
   const matches = (name: string): boolean => name.toLowerCase().startsWith(prefix);
 
-  const fromAliases = [...aliases]
-    .filter(([alias]) => matches(alias))
-    .map(([alias, name]): CompletionCandidate => ({
-      label: alias,
-      value: alias,
-      kind: "alias",
-      hint: withArg(name, specs.get(name)?.arg),
-    }));
+  const fromAliases = [...aliases].flatMap(([alias, name]): CompletionCandidate[] =>
+    matches(alias)
+      ? [{ label: alias, value: alias, kind: "alias", hint: withArg(name, specs.get(name)?.arg) }]
+      : [],
+  );
 
-  const fromCommands = [...specs]
-    .filter(([name, spec]) => !spec.keybindOnly && matches(name))
-    .map(([name, spec]): CompletionCandidate => ({
-      label: name,
-      value: name,
-      kind: "command",
-      hint: spec.arg,
-    }));
+  const fromCommands = [...specs].flatMap(([name, spec]): CompletionCandidate[] =>
+    !spec.keybindOnly && matches(name)
+      ? [{ label: name, value: name, kind: "command", hint: spec.arg }]
+      : [],
+  );
 
   return [...fromAliases, ...fromCommands];
 }
