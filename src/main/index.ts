@@ -11,23 +11,28 @@ import { createActions } from "./actions";
 import { databaseLayer, prepareDatabaseFile } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { omniboxSuggestions } from "./omnibox";
-import { Prompts } from "./prompts";
 import { BookmarksRepo } from "./services/bookmarks-repo";
 import { HistoryRepo, type RecordInput } from "./services/history-repo";
 import { SessionRepo, type SessionState } from "./services/session-repo";
 import type { TabId } from "../shared/schema/browser";
-import type { PromptState } from "../shared/schema/prompts";
 import { completeCommand, createCommands } from "./commands";
 import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
 import { Downloads } from "./downloads";
-import { ExternalProtocols } from "./external";
 import { MainStore, project } from "./app/store";
 import { Msg as MessagesMsg, say, warn } from "./features/messages/messages.program";
 import type { Messenger } from "./messenger";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths, dataDir } from "./paths";
 import { interceptKeys } from "./keys";
-import { Permissions } from "./permissions";
+import {
+  head as promptHead,
+  Msg as PromptsMsg,
+  sessionRestorePending,
+} from "./features/prompts/prompts.program";
+import { PromptsGate } from "./services/prompts-gate";
+import { Requesters } from "./services/requesters";
+import { Desktop } from "./services/desktop";
+import { LegacyWindow } from "./services/legacy-window";
 import { TabManager } from "./tab-manager";
 import { CompletionOverlay } from "./completion-overlay";
 import { ViewStack } from "./view-stack";
@@ -55,11 +60,14 @@ const runtime = ManagedRuntime.make(
   Layer.mergeAll(
     ConfigFiles.layer,
     StyleFiles.layer,
-    MainStore.layer,
+    PromptsGate.layer.pipe(Layer.provideMerge(MainStore.layer)),
     Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer, ZoomRepo.layer).pipe(
       Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
     ),
-  ).pipe(Layer.provideMerge(AppLayer)),
+  ).pipe(
+    Layer.provideMerge(Layer.mergeAll(Requesters.layer, Desktop.layer, LegacyWindow.layer)),
+    Layer.provideMerge(AppLayer),
+  ),
 );
 
 type MainServices = ManagedRuntime.ManagedRuntime.Services<typeof runtime>;
@@ -134,35 +142,11 @@ const messages: Messenger = {
  */
 const downloads = new Downloads((text) => messages.warn(text));
 
-/**
- * Permission and session-restore asks share one queue, observer, and
- * channel. App-scoped — the chrome shows one line at a time, and a prompt
- * outliving its tab is handled by `Prompts.cancel`. Created at load, so
- * `Permissions` queues from its first handler.
- */
-const prompts = new Prompts<PromptState>();
-
-/**
- * Permission prompts, session-scoped like downloads: the session allows
- * one handler pair, a remembered answer belongs to no window, and a window
- * only subscribes to the queue. Shares the app-wide queue with the
- * session-restore ask — one observer, one chrome line.
- */
-const permissions = new Permissions(prompts);
-
-/**
- * External-protocol asks, app-scoped like Permissions: a remembered
- * "always open bankid:" belongs to no window, and the session-restore ask
- * shares the queue. Whether a scheme reaches `shell.openExternal` is
- * decided here; windows only hand over a URL, scheme, and asker.
- */
-const externalProtocols = new ExternalProtocols(
-  prompts,
-  (url) => {
-    void shell.openExternal(url).catch(() => messages.warn(`no application handles ${url}`));
-  },
-  (text) => messages.warn(text),
-);
+/** Answers whatever prompt is up, for the `y`/`n` keybinds. */
+const prompts = {
+  answerHead: (allow: boolean) =>
+    mainStore().dispatch(PromptsMsg.cases.HeadAnswered.make({ allow })),
+};
 
 /**
  * The user's stylesheets, session-scoped: a style belongs to no window,
@@ -416,12 +400,18 @@ function createWindow(
 
   // The prompt the window shows and the mode the keyboard is in both follow
   // the one queue: a pending question captures normal mode, and answering it
-  // hands normal back. Permissions' queue is a slice of `prompts` — the
-  // session-restore ask goes through the same plumbing on relaunch.
-  const releasePermissions = prompts.observe((head) => {
-    chrome.prompt(head);
-    vim.setPromptPending(head !== null);
-  });
+  // hands normal back.
+  const promptFiber = runtime.runFork(
+    project(
+      (model) => promptHead(model.prompts),
+      (head) => {
+        chrome.prompt(head);
+        vim.setPromptPending(head !== null);
+      },
+    ),
+  );
+
+  const releasePermissions = () => promptFiber.interruptUnsafe();
 
   // Any key at all ends whatever the echo area is showing, wherever it came
   // from — the page's keys and the chrome's both arrive here.
@@ -448,7 +438,9 @@ function createWindow(
   // ExternalProtocols' call — ask once, remember the answer, and report a
   // rejection (no app registered, etc.) in the echo area, same as before.
   tabs.observeExternal((url, scheme, origin, selfInitiated, contents) => {
-    externalProtocols.request(url, scheme, origin, selfInitiated, contents);
+    useSync(PromptsGate, (gate) =>
+      Effect.sync(() => gate.requestExternal(url, scheme, origin, selfInitiated, contents)),
+    );
   });
   tabs.observeEditable((editable) => vim.setEditable(editable));
   tabs.observeFind((result) => chrome.findResult(result));
@@ -501,9 +493,9 @@ function createWindow(
     // survive — the next launch should re-prompt. Cancelling removes
     // the entry without firing its callback, so the queue stops showing
     // a question that nobody answered.
-    for (const pending of prompts.pending) {
-      if (pending.state.kind === "session-restore") prompts.cancel(pending.id);
-    }
+    const promptStillPending = sessionRestorePending(mainStore().get().prompts);
+
+    mainStore().dispatch(PromptsMsg.cases.SessionRestoreAbandoned.make({}));
 
     const snapshot = tabs.urlsForSession();
 
@@ -514,10 +506,6 @@ function createWindow(
       // a still-pending session-restore means the user closed mid-
       // prompt, and the saved row must survive so the next launch can
       // ask again.
-      const promptStillPending = prompts.pending.some(
-        (entry) => entry.state.kind === "session-restore",
-      );
-
       if (!promptStillPending) {
         // The prompt was answered and the user closed what they had —
         // either their only tab (the discard branch's homepage) or
@@ -569,7 +557,9 @@ function createWindow(
       // "discard" reachable and gives the user a clear exit from the
       // last session. Permission prompts go through the same queue, so the
       // chrome line is one component and y/n/Escape one keybind set.
-      prompts.ask({ kind: "session-restore", tabCount: saved.tabs.length }, (allow) => {
+      const hooks = runtime.runSync(Effect.service(LegacyWindow));
+
+      const restore = (allow: boolean): void => {
         if (!allow) {
           // Same path as a fresh launch: one homepage tab. The mirror
           // has to follow: the saved flip never reached the chrome in
@@ -611,7 +601,12 @@ function createWindow(
         if (activeId === null) activeId = firstCreatedId;
 
         if (activeId !== null) tabs.activate(activeId);
-      });
+      };
+
+      hooks.current = { restoreSession: restore };
+      mainStore().dispatch(
+        PromptsMsg.cases.SessionRestoreAsked.make({ tabCount: saved.tabs.length }),
+      );
     } else {
       tabs.create();
     }
@@ -673,7 +668,8 @@ function createWindow(
                 FindStopped: () => tabs.active?.stopFind(),
                 ModeRequested: ({ mode }) => vim.requestMode(mode),
                 DownloadCancelRequested: ({ id }) => downloads.cancel(id),
-                PromptAnswered: ({ id, allow }) => prompts.answer(id, allow),
+                PromptAnswered: ({ id, allow }) =>
+                  mainStore().dispatch(PromptsMsg.cases.PromptAnswered.make({ id, allow })),
                 // The chrome owns the override; main mirrors it so the close
                 // handler can save it with the rest of the session.
                 OrientationOverridden: ({ orientation }) => {
@@ -732,7 +728,6 @@ if (!gotTheLock) {
 
   void app.whenReady().then(async () => {
     downloads.attach(session.defaultSession);
-    permissions.attach(session.defaultSession);
     // A bad migration or a corrupt database is a real failure: log and quit
     // rather than leave the user staring at a window that never appears.
     const built = await runtime.runPromiseExit(Effect.void);
@@ -743,6 +738,8 @@ if (!gotTheLock) {
 
       return;
     }
+
+    useSync(PromptsGate, (gate) => Effect.sync(() => gate.attach(session.defaultSession)));
 
     // The first load is the startup config; every later one is a save.
     const configLoaded = Promise.withResolvers<void>();

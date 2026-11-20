@@ -135,6 +135,14 @@ export function interpreter<Owned extends Cmd, Cmd extends Tagged, Msg, E, R>(
   };
 }
 
+/** `interpreter` with the root's types fixed once. */
+export function interpretersFor<Msg, Cmd extends Tagged, E, R>() {
+  return <Owned extends Cmd, E2 extends E, R2 extends R>(
+    owned: TaggedCases<Owned>,
+    interpret: Interpret<Msg, Owned, E2, R2>,
+  ): CmdRoute<Msg, Cmd, E, R> => interpreter<Owned, Cmd, Msg, E, R>(owned, interpret);
+}
+
 /** The root interpreter: each Cmd goes to the one feature that owns its tag. */
 export function interpretAll<Msg, Cmd extends Tagged, E, R>(
   routes: ReadonlyArray<CmdRoute<Msg, Cmd, E, R>>,

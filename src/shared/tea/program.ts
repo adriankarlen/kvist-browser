@@ -77,6 +77,15 @@ export function route<Root, K extends keyof Root, Owned extends Msg, Msg extends
   };
 }
 
+/** `route` with the root's types fixed once, so each feature's own types are all that is inferred. */
+export function routesFor<Root, Msg extends Tagged, Cmd>() {
+  return <K extends keyof Root, Owned extends Msg>(
+    key: K,
+    owned: TaggedCases<Owned>,
+    update: (msg: Owned, slice: Root[K], root: Root) => Next<Root[K], Msg, Cmd>,
+  ): Route<Root, Msg, Cmd> => route<Root, K, Owned, Msg, Cmd>(key, owned, update);
+}
+
 /**
  * The root update: each Msg goes to the one feature that owns its tag. Two
  * features claiming one tag is a wiring bug, so it throws at startup instead

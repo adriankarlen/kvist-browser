@@ -1,11 +1,19 @@
 import { Context, Effect, Layer, Stream } from "effect";
-import { interpretAll, interpreter, make, type Store } from "../../shared/tea/store";
+import { interpretAll, interpretersFor, make, type Store } from "../../shared/tea/store";
 import * as Messages from "../features/messages/messages.program";
 import * as MessagesFx from "../features/messages/messages.effects";
+import * as Prompts from "../features/prompts/prompts.program";
+import * as PromptsFx from "../features/prompts/prompts.effects";
+import type { Desktop } from "../services/desktop";
+import type { LegacyWindow } from "../services/legacy-window";
+import type { Requesters } from "../services/requesters";
 import { type Cmd, type Model, type Msg, program } from "./program";
 
-const interpret = interpretAll<Msg, Cmd, never, never>([
+const interpreter = interpretersFor<Msg, Cmd, never, Requesters | Desktop | LegacyWindow>();
+
+const interpret = interpretAll<Msg, Cmd, never, Requesters | Desktop | LegacyWindow>([
   interpreter(Messages.Cmd, MessagesFx.interpret),
+  interpreter(Prompts.Cmd, PromptsFx.interpret),
 ]);
 
 /** Main's one loop, app-scoped: it starts with the runtime and stops with it. */

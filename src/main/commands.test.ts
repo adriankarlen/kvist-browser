@@ -6,7 +6,6 @@ import type { ZoomStoreAccess } from "./zoom";
 import { completeCommand, createCommands } from "./commands";
 import type { Downloads } from "./downloads";
 import type { Messenger as Messages } from "./messenger";
-import type { Prompts } from "./prompts";
 import type { TabManager } from "./tab-manager";
 
 // A spy left in place would silence the next test's console; a failed
@@ -105,7 +104,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const actions = createActions(
     tabs as unknown as TabManager,
     downloads as unknown as Downloads,
-    prompts as unknown as Prompts<{ id: number }>,
+    prompts,
     zoom as unknown as ZoomStoreAccess,
     bookmarks,
     win as unknown as BrowserWindow,
