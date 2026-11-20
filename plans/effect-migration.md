@@ -405,7 +405,7 @@ Order chosen so each step has few dependents:
 - [x] `prompts` with permissions, external protocols and session restore (`prompts.ts`, `permissions.ts`, `external.ts`, the restore flow in `src/main/index.ts:492-530`). Electron `callback(allow)` continuations become `Deferred`s in a `PendingAnswers` service, released by the prompt's tab scope.
 - [x] `vim` (`vim.ts`, `keys.ts`, `keybinds.ts`, `commands.ts`, `actions.ts`). `resolveKey` is pure. `actions.ts` dissolves into Cmds.
 - [x] `downloads` (`downloads.ts`, `download-rate.ts`, `downloads-path.ts`). The throttle becomes `Stream.throttle`.
-- [ ] `tabs` (`tab-manager.ts`, `tab.ts`, `view-stack.ts`, `page-host.ts`, `error-page.ts`, `context-menu.ts`). The `ViewReconciler` owns z-order and bounds, which replaces the `ViewStack` invariant. Per-tab scope plus an event stream.
+- [x] `tabs` (`tab-manager.ts`, `tab.ts`, `view-stack.ts`, `page-host.ts`, `error-page.ts`, `context-menu.ts`). The `ViewReconciler` owns z-order and bounds, which replaces the `ViewStack` invariant. Per-tab scope plus an event stream.
 - [ ] `completion` overlay (`completion-overlay.ts`, `completion-bounds.ts`, `overlay-host.ts`)
 - [ ] `config` / `styles` / `adblock` / `local-pages` apply, as one serialized interpreter. That replaces the `applying` promise chain.
 - [ ] `history`, `bookmarks`, `zoom`, `session` persistence Cmds

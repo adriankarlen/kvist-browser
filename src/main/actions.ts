@@ -9,7 +9,17 @@ export interface DownloadsAccess {
 }
 
 import type { Messenger as Messages } from "./messenger";
-import type { TabManager } from "./tab-manager";
+import type { Tab } from "./tab";
+
+/** The tab verbs the commands use; the collection itself lives in the store. */
+export interface TabsAccess {
+  /** The tab every "do this to the page" verb belongs to, if there is one. */
+  readonly active: Tab | undefined;
+  create(url?: string): void;
+  closeActive(): void;
+  step(offset: number): void;
+}
+
 import { clamp, STEP, type ZoomStoreAccess } from "./zoom";
 
 /**
@@ -162,7 +172,7 @@ export interface Actions {
 }
 
 export function createActions(
-  tabs: TabManager,
+  tabs: TabsAccess,
   downloads: DownloadsAccess,
   prompts: PromptAnswerer,
   zoom: ZoomStoreAccess,

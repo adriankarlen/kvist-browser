@@ -7,7 +7,7 @@ import {
   registerKvistProtocol,
   registerKvistScheme,
 } from "./local-pages";
-import { createActions, type DownloadsAccess } from "./actions";
+import { createActions, type DownloadsAccess, type TabsAccess } from "./actions";
 import { databaseLayer, prepareDatabaseFile } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { omniboxSuggestions } from "./omnibox";
@@ -34,7 +34,16 @@ import { PromptsGate } from "./services/prompts-gate";
 import { Requesters } from "./services/requesters";
 import { Desktop } from "./services/desktop";
 import { LegacyWindow, type WindowHooks } from "./services/legacy-window";
-import { TabManager } from "./tab-manager";
+import { TabViews } from "./tab-views";
+import {
+  activeFind,
+  layout,
+  Msg as TabsMsg,
+  sessionTabs,
+  strip,
+} from "./features/tabs/tabs.program";
+import type { PageContents } from "./page-host";
+import type { PageSenders } from "./links";
 import { CompletionOverlay } from "./completion-overlay";
 import { ViewStack } from "./view-stack";
 import {
@@ -180,7 +189,7 @@ const windows = new Set<(config: UserConfig) => void>();
  * that feeds the chrome and each tab's next navigation; this restyles what
  * is on screen now.
  */
-const tabManagers = new Set<TabManager>();
+const tabManagers = new Set<TabViews>();
 
 /** The config as it stands, for a window opened after the last change. */
 let current: UserConfig;
@@ -282,42 +291,103 @@ function createWindow(
 
   const views = new ViewStack(win.contentView);
 
-  const tabs = new TabManager(
-    win,
-    views,
-    pagePreload,
-    zoom,
-    (state) => chrome.state(state),
-    (url) => bookmarks.has(url),
-    (contents) => {
-      const page = pageLink();
-      serve(
-        runtime,
-        contents,
-        RpcServer.make(PageRpcs).pipe(
-          Effect.provide(
-            PageRpcs.toLayer({
-              Subscribe: () => page.events.stream,
-              Dispatch: (message) =>
-                Effect.sync(() =>
-                  PageIntent.match(message, {
-                    EditableChanged: ({ editable }) => tabs.setEditable(contents, editable),
-                    HintClicked: ({ point }) => tabs.tabFor(contents)?.click(point),
-                    HintsEnded: () => vim.dispatch(VimMsgs.cases.HintsEnded.make({})),
-                    ContextMenuPicked: ({ id }) => tabs.tabFor(contents)?.pickContextMenu(id),
-                  }),
-                ),
-            }),
-          ),
-        ),
-      );
+  const connectPage = (contents: PageContents): PageSenders => {
+    const page = pageLink();
 
-      return page.send;
+    serve(
+      runtime,
+      contents,
+      RpcServer.make(PageRpcs).pipe(
+        Effect.provide(
+          PageRpcs.toLayer({
+            Subscribe: () => page.events.stream,
+            Dispatch: (message) =>
+              Effect.sync(() =>
+                PageIntent.match(message, {
+                  EditableChanged: ({ editable }) => tabViews.setEditable(contents, editable),
+                  HintClicked: ({ point }) => tabViews.tabFor(contents)?.click(point),
+                  HintsEnded: () => vim.dispatch(VimMsgs.cases.HintsEnded.make({})),
+                  ContextMenuPicked: ({ id }) => tabViews.tabFor(contents)?.pickContextMenu(id),
+                }),
+              ),
+          }),
+        ),
+      ),
+    );
+
+    return page.send;
+  };
+
+  const tabViews = new TabViews(win, views, pagePreload, zoom, {
+    dispatch: (msg) => mainStore().dispatch(msg),
+    key: (input, source) => onKey(input, source),
+    isBookmarked: (url) => bookmarks.has(url),
+    connectPage,
+    // Both halves of "the URL changed". Styles key on the URL, not the
+    // document, so a SPA changing routes is restyled with nothing reloading.
+    navigated: (contents, url) => {
+      userStyles.applyTo(contents, url);
+      // The title at commit time is still the previous page's; the URL is
+      // the truthful answer until the real title lands.
+      history.record({ url, title: url, visitedAt: Date.now() });
     },
+    // SPA route changes are not history: every hash change would drown the
+    // real visits.
+    inPageNavigation: (contents, url) => {
+      refreshCosmeticStyles(contents, url);
+      userStyles.applyTo(contents, url);
+    },
+    external: (url, scheme, origin, selfInitiated, contents) =>
+      useSync(PromptsGate, (gate) =>
+        Effect.sync(() => gate.requestExternal(url, scheme, origin, selfInitiated, contents)),
+      ),
+  });
+
+  /** The tab verbs as the commands call them; the collection lives in the store. */
+  const tabs: TabsAccess & { create(url?: string, background?: boolean): void } = {
+    get active() {
+      return tabViews.tab(mainStore().get().tabs.activeId);
+    },
+    create: (url?: string, background: boolean = false) =>
+      mainStore().dispatch(
+        TabsMsg.cases.TabOpenRequested.make({
+          url,
+          after: undefined,
+          background,
+          origin: null,
+          opener: null,
+        }),
+      ),
+    closeActive: () => {
+      const id = mainStore().get().tabs.activeId;
+
+      if (id !== null) mainStore().dispatch(TabsMsg.cases.TabCloseRequested.make({ id }));
+    },
+    step: (offset) => mainStore().dispatch(TabsMsg.cases.TabStepped.make({ offset })),
+  };
+
+  const tabsFiber = runtime.runFork(
+    Effect.all(
+      [
+        project(
+          (model) => strip(model.tabs),
+          (state) => chrome.state(state),
+        ),
+        project(
+          (model) => activeFind(model.tabs),
+          (result) => chrome.findResult(result),
+        ),
+        project(
+          (model) => layout(model.tabs),
+          (next) => tabViews.reconcile(next),
+        ),
+      ],
+      { concurrency: "unbounded", discard: true },
+    ),
   );
 
-  const releaseBookmarks = bookmarks.observe(() => tabs.refresh());
-  tabManagers.add(tabs);
+  const releaseBookmarks = bookmarks.observe(() => tabViews.refresh());
+  tabManagers.add(tabViews);
 
   const completion = new CompletionOverlay(
     () => {
@@ -361,10 +431,20 @@ function createWindow(
     void win.loadFile(rendererHtml);
   }
 
-  tabs.applySettings(current);
+  const configureTabs = (config: UserConfig): void => {
+    tabViews.applyCss(config.css);
+    mainStore().dispatch(
+      TabsMsg.cases.TabsConfigured.make({
+        homepage: config.settings.homepage,
+        focusPage: config.settings.tabFocusPage,
+      }),
+    );
+  };
+
+  configureTabs(current);
 
   const applyToWindow = (next: UserConfig): void => {
-    tabs.applySettings(next);
+    configureTabs(next);
     chrome.config(next);
     completion.applyCss();
   };
@@ -409,8 +489,9 @@ function createWindow(
 
   /** How the store's Cmds reach this window's code until it moves onto the store. */
   const windowHooks: WindowHooks = {
+    tabs: tabViews,
     restoreSession: () => {},
-    tabDownloaded: (contents) => tabs.closeIfUncommitted(contents),
+    tabDownloaded: (contents) => tabViews.closeIfUncommitted(contents),
     runCommand: (name, arg) => {
       if (!commands.execute(name, arg)) messages.warn(`unknown command ${name}`);
     },
@@ -455,7 +536,9 @@ function createWindow(
     // Chromium's built-in "Escape exits HTML fullscreen" gets — so that has
     // to be reimplemented here, falling out to whatever normal-mode Escape
     // already does, matching every other browser.
-    if (tabs.isHtmlFullscreen && input.key === "Escape") tabs.leaveHtmlFullscreen();
+    if (input.key === "Escape") {
+      mainStore().dispatch(TabsMsg.cases.FullscreenLeaveRequested.make({}));
+    }
 
     // Asked first, on this tick: `before-input-event` must know now whether
     // the key is kept from the page. The update then makes the same step.
@@ -466,49 +549,11 @@ function createWindow(
     return consumed;
   };
 
-  tabs.interceptKeys(onKey);
   // The chrome needs the same treatment as a page: it is a separate
   // webContents, so without this every key pressed while the chrome holds
   // focus is invisible to the mode machine.
   interceptKeys(win.webContents, "chrome", onKey);
-  // A page (or the user, via the omnibox / :tabnew) asked for a scheme the
-  // browser does not load itself. Whether it actually reaches the OS is
-  // ExternalProtocols' call — ask once, remember the answer, and report a
-  // rejection (no app registered, etc.) in the echo area, same as before.
-  tabs.observeExternal((url, scheme, origin, selfInitiated, contents) => {
-    useSync(PromptsGate, (gate) =>
-      Effect.sync(() => gate.requestExternal(url, scheme, origin, selfInitiated, contents)),
-    );
-  });
-  tabs.observeEditable((editable) =>
-    vim.dispatch(VimMsgs.cases.EditableChanged.make({ editable })),
-  );
-  tabs.observeFind((result) => chrome.findResult(result));
-  // Both halves of "the URL changed": a committed navigation and a history-API
-  // one. The user's styles are keyed to the URL rather than the document, so a
-  // SPA moving between routes has to be restyled with nothing reloading.
-  tabs.observeNavigation((contents, url) => {
-    userStyles.applyTo(contents, url);
-    // `Tab#title` is the *previous* page's title at the moment `did-navigate`
-    // fires — `page-title-updated` for the new page arrives asynchronously,
-    // so reading the snapshot here would record a stale title for every
-    // navigation after the first. The URL is the truthful answer at commit
-    // time; backfilling the real title when it lands is a follow-up.
-    const title = url;
-    history.record({ url, title, visitedAt: Date.now() });
-  });
-  tabs.observeInPageNavigation((contents, url) => {
-    refreshCosmeticStyles(contents, url);
-    userStyles.applyTo(contents, url);
-    // SPA route changes are deliberately not recorded here — every hash
-    // change and `pushState` would otherwise land in history and drown
-    // out the real visits. A future ticket can revisit if the omnibox
-    // wants pushState suggestions; for now only committed main-frame loads
-    // become history rows.
-  });
 
-  // A tab's own channels, accepted from a webContents that owns one and from
-  // nothing else.
   const runCommand = (line: string): void => {
     const [name = "", ...rest] = line.trim().split(/\s+/);
 
@@ -537,7 +582,7 @@ function createWindow(
 
     mainStore().dispatch(PromptsMsg.cases.SessionRestoreAbandoned.make({}));
 
-    const snapshot = tabs.urlsForSession();
+    const snapshot = sessionTabs(mainStore().get().tabs);
 
     if (snapshot === null) {
       // No tabs at close time has two meanings now: the user closed
@@ -575,7 +620,8 @@ function createWindow(
 
   win.on("closed", () => {
     windows.delete(applyToWindow);
-    tabManagers.delete(tabs);
+    tabManagers.delete(tabViews);
+    tabsFiber.interruptUnsafe();
   });
 
   win.webContents.once("did-finish-load", () => {
@@ -619,9 +665,11 @@ function createWindow(
 
         for (let i = 0; i < saved.tabs.length; i++) {
           const url = saved.tabs[i]!;
-          const id = tabs.create(url, { background: true });
+          const id = mainStore().get().tabs.nextId;
 
-          if (id === null) continue;
+          tabs.create(url, true);
+
+          if (!mainStore().get().tabs.snapshots.has(id)) continue;
 
           if (firstCreatedId === null) firstCreatedId = id;
 
@@ -634,7 +682,8 @@ function createWindow(
         // back to the first created tab so something is on screen.
         if (activeId === null) activeId = firstCreatedId;
 
-        if (activeId !== null) tabs.activate(activeId);
+        if (activeId !== null)
+          mainStore().dispatch(TabsMsg.cases.TabActivated.make({ id: activeId }));
       };
 
       windowHooks.restoreSession = restore;
@@ -689,10 +738,13 @@ function createWindow(
           Dispatch: (message) =>
             Effect.sync(() =>
               ChromeIntent.match(message, {
-                ContentRectMeasured: ({ rect }) => tabs.setContentRect(rect),
-                TabRequested: ({ url }) => void tabs.create(url),
-                TabCloseRequested: ({ id }) => tabs.close(id),
-                TabActivated: ({ id }) => tabs.activate(id),
+                ContentRectMeasured: ({ rect }) =>
+                  mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect })),
+                TabRequested: ({ url }) => tabs.create(url),
+                TabCloseRequested: ({ id }) =>
+                  mainStore().dispatch(TabsMsg.cases.TabCloseRequested.make({ id })),
+                TabActivated: ({ id }) =>
+                  mainStore().dispatch(TabsMsg.cases.TabActivated.make({ id })),
                 NavigationRequested: ({ url }) => tabs.active?.navigate(url),
                 BackRequested: () => tabs.active?.goBack(),
                 ForwardRequested: () => tabs.active?.goForward(),

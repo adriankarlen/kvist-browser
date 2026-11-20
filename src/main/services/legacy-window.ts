@@ -1,4 +1,5 @@
 import { Context, Layer } from "effect";
+import type { TabViews } from "../tab-views";
 
 /**
  * Hooks into the window code that has not moved onto the store yet. Each
@@ -6,6 +7,7 @@ import { Context, Layer } from "effect";
  * window that is gone does nothing.
  */
 export interface WindowHooks {
+  tabs: TabViews;
   restoreSession: (allow: boolean) => void;
   /** Runs a command by name; an unknown one is reported in the echo area. */
   runCommand: (name: string, arg: string | undefined) => void;

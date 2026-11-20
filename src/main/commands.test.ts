@@ -5,7 +5,7 @@ import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
 import { completeCommand, createCommands } from "./commands";
 import type { Messenger as Messages } from "./messenger";
-import type { TabManager } from "./tab-manager";
+import type { TabsAccess } from "./actions";
 
 // A spy left in place would silence the next test's console; a failed
 // assertion must not be able to leave one behind.
@@ -101,7 +101,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
-    tabs as unknown as TabManager,
+    tabs as unknown as TabsAccess,
     downloads,
     prompts,
     zoom as unknown as ZoomStoreAccess,
