@@ -4,6 +4,7 @@ import { type ContentSize, placeCompletion } from "./completion-bounds";
 import type { OverlayLease } from "./overlay-host";
 
 const HIDDEN: Rect = { x: 0, y: 0, width: 0, height: 0 };
+
 const EMPTY: CompletionOverlayState = {
   candidates: [],
   index: -1,
@@ -50,6 +51,7 @@ export class CompletionOverlay {
   show(state: CompletionOverlayState): void {
     this.#state = state;
     const lease = this.#lease ?? this.#start();
+
     if (!this.#loaded) return;
     // Placed before the rows are sent, not after: a hidden view's rendering
     // lifecycle is stalled, so a list that arrived while it was down would
@@ -60,11 +62,13 @@ export class CompletionOverlay {
 
   hide(): void {
     this.#state = null;
+
     // Emptied as well as concealed, so re-opening cannot show the previous
     // query's rows for the frame before the new ones arrive.
     if (this.#lease !== null && this.#loaded) {
       this.#send(this.#lease).completionState(EMPTY);
     }
+
     this.#conceal();
   }
 
@@ -112,18 +116,22 @@ export class CompletionOverlay {
       this.#loaded = true;
       const send = this.#send(lease);
       send.completionCss(this.#css());
+
       if (this.#state === null) return;
       this.#place();
       send.completionState(this.#state);
     });
+
     const retire = (): void => {
       if (this.#lease !== lease) return;
       this.#lease = null;
       this.#loaded = false;
       lease.release();
     };
+
     lease.host.webContents.once("render-process-gone", retire);
     lease.host.webContents.once("destroyed", retire);
+
     return lease;
   }
 
@@ -139,19 +147,25 @@ export class CompletionOverlay {
    */
   #place(): void {
     if (this.#lease === null) return;
+
     if (this.#state === null) {
       this.#conceal();
+
       return;
     }
+
     const height = this.#height ?? Number.POSITIVE_INFINITY;
+
     const placed = placeCompletion(
       this.#state.anchor,
       height,
       this.#state.grow,
       this.#contentSize(),
     );
+
     this.#lease.host.setBounds(placed.bounds);
     this.#lease.host.setVisible(placed.bounds.height > 0);
+
     if (this.#loaded) this.#send(this.#lease).completionInset(placed.inset);
   }
 }

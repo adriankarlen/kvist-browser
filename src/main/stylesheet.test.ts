@@ -15,10 +15,12 @@ function createTarget(options: { destroyed?: boolean } = {}) {
     isDestroyed: () => options.destroyed === true,
     insertCSS: (css: string, insertOptions?: { cssOrigin?: string }) => {
       inserted.push({ css, origin: insertOptions?.cssOrigin });
+
       return Promise.resolve(`key-${++next}`);
     },
     removeInsertedCSS: (key: string) => {
       removed.push(key);
+
       return Promise.resolve();
     },
   };
@@ -128,6 +130,7 @@ test("a failed removal is retried by the next queued replacement", async () => {
   const failRemove = vi
     .spyOn(target, "removeInsertedCSS")
     .mockRejectedValueOnce(new Error("transient"));
+
   sheet.replace(target, "b {}");
   await flush();
   failRemove.mockRestore();

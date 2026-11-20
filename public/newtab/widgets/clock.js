@@ -3,8 +3,10 @@ const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
 function formatTime(date, timezone) {
   const m = timezone.match(UTC_RX);
+
   if (m) {
     const offset = (m[1] === "+" ? 1 : -1) * parseInt(m[2]) * 3600000;
+
     return new Date(date.getTime() + offset).toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
@@ -12,6 +14,7 @@ function formatTime(date, timezone) {
       timeZone: "UTC",
     });
   }
+
   return date.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -28,6 +31,7 @@ export async function initClock() {
   const clockEl = document.getElementById("clock");
 
   let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   try {
     const config = await (await fetch("config.json")).json();
     timezone = config.timezone ?? timezone;
@@ -38,6 +42,7 @@ export async function initClock() {
   const tick = () => {
     clockEl.textContent = formatTime(new Date(), timezone);
   };
+
   setInterval(tick, 1000);
   tick();
 }

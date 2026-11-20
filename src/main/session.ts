@@ -35,6 +35,7 @@ export class Session {
 
   save(state: SessionState, savedAt: number): boolean {
     const validated = parse(inputValidator, { ...state, savedAt });
+
     if (validated.problem !== undefined) return false;
     const value = validated.value;
 
@@ -68,8 +69,10 @@ export class Session {
         .run();
     } catch (error) {
       console.error("kvist: could not save the session:", error);
+
       return false;
     }
+
     return true;
   }
 
@@ -93,6 +96,7 @@ export class Session {
    */
   load(): SessionState | null {
     let rows;
+
     try {
       rows = this.#db.drizzle
         .select({
@@ -109,17 +113,21 @@ export class Session {
         .all();
     } catch (error) {
       console.error("kvist: could not read the saved session:", error);
+
       return null;
     }
 
     const row = rows[0];
+
     if (row === undefined) return null;
 
     let urls: string[];
+
     try {
       // The JSON column is just bytes as far as SQLite is concerned —
       // arktype decodes it into the shape we can actually use here.
       const validated = parse(urlListValidator, JSON.parse(row.tabsJson));
+
       if (validated.problem !== undefined) return null;
       urls = validated.value;
     } catch {
@@ -127,9 +135,11 @@ export class Session {
     }
 
     if (row.activeIndex < 0 || row.activeIndex >= urls.length) return null;
+
     if (row.width <= 0 || row.height <= 0) return null;
 
     let orientation: TabOrientation | null = null;
+
     if (row.orientation !== null) {
       if (row.orientation !== "horizontal" && row.orientation !== "vertical") return null;
       orientation = row.orientation;
@@ -167,9 +177,11 @@ const inputValidator = type({
   if (value.tabs.some((entry) => entry === "")) {
     return ctx.mustBe("non-empty tab URL");
   }
+
   if (value.activeIndex >= value.tabs.length) {
     return ctx.mustBe("activeIndex within tabs.length");
   }
+
   return true;
 });
 
@@ -182,5 +194,6 @@ const urlListValidator = type("string[] > 0").narrow((value, ctx) => {
   for (const entry of value) {
     if (entry === "") return ctx.mustBe("non-empty string array");
   }
+
   return true;
 });

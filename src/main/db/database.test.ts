@@ -64,6 +64,7 @@ test("an empty migrations folder is a no-op, just creates the bookkeeping table"
   const names = db.drizzle.all<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
   );
+
   expect(names.map((row) => row.name)).toEqual(["__drizzle_migrations"]);
   db.close();
 });
@@ -81,6 +82,7 @@ test("a missing migrations folder is a no-op, not a thrown error", () => {
   const names = db.drizzle.all<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
   );
+
   expect(names.map((row) => row.name)).toEqual([]);
   db.close();
 });

@@ -228,6 +228,7 @@ export interface Channel<T> {
 }
 
 export type AnyTable = Record<string, Channel<unknown>>;
+
 export type PayloadOf<C> = C extends Channel<infer T> ? T : never;
 
 /**
@@ -242,7 +243,9 @@ export interface Query<Req, Res> {
 }
 
 export type AnyQueryTable = Record<string, Query<unknown, unknown>>;
+
 export type RequestOf<Q> = Q extends Query<infer Req, unknown> ? Req : never;
+
 export type ResponseOf<Q> = Q extends Query<unknown, infer Res> ? Res : never;
 
 /** A query table's method: request in, response out. */
@@ -289,9 +292,11 @@ const claimed = new Set<string>();
 export function table<T extends AnyTable>(channels: T): T {
   for (const key of Object.keys(channels)) {
     const name = wire(key);
+
     if (claimed.has(name)) throw new Error(`kvist: duplicate channel ${name}`);
     claimed.add(name);
   }
+
   return channels;
 }
 
@@ -304,9 +309,11 @@ export function table<T extends AnyTable>(channels: T): T {
 export function queryTable<T extends AnyQueryTable>(channels: T): T {
   for (const key of Object.keys(channels)) {
     const name = wire(key);
+
     if (claimed.has(name)) throw new Error(`kvist: duplicate channel ${name}`);
     claimed.add(name);
   }
+
   return channels;
 }
 
@@ -476,10 +483,12 @@ export function senders<T extends AnyTable>(
   send: (channel: string, payload?: unknown) => void,
 ): Senders<T> {
   const api: Record<string, (payload?: unknown) => void> = {};
+
   for (const key of Object.keys(channels)) {
     const name = wire(key);
     api[key] = (payload) => send(name, payload);
   }
+
   // SAFETY: one method per key of T was built above; the transport erases payload types.
   return api as Senders<T>;
 }
@@ -490,10 +499,12 @@ export function listeners<T extends AnyTable>(
   subscribe: (channel: string, listener: (payload: unknown) => void) => () => void,
 ): Listeners<T> {
   const api: Record<string, (listener: (payload: unknown) => void) => () => void> = {};
+
   for (const key of Object.keys(channels)) {
     const name = wire(key);
     api[`on${key[0]!.toUpperCase()}${key.slice(1)}`] = (listener) => subscribe(name, listener);
   }
+
   // SAFETY: one onX method per key of T was built above; the transport erases payload types.
   return api as unknown as Listeners<T>;
 }
@@ -507,10 +518,12 @@ export function invokers<T extends AnyQueryTable>(
   invoke: (channel: string, request: unknown) => Promise<unknown>,
 ): Queries<T> {
   const api: Record<string, (request: unknown) => Promise<unknown>> = {};
+
   for (const key of Object.keys(channels)) {
     const name = wire(key);
     api[key] = (request) => invoke(name, request);
   }
+
   // SAFETY: one method per key of T was built above; the transport erases request/response types.
   return api as Queries<T>;
 }

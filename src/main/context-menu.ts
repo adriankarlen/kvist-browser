@@ -40,16 +40,20 @@ export function buildContextMenuItems(
     ]);
   } else {
     const context: ContextMenuItem[] = [];
+
     if (params.linkURL !== "") {
       context.push(item("link.open-in-new-tab", "Open Link in New Tab"));
       context.push(item("link.copy", "Copy Link Address"));
     }
+
     if (params.mediaType === "image") {
       context.push(item("image.copy", "Copy Image Address"));
     }
+
     if (params.selectionText.trim() !== "") {
       context.push(item("selection.copy", "Copy"));
     }
+
     if (context.length > 0) sections.push(context);
 
     sections.push([
@@ -74,5 +78,6 @@ export function buildContextMenuItems(
  */
 export function composeContextMenuCss(userCss: string): string {
   const host = (css: string): string => css.replaceAll(":root", ":host");
+
   return `${host(tokensCss)}\n${menuCss}\n${host(userCss)}`;
 }

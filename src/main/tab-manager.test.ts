@@ -47,6 +47,7 @@ vi.mock("electron", () => {
         send: () => {},
         loadURL: (next: string) => {
           url = next;
+
           return Promise.resolve();
         },
         getURL: () => url,
@@ -147,9 +148,11 @@ function setup(windowRect?: Rect) {
   const stack = new ViewStack(win.base.contentView);
   const emit = vi.fn<(state: BrowserState) => void>();
   const bookmarked = new Set<string>();
+
   const tabs = new TabManager(win.base, stack, "preload.js", new ZoomStore(), emit, (url) =>
     bookmarked.has(url),
   );
+
   return { win, tabs, emit, bookmarked };
 }
 

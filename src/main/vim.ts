@@ -52,6 +52,7 @@ export class Vim {
    */
   setPromptPending(pending: boolean): void {
     this.#promptPending = pending;
+
     if (pending && this.#mode === "normal") this.#set("prompt");
     else if (!pending && this.#mode === "prompt") this.#set("normal");
   }
@@ -71,8 +72,10 @@ export class Vim {
   setEditable(editable: boolean): void {
     // A chrome prompt is up and holds the keyboard; the page is a bystander.
     if (this.#prompting) return;
+
     // A permission question owns the keyboard until it is answered.
     if (this.#mode === "prompt") return;
+
     if (editable) this.#set("insert");
     else if (this.#mode === "insert") this.#set("normal");
   }
@@ -103,6 +106,7 @@ export class Vim {
     }
 
     const dispatched = this.#dispatch(input.key);
+
     if (dispatched) return true;
 
     // Every key belongs to hinting while it is up, so nothing leaks to the
@@ -110,6 +114,7 @@ export class Vim {
     // back.
     if (this.#mode === "hint") {
       this.#execute("hints.key", input.key);
+
       return true;
     }
 
@@ -134,8 +139,11 @@ export class Vim {
 
     if (match) {
       this.#pending = "";
+
       if (match.command) this.#execute(match.command);
+
       if (match.enter !== undefined) this.#set(match.enter);
+
       return true;
     }
 
@@ -147,12 +155,14 @@ export class Vim {
 
     if (isPrefix) {
       this.#pending = sequence;
+
       return true;
     }
 
     // An unknown sequence following a prefix is swallowed rather than leaked.
     if (this.#pending !== "") {
       this.#pending = "";
+
       return true;
     }
 
@@ -164,6 +174,7 @@ export class Vim {
     // came from — an answered prompt with another queued behind it keeps the
     // mode, because the queue only empties by being answered.
     const target = mode === "normal" && this.#promptPending ? "prompt" : mode;
+
     if (target === this.#mode) return;
     this.#mode = target;
     this.#pending = "";

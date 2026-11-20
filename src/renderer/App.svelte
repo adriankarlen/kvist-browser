@@ -17,6 +17,7 @@
    */
   function onWindowClick(): void {
     const head = prompts.current;
+
     if (head?.state.kind === "permission" || head?.state.kind === "external-protocol") {
       prompts.answer(false);
     }

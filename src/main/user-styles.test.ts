@@ -10,14 +10,17 @@ const scoped = (domain: string, css: string): string => `/* ==UserStyle==
 
 function createTarget() {
   const inserted: string[] = [];
+
   const target: StylesheetTarget = {
     isDestroyed: () => false,
     insertCSS: (css: string) => {
       inserted.push(css);
+
       return Promise.resolve(`key-${inserted.length}`);
     },
     removeInsertedCSS: () => Promise.resolve(),
   };
+
   return { target, inserted };
 }
 
@@ -59,6 +62,7 @@ test("several files matching one URL are combined in the order given", () => {
 
 test("a file needing a preprocessor is skipped by name, not injected", () => {
   const styles = new UserStyles();
+
   const problems = styles.setSources([
     {
       id: "rose-pine.user.less",
@@ -101,6 +105,7 @@ test("a preprocessor-skipped file is still found by :style, just not injected", 
 
 test("problems carry the file they were found in", () => {
   const styles = new UserStyles();
+
   const problems = styles.setSources([
     {
       id: "broken.user.css",
@@ -186,6 +191,7 @@ test("filesFor is empty when nothing has been set, or nothing matches", () => {
 
 test("a file with a broken block cannot leak into other sites' styles", () => {
   const styles = new UserStyles();
+
   const problems = styles.setSources([
     {
       id: "broken.user.css",

@@ -10,6 +10,7 @@ type PromptHead = { id: number; state: PromptState };
 function fakeContents() {
   const listeners = new Set<() => void>();
   let destroyed = false;
+
   // SAFETY: partial stub — Permissions only reaches isDestroyed, once and removeListener.
   const contents = {
     isDestroyed: () => destroyed,
@@ -20,6 +21,7 @@ function fakeContents() {
       listeners.delete(listener);
     },
   } as unknown as WebContents;
+
   return {
     contents,
     destroy: () => {
@@ -28,6 +30,7 @@ function fakeContents() {
       // clear first so the fake does not retain what Electron would not.
       const firing = [...listeners];
       listeners.clear();
+
       for (const listener of firing) listener();
     },
     listenerCount: () => listeners.size,
@@ -41,6 +44,7 @@ function createPermissions() {
   const permissions = new Permissions(prompts);
   const seen: (PromptHead | null)[] = [];
   permissions.observe((head) => seen.push(head));
+
   return { permissions, seen, prompts };
 }
 
@@ -49,6 +53,7 @@ const at = (url: string) => ({ requestingUrl: url });
 /** Pulls the permission-shaped {id, state} out of the prompts queue for assertions. */
 function permissionsPending(permissions: Permissions): PromptHead[] {
   const pending = permissions.pending;
+
   // SAFETY: Permissions#pending is typed as the broad head pair; the
   // test only ever pushes permission-kind states through this instance,
   // so the assertion narrows without runtime risk.

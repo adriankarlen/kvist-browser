@@ -15,6 +15,7 @@ function createHost() {
   const loaded: string[] = [];
   const sent: { channel: string; payload?: unknown }[] = [];
   const finds: { query: string; options?: unknown }[] = [];
+
   const state = {
     url: "",
     canGoBack: false,
@@ -22,6 +23,7 @@ function createHost() {
     requestId: 0,
     webContentsReads: 0,
   };
+
   const calls = { stopFind: 0, focus: 0, crash: 0, close: 0 };
   let zoomLevel = 0;
   const zoomHistory: number[] = [];
@@ -36,6 +38,7 @@ function createHost() {
     loadURL: (url: string) => {
       loaded.push(url);
       state.url = url;
+
       return Promise.resolve();
     },
     getURL: () => state.url,
@@ -48,6 +51,7 @@ function createHost() {
     },
     findInPage: (query: string, options?: unknown) => {
       finds.push({ query, options });
+
       return ++state.requestId;
     },
     stopFindInPage: () => void calls.stopFind++,
@@ -72,6 +76,7 @@ function createHost() {
     removeInsertedCSS: () => Promise.resolve(),
     setZoomLevel: (level: number) => {
       zoomHistory.push(level);
+
       // Mock Chromium's clamp at the edges.
       if (level < -2.8) zoomLevel = -2.8;
       else if (level > 5.7) zoomLevel = 5.7;
@@ -90,6 +95,7 @@ function createHost() {
   const host = {
     get webContents() {
       state.webContentsReads++;
+
       return webContents;
     },
     setVisible: () => {},
@@ -114,6 +120,7 @@ function createHost() {
 
 function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
   const host = createHost();
+
   const callbacks: TabCallbacks = {
     changed: vi.fn(),
     died: vi.fn(),
@@ -130,6 +137,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
     fullscreenChange: vi.fn(),
     ...overrides,
   };
+
   return {
     tab: new Tab(1, host.host, callbacks, zoom ?? new ZoomStore(), "https://a.example"),
     host,
@@ -198,6 +206,7 @@ test("one failure reported twice renders one error page", () => {
 
 test("a retry of the same URL renders the error page again", () => {
   const { host } = createTab();
+
   const fail = (): void => {
     host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
   };
@@ -229,6 +238,7 @@ test("loading the error page does not clear the dedupe", () => {
 
 test("an error page that fails does not stack another on top", () => {
   const { host } = createTab();
+
   const errorUrl = formatErrorPageUrl({
     code: -105,
     description: "boom",
@@ -519,6 +529,7 @@ test("an error page is reported as the wrapper it is, not the site that failed",
 test("a link click with a scheme the desktop owns is handed off, with its scheme and the page's origin", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
   host.state.url = "https://example.com/signin";
 
@@ -527,6 +538,7 @@ test("a link click with a scheme the desktop owns is handed off, with its scheme
     isMainFrame: true,
     preventDefault: vi.fn(),
   };
+
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).toHaveBeenCalled();
@@ -543,6 +555,7 @@ test("a link click with a scheme the desktop owns is handed off, with its scheme
 test("a non-http(s) page asking is not attributed to an origin, but is still a page asking", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
   host.state.url = "kvist://newtab/";
 
@@ -561,6 +574,7 @@ test("a non-http(s) page asking is not attributed to an origin, but is still a p
 test("a link click with a scheme this browser loads itself navigates as usual", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
 
   const details = {
@@ -568,6 +582,7 @@ test("a link click with a scheme this browser loads itself navigates as usual", 
     isMainFrame: true,
     preventDefault: vi.fn(),
   };
+
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).not.toHaveBeenCalled();
@@ -577,6 +592,7 @@ test("a link click with a scheme this browser loads itself navigates as usual", 
 test("a sub-frame navigation is not handed off, even for a scheme the desktop owns", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
 
   host.emit("will-navigate", {
@@ -591,6 +607,7 @@ test("a sub-frame navigation is not handed off, even for a scheme the desktop ow
 test("navigate() hands off a scheme the desktop owns instead of loading it, with no origin", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("mailto:foo@bar.com");
@@ -607,6 +624,7 @@ test("navigate() does not treat a typed host:port as a scheme to hand off", () =
   // dev server address in the omnibox would offer to hand itself to the OS.
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("localhost:3000");
@@ -621,6 +639,7 @@ test("navigate() still hands off tel: with a short, digits-only number", () => {
   // and must still reach the external-protocol prompt.
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("tel:123");
@@ -632,6 +651,7 @@ test("navigate() still hands off tel: with a short, digits-only number", () => {
 test("navigate() still loads a regular URL", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("https://example.com/page");
@@ -643,6 +663,7 @@ test("navigate() still loads a regular URL", () => {
 test("a closed tab never reports an external handoff", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab } = createTab({ externalRequest });
 
   tab.close();

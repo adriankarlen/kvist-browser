@@ -194,7 +194,9 @@ export function createActions(
    */
   const zoomableOrigin = (): string | null => {
     const active = tabs.active;
+
     if (active === undefined) return null;
+
     // An error page is a local page standing in for a failed load. The
     // snapshot's URL is already the failed site's with the wrapper stripped,
     // so it cannot be told apart by parsing — only the tab's own state knows.
@@ -202,7 +204,9 @@ export function createActions(
     // the wrapper happened to show.
     if (active.showsErrorPage) return null;
     const url = active.snapshot().url;
+
     if (url === "") return null;
+
     return originOf(url);
   };
 
@@ -213,11 +217,15 @@ export function createActions(
    */
   const setActiveZoom = (level: number): void => {
     const origin = zoomableOrigin();
+
     if (origin === null) {
       messages.warn("no zoomable page here");
+
       return;
     }
+
     const applied = tabs.active?.setZoomLevel(level);
+
     if (applied === null || applied === undefined) return;
     // Pin to whatever Chromium actually accepted, so the stored value matches.
     zoom.set(origin, applied);
@@ -231,12 +239,16 @@ export function createActions(
    */
   const resetActiveZoomView = (): void => {
     const active = tabs.active;
+
     if (active === undefined) return;
     const origin = zoomableOrigin();
+
     if (origin === null) {
       messages.warn("no zoomable page here");
+
       return;
     }
+
     active.setZoomLevel(0);
     messages.say("zoom 100%");
   };
@@ -311,16 +323,21 @@ export function createActions(
       cancel: (arg) => {
         if (arg === undefined) {
           downloads.cancelNth();
+
           return;
         }
+
         // A command argument is a string; anything that is not a row number is
         // no row at all, and cancelling the newest transfer instead would be a
         // surprising answer to a typo.
         const row = Number(arg);
+
         if (!Number.isInteger(row) || row < 1) {
           messages.warn(`not a download row: ${arg}`);
+
           return;
         }
+
         downloads.cancelNth(row);
       },
     },
@@ -334,25 +351,34 @@ export function createActions(
       // freshly opened tab is empty rather than yet another about:blank.
       yank: () => {
         const url = tabs.active?.snapshot().url;
+
         if (url === undefined || url === "") {
           messages.warn("no URL to yank");
+
           return;
         }
+
         void clipboard.write(url);
         messages.say(`yanked ${url}`);
       },
       open: () => {
         void clipboard.read().then((raw) => {
           const text = raw.trim();
+
           if (text === "") {
             messages.warn("clipboard is empty");
+
             return;
           }
+
           const active = tabs.active;
+
           if (active === undefined) {
             messages.warn("no active tab");
+
             return;
           }
+
           active.navigate(resolveUrl(text, getSearchUrl()));
         });
       },
@@ -360,10 +386,13 @@ export function createActions(
       openNewTab: () => {
         void clipboard.read().then((raw) => {
           const text = raw.trim();
+
           if (text === "") {
             messages.warn("clipboard is empty");
+
             return;
           }
+
           tabs.create(resolveUrl(text, getSearchUrl()));
         });
       },
@@ -374,15 +403,21 @@ export function createActions(
       // not hold up or hide the others.
       open: () => {
         const url = tabs.active?.snapshot().url;
+
         if (url === undefined || url === "") {
           messages.warn("no page to style");
+
           return;
         }
+
         const files = userStyles.filesFor(url);
+
         if (files.length === 0) {
           messages.warn("no style file matches this page");
+
           return;
         }
+
         for (const file of files) {
           void opener.openPath(file).then((error) => {
             if (error !== "") messages.warn(`could not open ${file}: ${error}`);
@@ -393,18 +428,25 @@ export function createActions(
     bookmark: {
       toggle: () => {
         const snapshot = tabs.active?.snapshot();
+
         if (snapshot === undefined || snapshot.url === "") {
           messages.warn("no page to bookmark");
+
           return;
         }
+
         const { url } = snapshot;
+
         if (bookmarks.has(url)) {
           bookmarks.removeUrl(url);
           messages.say(`removed bookmark ${url}`);
+
           return;
         }
+
         // `add` rejects an empty title, and a page that never set one has nothing better.
         const title = snapshot.title.trim() || url;
+
         if (bookmarks.add({ url, title })) messages.say(`bookmarked ${title}`);
         else messages.warn(`cannot bookmark ${url}`);
       },
@@ -426,13 +468,18 @@ export function createActions(
           messages.warn(
             "zoom needs a level, e.g. `:zoom 1.5` or `:zoom -1` (`:z0` resets only the current view)",
           );
+
           return;
         }
+
         const level = Number(arg);
+
         if (!Number.isFinite(level)) {
           messages.warn(`not a zoom level: ${arg}`);
+
           return;
         }
+
         setActiveZoom(level);
       },
     },

@@ -32,12 +32,15 @@ const NATIVE_SCHEMES = new Set([
  */
 export function externalProtocolTarget(raw: string): string | null {
   let protocol: string;
+
   try {
     protocol = new URL(raw).protocol;
   } catch {
     return null;
   }
+
   const scheme = protocol.slice(0, -1);
+
   return NATIVE_SCHEMES.has(scheme) ? null : scheme;
 }
 
@@ -49,13 +52,16 @@ export function externalProtocolTarget(raw: string): string | null {
  */
 export function looksLikeHostPort(raw: string): boolean {
   let parsed: URL;
+
   try {
     parsed = new URL(raw);
   } catch {
     return false;
   }
+
   if (parsed.hostname !== "" || !/^\d+(\/.*)?$/.test(parsed.pathname)) return false;
   const word = parsed.protocol.slice(0, -1);
+
   return word === "localhost" || word.includes(".");
 }
 
@@ -67,6 +73,7 @@ export function looksLikeHostPort(raw: string): boolean {
  */
 function keyOf(origin: string | null, scheme: string, selfInitiated: boolean): string {
   const bucket = selfInitiated ? "self" : (origin ?? "page");
+
   return `${bucket} ${scheme}`;
 }
 
@@ -137,12 +144,15 @@ export class ExternalProtocols {
   ): void {
     const key = keyOf(origin, scheme, selfInitiated);
     const known = this.#decisions.get(key);
+
     if (known === true) return this.#open(url);
+
     if (known === false) {
       // Silence here would be indistinguishable from a broken sign-in flow:
       // the one thing worth saying is what was blocked and how to undo it.
       const site = origin === null ? "" : ` for ${new URL(origin).host}`;
       this.#warn(`${scheme}: is blocked${site} — restart kvist to ask again`);
+
       return;
     }
 
@@ -150,13 +160,16 @@ export class ExternalProtocols {
       (entry) =>
         entry.origin === origin && entry.scheme === scheme && entry.selfInitiated === selfInitiated,
     );
+
     if (waiting !== undefined) {
       waiting.urls.push(url);
+
       if (contents === null) {
         waiting.hasUnwatchedRequest = true;
       } else if (!waiting.watchers.some((watcher) => watcher.contents === contents)) {
         waiting.watchers.push(this.#watch(waiting.promptsId, contents));
       }
+
       return;
     }
 
@@ -164,6 +177,7 @@ export class ExternalProtocols {
       { kind: "external-protocol", origin, scheme, url },
       (allow) => this.#settle(promptsId, allow),
     );
+
     const entry: PendingExternal = {
       promptsId,
       origin,
@@ -173,6 +187,7 @@ export class ExternalProtocols {
       watchers: [],
       hasUnwatchedRequest: contents === null,
     };
+
     if (contents !== null) entry.watchers.push(this.#watch(promptsId, contents));
     this.#pending.push(entry);
   }
@@ -208,6 +223,7 @@ export class ExternalProtocols {
   #watch(promptsId: number, contents: PageContents): Watcher {
     const onDestroyed = (): void => this.#dropWatcher(promptsId, contents);
     contents.once("destroyed", onDestroyed);
+
     return { contents, release: () => contents.removeListener("destroyed", onDestroyed) };
   }
 
@@ -219,9 +235,11 @@ export class ExternalProtocols {
    */
   #dropWatcher(promptsId: number, contents: PageContents): void {
     const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);
+
     if (entry === undefined) return;
 
     entry.watchers = entry.watchers.filter((watcher) => watcher.contents !== contents);
+
     if (entry.watchers.length > 0 || entry.hasUnwatchedRequest) return;
 
     this.#pending = this.#pending.filter((candidate) => candidate.promptsId !== promptsId);
@@ -230,11 +248,13 @@ export class ExternalProtocols {
 
   #settle(promptsId: number, allow: boolean): void {
     const index = this.#pending.findIndex((entry) => entry.promptsId === promptsId);
+
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
 
     for (const watcher of entry.watchers) watcher.release();
     this.#decisions.set(keyOf(entry.origin, entry.scheme, entry.selfInitiated), allow);
+
     if (allow) for (const url of entry.urls) this.#open(url);
   }
 }

@@ -60,6 +60,7 @@ export class Downloads {
   attach(session: Session): void {
     session.on("will-download", (_event, item, webContents) => {
       this.#adopt(item);
+
       // A `target="_blank"` download has already cost us a tab that will never
       // paint, because the window-open handler cannot know a URL is a download.
       if (webContents !== null && !webContents.isDestroyed()) this.#onTabDownload(webContents);
@@ -86,6 +87,7 @@ export class Downloads {
     const before = this.#items.length;
     this.#items = this.#items.filter((entry) => !isFinished(entry.status));
     this.#flush();
+
     return before - this.#items.length;
   }
 
@@ -106,6 +108,7 @@ export class Downloads {
   cancelNth(n?: number): void {
     const entry =
       n === undefined ? this.#items.find((row) => !isFinished(row.status)) : this.#items[n - 1];
+
     if (entry !== undefined) this.cancel(entry.id);
   }
 
@@ -118,6 +121,7 @@ export class Downloads {
       fallback: app.getPath("downloads"),
       home: homedir(),
     });
+
     // A configured directory that does not exist yet would otherwise surface as
     // an interrupted download with nothing saying why.
     try {
@@ -125,6 +129,7 @@ export class Downloads {
     } catch (error) {
       this.#report(`could not create the download directory ${dir}: ${String(error)}`);
     }
+
     return dir;
   }
 
@@ -138,7 +143,9 @@ export class Downloads {
       item.getFilename(),
       (path) => this.#reserved.has(path) || existsSync(path),
     );
+
     this.#reserved.add(savePath);
+
     // From here until the listeners are attached, a throw would strand the
     // reservation with no `done` to release it — acquisition and its release
     // belong side by side.
@@ -164,6 +171,7 @@ export class Downloads {
     item.removeAllListeners("updated");
     item.removeAllListeners("done");
     const id = this.#nextId - 1;
+
     if (this.#live.get(id) === item) this.#live.delete(id);
     const url = item.getURL();
     this.#items = this.#items.filter((entry) => entry.url !== url);
@@ -182,6 +190,7 @@ export class Downloads {
       totalBytes: item.getTotalBytes(),
       bytesPerSecond: 0,
     };
+
     this.#items = [entry, ...this.#items];
     this.#live.set(entry.id, item);
     this.#flush();
@@ -194,6 +203,7 @@ export class Downloads {
       item.removeListener("updated", onUpdated);
       item.removeListener("done", onDone);
     };
+
     const onUpdated = (_event: Event, state: "progressing" | "interrupted"): void => {
       // Chromium reports a pause as `isPaused`, not as a state of its own, so
       // the list's `paused` is ours to derive.
@@ -207,6 +217,7 @@ export class Downloads {
       entry.bytesPerSecond = status === "paused" ? 0 : rate.rate;
       this.#schedule();
     };
+
     const onDone = (
       _event: Event,
       // `done` never reports `paused`; a paused transfer reports on resume.
@@ -223,6 +234,7 @@ export class Downloads {
       entry.bytesPerSecond = 0;
       this.#flush();
     };
+
     item.on("updated", onUpdated);
     item.once("done", onDone);
   }

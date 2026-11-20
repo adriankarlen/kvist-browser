@@ -51,6 +51,7 @@ export class UserStyles {
 
     for (const { id, source } of sources) {
       const parsed = parseUserCss(source);
+
       for (const problem of parsed.problems) problems.push({ id, ...problem });
 
       // No preprocessor lives in the browser: a file that needs compiling is
@@ -59,6 +60,7 @@ export class UserStyles {
       // anyway, marked non-injectable: the matchers parsed fine regardless of
       // the preprocessor, and `:style` still has to be able to find the file.
       const injectable = parsed.preprocessor === "default";
+
       if (!injectable) {
         problems.push({ id, reason: `skipped: @preprocessor ${parsed.preprocessor} is not run` });
       }
@@ -67,6 +69,7 @@ export class UserStyles {
     }
 
     this.#blocks = blocks;
+
     return problems;
   }
 

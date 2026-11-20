@@ -23,7 +23,9 @@ type Ruling = "grant" | "ask" | "deny";
 
 function policy(permission: string): Ruling {
   if (GRANT.has(permission)) return "grant";
+
   if (ASK.has(permission)) return "ask";
+
   return "deny";
 }
 
@@ -41,9 +43,11 @@ function sameMediaTypes(
   b: ("video" | "audio")[] | undefined,
 ): boolean {
   if (a === undefined || b === undefined) return a === b;
+
   if (a.length !== b.length) return false;
   const sortedA = [...a].sort();
   const sortedB = [...b].sort();
+
   return sortedA.every((type, index) => type === sortedB[index]);
 }
 
@@ -151,16 +155,20 @@ export class Permissions {
     mediaType?: "video" | "audio" | "unknown",
   ): boolean {
     const ruling = policy(permission);
+
     if (ruling === "grant") return true;
+
     if (ruling === "deny") return false;
 
     const origin = httpOrigin(requestingOrigin);
+
     if (origin === null) return false;
 
     if (permission === "media") {
       // The camera and the microphone are remembered separately; a check that
       // cannot say which one is meant cannot be answered from that memory.
       if (mediaType !== "video" && mediaType !== "audio") return false;
+
       return this.#decisions.get(keyOf(origin, permission, mediaType)) ?? false;
     }
 
@@ -175,18 +183,23 @@ export class Permissions {
     details: PermissionRequestDetails,
   ): void {
     const ruling = policy(permission);
+
     if (ruling === "grant") return callback(true);
+
     if (ruling === "deny") return callback(false);
 
     const origin = httpOrigin(details.requestingUrl);
+
     if (origin === null) return callback(false);
 
     if (permission === "media") {
       this.#requestMedia(contents, callback, origin, details.mediaTypes);
+
       return;
     }
 
     const known = this.#decisions.get(keyOf(origin, permission));
+
     if (known !== undefined) return callback(known);
 
     // SAFETY: ruling === "ask" here is exactly the PromptablePermission set.
@@ -206,10 +219,12 @@ export class Permissions {
   ): void {
     const types: ("video" | "audio")[] =
       mediaTypes && mediaTypes.length > 0 ? mediaTypes : ["video", "audio"];
+
     const remembered = types.map((type) => this.#decisions.get(keyOf(origin, "media", type)));
 
     // A device kind already refused stays refused.
     if (remembered.some((decision) => decision === false)) return callback(false);
+
     // Every kind this request names has already been allowed.
     if (remembered.every((decision) => decision === true)) return callback(true);
 
@@ -220,6 +235,7 @@ export class Permissions {
     const unresolved = types.filter(
       (type) => this.#decisions.get(keyOf(origin, "media", type)) === undefined,
     );
+
     this.#queue(contents, callback, origin, "media", unresolved);
   }
 
@@ -242,8 +258,10 @@ export class Permissions {
         entry.permission === permission &&
         sameMediaTypes(entry.mediaTypes, mediaTypes),
     );
+
     if (waiting !== undefined) {
       waiting.waiters.push(this.#waiterFor(waiting.promptsId, contents, callback));
+
       return;
     }
 
@@ -251,6 +269,7 @@ export class Permissions {
       { kind: "permission", origin, permission, mediaTypes },
       (allow) => this.#settle(promptsId, allow),
     );
+
     const entry: PendingRequest = { promptsId, origin, permission, mediaTypes, waiters: [] };
     entry.waiters.push(this.#waiterFor(promptsId, contents, callback));
     this.#pending.push(entry);
@@ -264,6 +283,7 @@ export class Permissions {
   ): Waiter {
     const onDestroyed = (): void => this.#dropWaiter(promptsId, contents);
     contents.once("destroyed", onDestroyed);
+
     return { contents, callback, release: () => contents.removeListener("destroyed", onDestroyed) };
   }
 
@@ -279,6 +299,7 @@ export class Permissions {
 
   #settle(promptsId: number, allow: boolean): void {
     const index = this.#pending.findIndex((entry) => entry.promptsId === promptsId);
+
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
 
@@ -296,6 +317,7 @@ export class Permissions {
     // answered now, so there is nothing left for it to watch for.
     for (const waiter of entry.waiters) {
       waiter.release();
+
       if (!waiter.contents.isDestroyed()) waiter.callback(allow);
     }
   }
@@ -308,9 +330,11 @@ export class Permissions {
    */
   #dropWaiter(promptsId: number, contents: WebContents): void {
     const entry = this.#pending.find((candidate) => candidate.promptsId === promptsId);
+
     if (entry === undefined) return;
 
     entry.waiters = entry.waiters.filter((waiter) => waiter.contents !== contents);
+
     if (entry.waiters.length > 0) return;
 
     this.#pending = this.#pending.filter((candidate) => candidate.promptsId !== promptsId);

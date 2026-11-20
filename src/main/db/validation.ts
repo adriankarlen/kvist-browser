@@ -30,8 +30,10 @@ const ArkErrors = type.errors;
  */
 export function parse<T>(validator: Type<T>, value: unknown): ParseResult<T> {
   const result = validator(value);
+
   if (result instanceof ArkErrors) {
     const first = result[0];
+
     if (first === undefined) {
       // ArkType can in principle produce an empty errors array; the result
       // still failed, so fall back to a generic message rather than
@@ -41,11 +43,13 @@ export function parse<T>(validator: Type<T>, value: unknown): ParseResult<T> {
         problem: { field: "<root>", reason: "did not match the expected shape" },
       };
     }
+
     return {
       value: undefined,
       problem: { field: fieldOf(first.path), reason: first.problem },
     };
   }
+
   // SAFETY: the success branch of a Type<T> is the value parsed to T; the
   // `finalizeDistillation` wrapper is an internal ArkType detail, not a
   // representation choice the caller can opt out of.
@@ -61,9 +65,11 @@ export function parseAll<T>(
   value: unknown,
 ): { value: T; problems: Problem[] } | { problems: Problem[] } {
   const result = validator(value);
+
   if (result instanceof ArkErrors) {
     return { problems: result.map((p) => ({ field: fieldOf(p.path), reason: p.problem })) };
   }
+
   // SAFETY: same as `parse()`.
   return { value: result as T, problems: [] };
 }
@@ -75,6 +81,7 @@ export function parseAll<T>(
  */
 function fieldOf(path: ReadonlyArray<PropertyKey>): string {
   if (path.length === 0) return "<root>";
+
   return path
     .map((segment) => (Number.isInteger(segment) ? `[${String(segment)}]` : String(segment)))
     .join(".")

@@ -12,6 +12,7 @@ function createMessages() {
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   const release = messages.observe((message) => seen.push(message));
+
   return { messages, seen, release };
 }
 

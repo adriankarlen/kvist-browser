@@ -28,7 +28,9 @@
    */
   function size(entry: DownloadState): string {
     const received = formatBytes(entry.receivedBytes);
+
     if (!moving(entry) || entry.totalBytes <= 0) return received;
+
     return `${received} / ${formatBytes(entry.totalBytes)}`;
   }
 </script>

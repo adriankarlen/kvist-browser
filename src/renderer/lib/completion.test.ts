@@ -93,9 +93,11 @@ test("selectFirst: false means Enter with no explicit selection is left for the 
 
 test("close clears the list and invalidates any in-flight query", async () => {
   let resolve: (candidates: Candidate[]) => void = () => {};
+
   const pending = new Promise<Candidate[]>((r) => {
     resolve = r;
   });
+
   const completion = createCompletion(() => pending);
 
   const update = completion.update("q");
@@ -110,9 +112,11 @@ test("close clears the list and invalidates any in-flight query", async () => {
 
 test("a newer update supersedes an older, still in-flight one", async () => {
   let resolveFirst: (candidates: Candidate[]) => void = () => {};
+
   const first = new Promise<Candidate[]>((r) => {
     resolveFirst = r;
   });
+
   let call = 0;
   const completion = createCompletion(() => (call++ === 0 ? first : candidates("b")));
 

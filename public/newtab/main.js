@@ -18,6 +18,9 @@ function initScaling() {
 }
 
 initScaling();
+
 void initClock();
+
 void initLinks();
+
 initScratchpad();

@@ -47,6 +47,7 @@ export class ReplaceableStylesheet {
       if (target.isDestroyed()) return;
 
       const previous = this.#keys.get(target);
+
       if (previous !== undefined) {
         // Delete only after removal succeeds: a transient failure leaves the
         // sheet in the DOM, and keeping the key lets the next queued swap retry
@@ -54,6 +55,7 @@ export class ReplaceableStylesheet {
         await target.removeInsertedCSS(previous);
         this.#keys.delete(target);
       }
+
       if (css.length === 0 || target.isDestroyed()) return;
 
       this.#keys.set(target, await target.insertCSS(css, { cssOrigin: this.#origin }));
@@ -65,6 +67,7 @@ export class ReplaceableStylesheet {
     const queued = (this.#chains.get(target) ?? Promise.resolve())
       .then(swap, swap)
       .catch(logFailure(this.#what));
+
     this.#chains.set(target, queued);
   }
 }

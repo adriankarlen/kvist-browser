@@ -51,34 +51,43 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     showsErrorPage: false,
     setZoomLevel: vi.fn<(level: number) => number>(() => 0),
   };
+
   const tabs = {
     active,
     create: vi.fn<(url?: string) => void>(),
     closeActive: vi.fn(),
     step: vi.fn<(offset: number) => void>(),
   };
+
   const downloads = {
     cancelNth: vi.fn<(row?: number) => void>(),
     clear: vi.fn(),
   };
+
   const prompts = {
     answerHead: vi.fn<(allow: boolean) => void>(),
   };
+
   const zoom = {
     get: vi.fn<(origin: string) => number>(() => 0),
     set: vi.fn<(origin: string, level: number) => void>(),
     release: vi.fn(),
   };
+
   const saved = new Set<string>();
+
   const bookmarks = {
     has: vi.fn((url: string) => saved.has(url)),
     add: vi.fn((input: { url: string; title: string }) => {
       saved.add(input.url);
+
       return true;
     }),
     removeUrl: vi.fn((url: string) => (saved.delete(url) ? 1 : 0)),
   };
+
   const sent: { channel: string; payload?: unknown }[] = [];
+
   const win = {
     isDestroyed: () => false,
     webContents: {
@@ -86,6 +95,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
       focus: vi.fn(),
     },
   };
+
   const quit = vi.fn();
   const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
   const clipboard = createClipboardStub();
@@ -107,6 +117,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     quit,
     getSearchUrl,
   );
+
   return {
     commands: createCommands(actions),
     tabs,
@@ -133,6 +144,7 @@ test("an unknown command is reported rather than thrown", () => {
 
 test("what every object inherits is not a command", () => {
   const { commands } = createStubs();
+
   for (const inherited of ["toString", "valueOf", "constructor", "hasOwnProperty", "__proto__"]) {
     expect(commands.execute(inherited)).toBe(false);
   }
@@ -152,6 +164,7 @@ test("every command reaches the thing it names", () => {
     bookmarks,
     quit,
   } = createStubs();
+
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -262,6 +275,7 @@ test("tab.next and tab.prev step either way", () => {
 
 test("each scroll command names its own movement", () => {
   const { commands, active } = createStubs();
+
   for (const name of [
     "scroll.down",
     "scroll.up",
@@ -272,6 +286,7 @@ test("each scroll command names its own movement", () => {
   ]) {
     commands.execute(name);
   }
+
   expect(active.scroll.mock.calls.flat()).toEqual([
     "down",
     "up",
@@ -787,6 +802,7 @@ test("every completed name runs", () => {
   const { commands } = createStubs();
   const offered = "abcdefghijklmnopqrstuvwxyz0".split("").flatMap((c) => completeCommand(c));
   expect(offered.length).toBeGreaterThan(0);
+
   for (const { value } of offered) {
     expect(commands.execute(value), value).toBe(true);
   }

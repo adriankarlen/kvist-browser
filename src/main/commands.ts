@@ -112,8 +112,10 @@ export function createCommands(actions: Actions): Commands {
   return {
     execute(nameOrAlias, arg) {
       const run = commands.get(nameOrAlias) ?? commands.get(aliases.get(nameOrAlias) ?? "");
+
       if (!run) return false;
       run(arg);
+
       return true;
     },
   };
@@ -129,6 +131,7 @@ function withArg(name: string, arg: string | undefined): string {
  */
 export function completeCommand(line: string): CompletionCandidate[] {
   const word = line.trimStart();
+
   if (word === "" || /\s/.test(word)) return [];
   const prefix = word.toLowerCase();
   const matches = (name: string): boolean => name.toLowerCase().startsWith(prefix);
@@ -141,6 +144,7 @@ export function completeCommand(line: string): CompletionCandidate[] {
       kind: "alias",
       hint: withArg(name, specs.get(name)?.arg),
     }));
+
   const fromCommands = [...specs]
     .filter(([name, spec]) => !spec.keybindOnly && matches(name))
     .map(([name, spec]): CompletionCandidate => ({
@@ -149,5 +153,6 @@ export function completeCommand(line: string): CompletionCandidate[] {
       kind: "command",
       hint: spec.arg,
     }));
+
   return [...fromAliases, ...fromCommands];
 }

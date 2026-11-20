@@ -7,6 +7,7 @@ import type { UserStyleSource } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 
 let dir: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "kvist-styles-"));
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -20,6 +21,7 @@ afterEach(async () => {
 /** Polls until `condition` is true or the deadline passes, for the debounced watcher. */
 async function waitFor(condition: () => boolean, timeoutMs = 2000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
+
   while (!condition()) {
     if (Date.now() > deadline) throw new Error("condition never became true");
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -148,6 +150,7 @@ test("release before the debounce fires cancels the rescan outright", async () =
 test("release during an in-flight rescan drops its result", async () => {
   const onChange = vi.fn<(sources: UserStyleSource[]) => void>();
   let resolveRead: ((sources: UserStyleSource[]) => void) | undefined;
+
   const read = vi.fn(
     () =>
       new Promise<UserStyleSource[]>((resolve) => {
@@ -182,6 +185,7 @@ test("a directory that cannot be created yields a no-op release", async () => {
 test("a slow rescan cannot overwrite a result from one started after it", async () => {
   const onChange = vi.fn<(sources: UserStyleSource[]) => void>();
   const resolvers: ((sources: UserStyleSource[]) => void)[] = [];
+
   const read = vi.fn(
     () =>
       new Promise<UserStyleSource[]>((resolve) => {
@@ -217,6 +221,7 @@ test("a slow rescan cannot overwrite a result from one started after it", async 
 
 test("a watch that cannot be acquired yields a no-op release rather than throwing", async () => {
   const onChange = vi.fn<(sources: UserStyleSource[]) => void>();
+
   const watchDir = vi.fn(() => {
     throw new Error("EMFILE: too many open files");
   });

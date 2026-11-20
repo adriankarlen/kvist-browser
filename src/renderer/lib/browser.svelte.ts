@@ -36,12 +36,14 @@ export function createContentRect(bridge: Pick<KvistApi, "setContentRect">) {
       const style = getComputedStyle(node);
       const padLeft = parseFloat(style.paddingLeft);
       const padTop = parseFloat(style.paddingTop);
+
       const rect: Rect = {
         x: Math.round(box.x + node.clientLeft + padLeft),
         y: Math.round(box.y + node.clientTop + padTop),
         width: Math.round(node.clientWidth - padLeft - parseFloat(style.paddingRight)),
         height: Math.round(node.clientHeight - padTop - parseFloat(style.paddingBottom)),
       };
+
       bridge.setContentRect(rect);
     };
 

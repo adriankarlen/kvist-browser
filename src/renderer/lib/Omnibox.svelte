@@ -12,6 +12,7 @@
 
   $effect(() => {
     const url = browser.active?.url ?? "";
+
     if (!focused) draft = url;
   });
 
@@ -22,6 +23,7 @@
   const completion = createCompletion(
     async (query) => {
     const rows = await window.kvist.omniboxSuggestions(query);
+
     return rows.map(
       (row): Candidate => ({
         label: row.label,
@@ -43,10 +45,13 @@
   $effect(() => {
     if (!focused || draft.trim() === "") {
       completion.close();
+
       return;
     }
+
     const query = draft;
     const timer = setTimeout(() => void completion.update(query), 75);
+
     return () => clearTimeout(timer);
   });
 
@@ -56,6 +61,7 @@
     completion.close();
     acceptSuggestion(candidate);
   });
+
   $effect(() => () => overlay.release());
 
   /**
@@ -66,10 +72,13 @@
    */
   $effect(() => {
     const box = anchor.current;
+
     if (!focused || box === null || !completion.open) {
       overlay.hide();
+
       return;
     }
+
     overlay.show({
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
@@ -84,11 +93,13 @@
   // on the page.
   const zoom = $derived.by(() => {
     const level = browser.active?.zoomLevel ?? 0;
+
     return Math.round(100 * 1.2 ** level);
   });
 
   function submit(event: SubmitEvent): void {
     event.preventDefault();
+
     if (draft.trim() === "") return;
     window.kvist.navigate(resolveUrl(draft, ui.searchUrl));
     input?.blur();
@@ -103,6 +114,7 @@
 
   function onkeydown(event: KeyboardEvent): void {
     if (handleCompletionKey(completion, event, acceptSuggestion)) return;
+
     if (event.key !== "Escape") return;
     event.preventDefault();
     input?.blur();
@@ -118,6 +130,7 @@
 
   function onblur(): void {
     focused = false;
+
     // The window going to the background also blurs the input. Dropping to
     // normal there would pull focus onto the page behind the user's back, so
     // only treat a blur as leaving the omnibox while the chrome still has it.

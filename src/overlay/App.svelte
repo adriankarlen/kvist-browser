@@ -12,6 +12,7 @@
   // `$state` proxy cannot cross IPC — structured clone rejects it, so a
   // clicked row would never reach the chrome.
   let state = $state.raw<CompletionOverlayState | null>(null);
+
   /**
    * Where main wants the list drawn inside the view it sized. The view's
    * bounds are whole pixels and the omnibox is not, so the last fraction of
@@ -22,9 +23,11 @@
   window.kvistOverlay.onCompletionState((next) => {
     state = next;
   });
+
   window.kvistOverlay.onCompletionInset((next) => {
     inset = next;
   });
+
   window.kvistOverlay.onCompletionCss((css) => injectUserCss(css));
 
   /**
@@ -34,9 +37,11 @@
   const reportHeight: Attachment<HTMLElement> = (node) => {
     const report = (): void =>
       window.kvistOverlay.completionHeight(node.getBoundingClientRect().height);
+
     const observer = new ResizeObserver(report);
     observer.observe(node);
     report();
+
     return () => observer.disconnect();
   };
 

@@ -36,7 +36,9 @@ async function read(file: string): Promise<string> {
   } catch (error) {
     // SAFETY: readFile rejects with a Node system error, which carries `code`.
     const { code } = error as NodeJS.ErrnoException;
+
     if (code !== "ENOENT") console.error(`kvist: could not read ${file}:`, error);
+
     return "";
   }
 }
@@ -52,6 +54,7 @@ export function describeProblem({ field, reason }: Problem): string {
   // A problem with the file itself names the file as its field; saying so
   // twice reads as a bug.
   const where = field === TOML_FILE ? TOML_FILE : `${TOML_FILE}: ${field}`;
+
   return `${where}: ${reason}`;
 }
 
@@ -64,6 +67,7 @@ export async function loadConfig(store: ConfigStore): Promise<LoadedConfig> {
   const [css, toml] = await Promise.all([read(CSS_FILE), read(TOML_FILE)]);
   const { settings, problems } = parseSettings(toml, store.lastGood);
   store.lastGood = settings;
+
   return { config: { css, settings }, problems };
 }
 
@@ -80,6 +84,7 @@ export async function watchConfig(
   await mkdir(configDir, { recursive: true });
 
   let timer: NodeJS.Timeout | undefined;
+
   const watcher = watch(configDir, (_event, filename) => {
     if (filename !== CSS_FILE && filename !== TOML_FILE) return;
     clearTimeout(timer);

@@ -24,8 +24,10 @@ const KIND_TOKEN_PATTERN = /^[a-z0-9-]+$/i;
 export function kindBadgeStyle(candidate: Pick<CompletionCandidate, "kind">): string {
   const kind =
     candidate.kind && KIND_TOKEN_PATTERN.test(candidate.kind) ? candidate.kind : undefined;
+
   const fg = kind
     ? `var(--kv-completion-kind-${kind}-fg, var(--kv-completion-badge-fg))`
     : "var(--kv-completion-badge-fg)";
+
   return `color: ${fg}; background: color-mix(in srgb, ${fg} var(--kv-completion-badge-tint), var(--kv-completion-bg))`;
 }

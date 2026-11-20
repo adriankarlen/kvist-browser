@@ -16,12 +16,15 @@ const tab = (id: number): TabState => ({
 
 function createBridge() {
   let publish: (state: BrowserState) => void = () => {};
+
   const browser = createBrowser({
     onState: (listener: (state: BrowserState) => void) => {
       publish = listener;
+
       return () => {};
     },
   });
+
   return { browser, send: (state: BrowserState) => publish(state) };
 }
 

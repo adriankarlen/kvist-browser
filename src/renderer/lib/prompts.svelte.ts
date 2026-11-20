@@ -35,6 +35,7 @@ export function describePrompt(prompt: PromptState): string {
         : `Restore ${prompt.tabCount} tabs from your last session?`;
     case "external-protocol": {
       const target = truncate(prompt.url);
+
       return prompt.origin === null
         ? `Open ${target}?`
         : `${hostOf(prompt.origin)} wants to open ${target}`;
@@ -69,11 +70,16 @@ function describePermission(prompt: Extract<PromptState, { kind: "permission" }>
       const types = new Set(prompt.mediaTypes ?? []);
       const video = types.has("video");
       const audio = types.has("audio");
+
       if (video && audio) return "use your camera and microphone";
+
       if (video) return "use your camera";
+
       if (audio) return "use your microphone";
+
       return "use your camera or microphone";
     }
+
     case "geolocation":
       return "know your location";
     case "notifications":
@@ -107,6 +113,7 @@ export function createPrompts(bridge: Pick<KvistApi, "onPrompt" | "answerPrompt"
      */
     answer(allow: boolean): void {
       const prompt = state.current;
+
       if (prompt) bridge.answerPrompt({ id: prompt.id, allow });
     },
   };

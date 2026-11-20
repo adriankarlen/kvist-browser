@@ -14,6 +14,7 @@
   });
 
   const overlay = completionOverlay.claim(accept);
+
   $effect(() => () => overlay.release());
 
   // Opening is driven by main switching mode, so focus follows the mode rather
@@ -29,10 +30,13 @@
   // HTML cannot overlap a tab. Snapshotted: a `$state` proxy cannot cross IPC.
   $effect(() => {
     const box = anchor.current;
+
     if (box === null || !completion.open) {
       overlay.hide();
+
       return;
     }
+
     overlay.show({
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
@@ -56,12 +60,15 @@
 
   function onkeydown(event: KeyboardEvent): void {
     if (handleCompletionKey(completion, event, accept)) return;
+
     // Tab only ever completes here; moving focus off the line would strand
     // command mode with nothing to type into.
     if (event.key === "Tab") {
       event.preventDefault();
+
       return;
     }
+
     if (event.key !== "Escape") return;
     event.preventDefault();
     vim.toNormal();

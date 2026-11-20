@@ -64,6 +64,7 @@ function injectCosmetics(
   const parsed = parse(url);
   // `msg` is absent on the first call and present for DOM-driven updates.
   const isFirstRun = msg === undefined;
+
   const { active, styles, scripts } = blocker.getCosmeticsFilters({
     domain: parsed.domain ?? "",
     hostname: parsed.hostname ?? "",
@@ -90,6 +91,7 @@ function injectCosmetics(
   }
 
   if (!active) return;
+
   for (const script of scripts) runScriptlet(sender, script);
 }
 
@@ -98,6 +100,7 @@ export function refreshCosmeticStyles(sender: StylesheetTarget, url: string): vo
   if (!blocker || !enabled || sender.isDestroyed()) return;
 
   const parsed = parse(url);
+
   const { active, styles } = blocker.getCosmeticsFilters({
     domain: parsed.domain ?? "",
     hostname: parsed.hostname ?? "",
@@ -115,7 +118,9 @@ export function refreshCosmeticStyles(sender: StylesheetTarget, url: string): vo
 /** Rejects a cached engine past its shelf life, so `fromCached` refetches. */
 async function readIfFresh(path: string): Promise<Buffer> {
   const { mtimeMs } = await stat(path);
+
   if (Date.now() - mtimeMs > MAX_ENGINE_AGE) throw new Error("cached engine is stale");
+
   return readFile(path);
 }
 
@@ -127,6 +132,7 @@ async function readIfFresh(path: string): Promise<Buffer> {
 const fetchWithTimeout: typeof fetch = (input, init) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
 };
 
@@ -140,10 +146,12 @@ async function engine(): Promise<ElectronBlocker> {
   if (blocker) return blocker;
 
   const path = join(app.getPath("userData"), "adblocker-engine.bin");
+
   const build = (read: (path: string) => Promise<Buffer>): Promise<ElectronBlocker> =>
     ElectronBlocker.fromPrebuiltAdsAndTracking(fetchWithTimeout, { path, read, write: writeFile });
 
   let instance: ElectronBlocker;
+
   try {
     instance = await build(readIfFresh);
   } catch {
@@ -162,6 +170,7 @@ async function engine(): Promise<ElectronBlocker> {
   };
 
   blocker = instance;
+
   return instance;
 }
 
@@ -175,10 +184,12 @@ export async function applySettings(config: {
   settings: Pick<Settings, "adblock">;
 }): Promise<void> {
   const next = config.settings.adblock;
+
   if (next === enabled) return;
 
   try {
     const instance = await engine();
+
     if (next) instance.enableBlockingInSession(session.defaultSession);
     else instance.disableBlockingInSession(session.defaultSession);
     enabled = next;

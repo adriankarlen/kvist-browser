@@ -36,6 +36,7 @@ export function startRate(bytes: number, at: number): RateState {
  */
 export function sampleRate(prev: RateState, bytes: number, at: number): RateState {
   const elapsed = at - prev.at;
+
   if (elapsed < MIN_SAMPLE_MS) return prev;
 
   // A retried transfer can restart its byte count, and a clock is never quite
@@ -44,5 +45,6 @@ export function sampleRate(prev: RateState, bytes: number, at: number): RateStat
   // The first accepted sample has nothing to average against, so it stands as
   // the rate — otherwise every download would open at a third of its speed.
   const rate = prev.rate === 0 ? instant : prev.rate + ALPHA * (instant - prev.rate);
+
   return { bytes, at, rate };
 }

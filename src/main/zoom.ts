@@ -18,6 +18,7 @@ function isFiniteNumber(value: unknown): value is number {
  * limits clamp between 50% and 300%, which is what we honour.
  */
 export const STEP = 1;
+
 /** The user-visible maximum Chromium actually accepts is a touch above 300% and below 50%. */
 const FLOOR = -2.8;
 const CEILING = 5.7;
@@ -51,9 +52,11 @@ export class ZoomStore {
    */
   static async load(dir: string = configDir): Promise<ZoomStore> {
     const store = new ZoomStore(dir);
+
     try {
       const raw = await readFile(join(dir, ZOOM_FILE), "utf8");
       const parsed: unknown = JSON.parse(raw);
+
       if (isObject(parsed)) {
         for (const [origin, value] of Object.entries(parsed)) {
           if (isFiniteNumber(value)) {
@@ -64,8 +67,10 @@ export class ZoomStore {
     } catch (error) {
       // SAFETY: readFile rejects with a Node system error, which carries `code`.
       const { code } = error as NodeJS.ErrnoException;
+
       if (code !== "ENOENT") console.error("kvist: could not read zoom.json:", error);
     }
+
     return store;
   }
 
@@ -95,7 +100,9 @@ export class ZoomStore {
       clearTimeout(this.#timer);
       this.#timer = undefined;
     }
+
     this.#released = true;
+
     if (this.#pending) this.#writeSync();
   }
 
@@ -106,6 +113,7 @@ export class ZoomStore {
 
   #schedule(): void {
     this.#pending = true;
+
     if (this.#timer !== undefined) return;
     this.#timer = setTimeout(() => {
       this.#timer = undefined;
@@ -133,6 +141,7 @@ export class ZoomStore {
     this.#pending = false;
     const target = join(this.#dir, ZOOM_FILE);
     const tmp = `${target}.quit.tmp`;
+
     try {
       mkdirSync(this.#dir, { recursive: true });
       writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.#levels), null, 2), "utf8");
@@ -147,6 +156,7 @@ export class ZoomStore {
     // Write to a temp file then rename, so a crash mid-write cannot leave a
     // truncated zoom.json that boots into an empty map.
     const tmp = `${target}.tmp`;
+
     // mkdir lives inside the try so a failure here — like any other fs
     // failure — is logged rather than rejecting #lastWrite, which release()'s
     // fire-and-forget call would otherwise leave unhandled and poisoned for
@@ -154,6 +164,7 @@ export class ZoomStore {
     try {
       await mkdir(this.#dir, { recursive: true });
       await writeFile(tmp, JSON.stringify(snapshot, null, 2), "utf8");
+
       // This snapshot was taken before release() wrote the map out, so
       // renaming it over the quit-time file would put back a state the user
       // has already moved on from.
@@ -168,7 +179,9 @@ export class ZoomStore {
 /** Levels outside Chromium's accepted range are pinned at the nearest edge. */
 export function clamp(level: number): number {
   if (level < FLOOR) return FLOOR;
+
   if (level > CEILING) return CEILING;
+
   return level;
 }
 

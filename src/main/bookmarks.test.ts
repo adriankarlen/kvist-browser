@@ -49,6 +49,7 @@ test("add rejects an explicit null createdAt rather than defaulting it", () => {
     title: "Example",
     createdAt: null as unknown as number,
   };
+
   expect(bookmarks.add(bad)).toBe(false);
   expect(bookmarks.list()).toEqual([]);
 });

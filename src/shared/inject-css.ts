@@ -9,10 +9,12 @@ const USER_STYLE_ID = "kv-user-config";
  */
 export function injectUserCss(css: string): void {
   let element = document.getElementById(USER_STYLE_ID);
+
   if (!element) {
     element = document.createElement("style");
     element.id = USER_STYLE_ID;
     document.head.append(element);
   }
+
   element.textContent = css;
 }

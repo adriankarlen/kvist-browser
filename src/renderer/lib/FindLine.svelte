@@ -3,6 +3,7 @@
   import { find, vim } from "./stores.svelte";
 
   let input = $state<HTMLInputElement>();
+
   // Bound rather than read from the store: the store's query is already ""
   // when the prompt reopens, so nothing would tell the input to clear itself.
   let query = $state("");
@@ -18,7 +19,9 @@
 
   const count = $derived.by(() => {
     const result = find.result;
+
     if (result === null) return "";
+
     return result.matches === 0
       ? "no matches"
       : `${result.active}/${result.matches}`;

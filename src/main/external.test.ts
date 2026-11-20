@@ -96,6 +96,7 @@ type PromptHead = { id: number; state: PromptState };
 function fakeContents() {
   const listeners = new Set<() => void>();
   let destroyed = false;
+
   // SAFETY: partial stub — ExternalProtocols only reaches once/removeListener.
   const contents = {
     once: (_event: string, listener: () => void) => {
@@ -105,12 +106,14 @@ function fakeContents() {
       listeners.delete(listener);
     },
   } as unknown as PageContents;
+
   return {
     contents,
     destroy: () => {
       destroyed = true;
       const firing = [...listeners];
       listeners.clear();
+
       for (const listener of firing) listener();
     },
     isDestroyed: () => destroyed,
@@ -125,6 +128,7 @@ function createExternalProtocols() {
   const externalProtocols = new ExternalProtocols(prompts, open, warn);
   const seen: (PromptHead | null)[] = [];
   externalProtocols.observe((head) => seen.push(head));
+
   return { externalProtocols, open, warn, seen, prompts };
 }
 

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { clamp, flushOnQuit, ZoomStore } from "./zoom";
 
 let dir: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "kvist-zoom-"));
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -116,6 +117,7 @@ test("clamp pins out-of-range values at the nearest edge", () => {
 test("a quit flushes a queued write without cancelling the quit", async () => {
   const store = await ZoomStore.load(dir);
   const listeners: (() => void)[] = [];
+
   // SAFETY: the fake implements exactly the on("will-quit") surface flushOnQuit
   // uses. There is deliberately no `quit` — re-arming the quit is the bug this
   // replaced: Electron drops an `app.quit()` that lands on the same tick as the
@@ -125,9 +127,11 @@ test("a quit flushes a queued write without cancelling the quit", async () => {
       listeners.push(listener);
     },
   } as unknown as Pick<App, "on">;
+
   flushOnQuit(app, store);
 
   store.set("https://a.example", 1);
+
   for (const listener of listeners) listener();
 
   // On disk by the time will-quit returns — no promise to await, so nothing

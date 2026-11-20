@@ -22,10 +22,12 @@ function createBridge() {
     bridge: {
       onDownloads: (listener: (list: DownloadState[]) => void) => {
         push = listener;
+
         return () => {};
       },
       onDownloadsToggle: (listener: () => void) => {
         toggle = listener;
+
         return () => {};
       },
       cancelDownload,
@@ -37,6 +39,7 @@ function createBridge() {
 }
 
 beforeEach(() => vi.useFakeTimers());
+
 afterEach(() => vi.useRealTimers());
 
 test("a transfer in flight shows the panel", () => {

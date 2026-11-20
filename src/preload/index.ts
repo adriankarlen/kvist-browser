@@ -19,6 +19,7 @@ const api: KvistApi = {
   ...listeners(toChrome, (channel, listener) => {
     const handler = (_event: unknown, payload: unknown): void => listener(payload);
     ipcRenderer.on(channel, handler);
+
     return () => void ipcRenderer.off(channel, handler);
   }),
   ...invokers(toMainQueries, (channel, request) => ipcRenderer.invoke(channel, request)),

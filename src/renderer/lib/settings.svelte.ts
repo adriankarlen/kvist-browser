@@ -25,6 +25,7 @@ export function createUi(
       state.orientation = null;
       bridge.orientationOverride(null);
     }
+
     state.settings = config.settings;
     applyCss(config.css);
   });

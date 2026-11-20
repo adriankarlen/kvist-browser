@@ -28,9 +28,11 @@ export function createCompletionOverlay(
     claim(onAccept: (candidate: CompletionCandidate) => void): CompletionOverlayClient {
       const id = Symbol("completion-client");
       accepts.set(id, onAccept);
+
       const hide = (): void => {
         if (owner === id) bridge.completionOverlay(null);
       };
+
       return {
         show(state) {
           owner = id;
@@ -40,6 +42,7 @@ export function createCompletionOverlay(
         release() {
           hide();
           accepts.delete(id);
+
           if (owner === id) owner = null;
         },
       };

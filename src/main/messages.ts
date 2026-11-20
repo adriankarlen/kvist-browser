@@ -17,6 +17,7 @@ export class Messages {
    */
   observe(observer: (message: Message | null) => void): () => void {
     this.#observers.add(observer);
+
     return () => void this.#observers.delete(observer);
   }
 

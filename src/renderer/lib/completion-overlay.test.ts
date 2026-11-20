@@ -4,13 +4,16 @@ import { createCompletionOverlay } from "./completion-overlay";
 
 function createBridge() {
   let deliver: (candidate: CompletionCandidate) => void = () => {};
+
   const bridge = {
     completionOverlay: vi.fn<(state: CompletionOverlayState | null) => void>(),
     onCompletionAccept: (listener: (candidate: CompletionCandidate) => void) => {
       deliver = listener;
+
       return () => {};
     },
   };
+
   return { bridge, pick: (candidate: CompletionCandidate) => deliver(candidate) };
 }
 

@@ -16,6 +16,7 @@ export function defaultMigrationsFolder(): string {
   if (process.env.VITE_DEV_SERVER_URL !== undefined) {
     return join(app.getAppPath(), "src", "main", "db", "migrations");
   }
+
   return fileURLToPath(new URL("./migrations/", import.meta.url));
 }
 
@@ -56,6 +57,7 @@ export class Database {
     client.exec("PRAGMA busy_timeout = 5000");
 
     const db = drizzle({ client });
+
     // An empty folder is a no-op for the migrator (the state this
     // ticket ships in). A missing one is not: electron-builder drops
     // `.gitkeep`, so the packaged app has no `migrations` folder at

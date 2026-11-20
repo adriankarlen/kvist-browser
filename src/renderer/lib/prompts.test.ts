@@ -10,6 +10,7 @@ function createBridge() {
     bridge: {
       onPrompt: (listener: (prompt: PromptWire | null) => void) => {
         push = listener;
+
         return () => {};
       },
       answerPrompt,
@@ -34,6 +35,7 @@ const permission = (
     permission: kind,
     mediaTypes,
   } as Extract<PromptState, { kind: "permission" }>;
+
   return { id, state };
 };
 
@@ -60,6 +62,7 @@ test("the question main asks is the one shown", () => {
 
   push(permission(1, "geolocation"));
   expect(prompts.current?.state.kind).toBe("permission");
+
   if (prompts.current?.state.kind !== "permission") return;
   expect(prompts.current.state.permission).toBe("geolocation");
 

@@ -6,6 +6,7 @@ const APP_DIR = "kvist";
 
 function xdg(variable: string, fallback: string): string {
   const base = process.env[variable];
+
   return join(base && base !== "" ? base : join(homedir(), fallback), APP_DIR);
 }
 

@@ -25,6 +25,7 @@ test("no two channels claim the same wire name", () => {
   const names = [toMain, toChrome, fromPage, toPage].flatMap((channels) =>
     Object.keys(channels).map(wire),
   );
+
   names.push(...Object.keys(toMainQueries).map(wire));
   expect(new Set(names).size).toBe(names.length);
 });
@@ -56,6 +57,7 @@ test("an invoker invokes its own channel and returns the response", async () => 
   const invoke = vi.fn<(channel: string, request: unknown) => Promise<unknown>>(async () => [
     { label: "a", value: "a", kind: "history" },
   ]);
+
   const api = invokers(toMainQueries, invoke);
 
   const response = await api.omniboxSuggestions("a");
@@ -87,8 +89,10 @@ test("a table's sending half is exactly its channels", () => {
 test("listeners are named on-the-channel and pass the payload through", () => {
   const subscriptions = new Map<string, (payload: unknown) => void>();
   const unsubscribe = vi.fn();
+
   const api = listeners(toChrome, (channel, listener) => {
     subscriptions.set(channel, listener);
+
     return unsubscribe;
   });
 

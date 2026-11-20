@@ -30,6 +30,7 @@ export function openTestDatabase(label: string): TestDatabase {
   }
 
   const db = Database.open(join(dir, `${label}.db`), migDir);
+
   return { dir, db };
 }
 

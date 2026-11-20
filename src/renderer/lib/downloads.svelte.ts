@@ -34,6 +34,7 @@ export function createDownloads(
     // looking.
     const settled =
       !first && list.some((entry) => isFinished(entry) && seen.get(entry.id) !== entry.status);
+
     first = false;
     seen = new Map(list.map((entry) => [entry.id, entry.status]));
     state.list = list;

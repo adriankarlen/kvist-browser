@@ -4,14 +4,17 @@ import { createFind } from "./find.svelte";
 
 function createBridge() {
   let report: (result: FindResult | null) => void = () => {};
+
   const bridge = {
     onFindResult: (listener: (result: FindResult | null) => void) => {
       report = listener;
+
       return () => {};
     },
     find: vi.fn<(query: string) => void>(),
     stopFind: vi.fn(),
   };
+
   return { find: createFind(bridge), send: (result: FindResult | null) => report(result), bridge };
 }
 

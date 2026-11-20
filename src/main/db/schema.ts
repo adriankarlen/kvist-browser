@@ -5,5 +5,7 @@
  * `Database.open` applies.
  */
 export * from "./schema/bookmarks";
+
 export * from "./schema/history";
+
 export * from "./schema/session";

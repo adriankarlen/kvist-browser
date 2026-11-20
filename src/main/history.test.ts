@@ -36,6 +36,7 @@ test("record drops error-page wrappers and does not pollute the table", () => {
     description: "name not resolved",
     url: "https://gone.example/",
   });
+
   expect(record(wrapper)).toBe(false);
   expect(history.recent()).toEqual([]);
 });

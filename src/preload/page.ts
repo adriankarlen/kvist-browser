@@ -4,9 +4,11 @@ import * as hints from "./hints";
 import * as menu from "./menu";
 
 const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+
 const fromMain = listeners(toPage, (channel, listener) => {
   const handler = (_event: unknown, payload: unknown): void => listener(payload);
   ipcRenderer.on(channel, handler);
+
   return () => void ipcRenderer.off(channel, handler);
 });
 
@@ -40,6 +42,7 @@ function isEditable(node: Element | null): boolean {
   // SAFETY: the preload runs in its own world, so instanceof cannot be trusted;
   // the probed properties are optional and read with `=== true`.
   const element = node as HTMLElement & { disabled?: boolean; readOnly?: boolean; type?: string };
+
   if (element.disabled === true || element.readOnly === true) return false;
 
   switch (element.tagName) {
@@ -58,6 +61,7 @@ let last: boolean | null = null;
 
 function report(): void {
   const editable = isEditable(document.activeElement);
+
   if (editable === last) return;
   last = editable;
   pageToMain.pageEditable(editable);
@@ -66,6 +70,7 @@ function report(): void {
 // focusout fires before the next element takes focus, so let focus settle
 // before reading it or every tab between two fields looks like a blur.
 document.addEventListener("focusin", report, true);
+
 document.addEventListener("focusout", () => setTimeout(report, 0), true);
 
 fromMain.onPageBlur(() => {
@@ -111,7 +116,9 @@ fromMain.onHintsShow(() => {
 
 fromMain.onHintsKey((input) => {
   const { done, click } = hints.key(input);
+
   if (click) pageToMain.hintsClick(click);
+
   if (done) pageToMain.hintsDone();
 });
 

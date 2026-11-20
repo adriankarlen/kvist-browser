@@ -14,10 +14,12 @@ export function interceptKeys(
 ): void {
   contents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
+
     const consumed = onKey(
       { key: input.key, control: input.control, alt: input.alt, meta: input.meta },
       source,
     );
+
     if (consumed) event.preventDefault();
   });
 }

@@ -171,6 +171,7 @@ test("a file with no metadata block is global CSS, at-rules and all", () => {
   // so a stray @document in it cannot silently scope the whole file away.
   const source = `@-moz-document domain("a.example") { body { color: red } }
 a { color: gray }`;
+
   const parsed = parseUserCss(source);
 
   expect(parsed.blocks).toEqual([{ matchers: null, css: source }]);
@@ -335,6 +336,7 @@ test("CSS escape sequences in matcher values are decoded", () => {
 @name Escape
 ==/UserStyle== */
 @-moz-document regexp("https://a\\\\.example/") { a {} }`);
+
   const matcher = parsed.blocks[0]!.matchers![0]!;
   // One backslash in the stored value: `\.`
   expect(matcher.value).toBe("https://a\\.example/");

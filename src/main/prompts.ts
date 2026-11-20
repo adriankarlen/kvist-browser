@@ -27,6 +27,7 @@ export class Prompts<T> {
     const id = this.#nextId++;
     this.#pending.push({ id, state, answer });
     this.#notify();
+
     return id;
   }
 
@@ -37,6 +38,7 @@ export class Prompts<T> {
    */
   answer(id: number, allow: boolean): void {
     const index = this.#pending.findIndex((entry) => entry.id === id);
+
     if (index === -1) return;
     const [entry] = this.#pending.splice(index, 1);
     this.#notify();
@@ -50,6 +52,7 @@ export class Prompts<T> {
    */
   answerHead(allow: boolean): void {
     const head = this.#pending[0];
+
     if (head !== undefined) this.answer(head.id, allow);
   }
 
@@ -60,6 +63,7 @@ export class Prompts<T> {
    */
   cancel(id: number): void {
     const index = this.#pending.findIndex((entry) => entry.id === id);
+
     if (index === -1) return;
     this.#pending.splice(index, 1);
     this.#notify();
@@ -78,6 +82,7 @@ export class Prompts<T> {
   observe(observer: (head: { id: number; state: T } | null) => void): () => void {
     this.#observers.add(observer);
     observer(this.#toWire(this.#pending[0]));
+
     return () => void this.#observers.delete(observer);
   }
 
@@ -92,8 +97,10 @@ export class Prompts<T> {
 
   #notify(): void {
     const headEntry = this.#pending[0] ?? null;
+
     if (headEntry === this.#lastEntry) return;
     this.#lastEntry = headEntry;
+
     for (const observer of this.#observers)
       observer(this.#toWire(headEntry === null ? undefined : headEntry));
   }

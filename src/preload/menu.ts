@@ -39,9 +39,11 @@ function onAway(): void {
 
 function row(item: ContextMenuState["items"][number], pick: (id: string) => void): HTMLElement {
   const element = document.createElement("li");
+
   if (item.type === "separator") {
     element.className = "kv-menu__separator";
     element.setAttribute("role", "separator");
+
     return element;
   }
 
@@ -64,6 +66,7 @@ function row(item: ContextMenuState["items"][number], pick: (id: string) => void
     if (!event.isTrusted || !item.enabled) return;
     pick(item.id);
   });
+
   return element;
 }
 
@@ -82,6 +85,7 @@ export function show(state: ContextMenuState): void {
   const list = document.createElement("ul");
   list.className = "kv-menu";
   list.setAttribute("role", "menu");
+
   for (const item of state.items) {
     list.appendChild(row(item, (id) => close(id)));
   }

@@ -13,10 +13,12 @@ function createBridge() {
       {
         onConfig: (listener: (config: UserConfig) => void) => {
           broadcast = listener;
+
           return () => {};
         },
         onRestoreSession: (listener) => {
           onRestore = listener;
+
           return () => {};
         },
         orientationOverride,

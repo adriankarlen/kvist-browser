@@ -38,10 +38,12 @@ export async function readStyleFiles(dir: string = stylesDir): Promise<UserStyle
     await mkdir(dir, { recursive: true });
   } catch (error) {
     console.error("kvist: could not create the styles directory:", error);
+
     return [];
   }
 
   let entries: string[];
+
   try {
     const found = await readdir(dir, { withFileTypes: true });
     entries = found
@@ -50,16 +52,19 @@ export async function readStyleFiles(dir: string = stylesDir): Promise<UserStyle
       .sort();
   } catch (error) {
     console.error("kvist: could not list the styles directory:", error);
+
     return [];
   }
 
   const sources = await Promise.all(
     entries.map(async (name): Promise<UserStyleSource | null> => {
       const path = join(dir, name);
+
       try {
         return { id: path, source: await readFile(path, "utf8") };
       } catch (error) {
         console.error(`kvist: could not read ${name}:`, error);
+
         return null;
       }
     }),
@@ -90,6 +95,7 @@ export async function watchStyleFiles(
     await mkdir(dir, { recursive: true });
   } catch (error) {
     console.error("kvist: could not create the styles directory:", error);
+
     return () => {};
   }
 
@@ -107,6 +113,7 @@ export async function watchStyleFiles(
   let timer: NodeJS.Timeout | undefined;
 
   let watcher: ReturnType<typeof watch>;
+
   try {
     watcher = watchDir(dir, () => {
       clearTimeout(timer);
@@ -128,6 +135,7 @@ export async function watchStyleFiles(
     // never runs either, so this fails the same way an unmakeable directory
     // does: logged, answered with a no-op release.
     console.error("kvist: could not watch the styles directory:", error);
+
     return () => {};
   }
 

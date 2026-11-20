@@ -14,6 +14,7 @@ export interface Placement {
 
 function clamp(value: number, max: number): number {
   if (value < 0) return 0;
+
   return value > max ? max : value;
 }
 

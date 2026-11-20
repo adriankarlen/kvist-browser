@@ -162,8 +162,10 @@ test("the observer stops firing after the release is called", () => {
 
 test("ids are unique across asks", () => {
   const ids = new Set<number>();
+
   for (let i = 0; i < 5; i++) {
     ids.add(prompts.ask(label(`q${i}`), () => {}));
   }
+
   expect(ids.size).toBe(5);
 });

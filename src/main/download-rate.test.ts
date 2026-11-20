@@ -33,9 +33,11 @@ test("later samples are smoothed rather than replacing the rate", () => {
 test("a stalled transfer decays towards zero", () => {
   let state = sampleRate(startRate(0, 0), 10_000, 1000);
   expect(state.rate).toBe(10_000);
+
   for (let n = 0; n < 20; n++) {
     state = sampleRate(state, 10_000, state.at + 500);
   }
+
   expect(state.rate).toBeLessThan(10);
 });
 

@@ -24,11 +24,13 @@ export interface OmniboxSources {
 function dedupeByUrl<T extends { url: string }>(rows: T[]): T[] {
   const seen = new Set<string>();
   const deduped: T[] = [];
+
   for (const row of rows) {
     if (seen.has(row.url)) continue;
     seen.add(row.url);
     deduped.push(row);
   }
+
   return deduped;
 }
 
@@ -44,10 +46,12 @@ export function omniboxSuggestions(sources: OmniboxSources, query: unknown): Omn
   // One trim up front: an empty query (invalid payload or whitespace) answers
   // nothing, and neither source search should see padded input.
   const trimmed = validated.problem === undefined ? validated.value.trim() : "";
+
   if (trimmed === "") return [];
 
   const bookmarkRows = dedupeByUrl(sources.bookmarks.search(trimmed, { limit: SOURCE_LIMIT }));
   const bookmarked = new Set(bookmarkRows.map((row) => row.url));
+
   const historyRows = dedupeByUrl(sources.history.search(trimmed, { limit: SOURCE_LIMIT })).filter(
     (row) => !bookmarked.has(row.url),
   );

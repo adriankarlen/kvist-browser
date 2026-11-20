@@ -53,6 +53,7 @@ import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 
 applyXdgPaths();
+
 registerKvistScheme();
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
@@ -61,6 +62,7 @@ const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
+
 /** A `:` line as it arrives over IPC, parsed rather than trusted. */
 const commandLine = type("string");
 
@@ -145,7 +147,9 @@ let applying: Promise<void> = Promise.resolve();
  */
 function reportProblems({ problems }: LoadedConfig): void {
   const [first, ...rest] = problems;
+
   if (first === undefined) return;
+
   for (const problem of rest) console.error(`kvist: ${describeProblem(problem)}`);
   const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
   messages.warn(`${describeProblem(first)}${more}`);
@@ -158,7 +162,9 @@ function reportProblems({ problems }: LoadedConfig): void {
  */
 function reportStyleProblems(problems: UserStyleProblem[]): void {
   const [first, ...rest] = problems;
+
   if (first === undefined) return;
+
   for (const problem of rest) console.error(`kvist: ${problem.id}: ${problem.reason}`);
   const more = rest.length === 0 ? "" : ` (+${rest.length} more)`;
   // The echo area names the file, not the full path — the log line above
@@ -183,12 +189,14 @@ function applyConfig(config: UserConfig): Promise<void> {
       // opened mid-apply cannot configure itself from a config the local pages
       // and the blocker have not seen yet.
       current = config;
+
       for (const apply of windows) apply(config);
     })
     // A failure must not poison the queue: the next save has to be applied
     // even if this one could not be.
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejection reason is unknown; it is only logged
     .catch((error: unknown) => console.error("kvist: could not apply the config:", error));
+
   return applying;
 }
 
@@ -201,6 +209,7 @@ function isPoint(value: unknown): value is Point {
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: just checked value is a non-null object; x and y are validated below.
   const { x, y } = value as Point;
+
   return Number.isFinite(x) && Number.isFinite(y);
 }
 
@@ -209,6 +218,7 @@ function isPromptAnswer(value: unknown): value is { id: number; allow: boolean }
   if (typeof value !== "object" || value === null) return false;
   // SAFETY: just checked value is a non-null object; id and allow are validated below.
   const { id, allow } = value as { id: number; allow: boolean };
+
   return Number.isInteger(id) && typeof allow === "boolean";
 }
 
@@ -243,6 +253,7 @@ function createWindow(
   });
 
   const views = new ViewStack(win.contentView);
+
   const tabs = new TabManager(
     win,
     views,
@@ -251,6 +262,7 @@ function createWindow(
     (state) => chrome.state(state),
     (url) => bookmarks.has(url),
   );
+
   const releaseBookmarks = bookmarks.observe(() => tabs.refresh());
   tabManagers.add(tabs);
 
@@ -261,17 +273,21 @@ function createWindow(
       const contents = view.webContents;
       view.setBackgroundColor("#00000000");
       views.addOverlay(view);
+
       const loaded = process.env.VITE_DEV_SERVER_URL
         ? contents.loadURL(new URL("overlay.html", process.env.VITE_DEV_SERVER_URL).href)
         : contents.loadFile(overlayHtml);
+
       // Destroy failed loads so the next completion can build a fresh view.
       void loaded.catch(() => {
         if (!contents.isDestroyed()) contents.close();
       });
+
       return {
         host: view,
         release: () => {
           views.remove(view);
+
           if (!contents.isDestroyed()) contents.close();
         },
       };
@@ -317,6 +333,7 @@ function createWindow(
     // without the window being recreated.
     () => current.settings.searchUrl,
   );
+
   const commands = createCommands(actions);
 
   const vim = new Vim(
@@ -342,12 +359,14 @@ function createWindow(
   // from — the page's keys and the chrome's both arrive here.
   const onKey = (input: KeyInput, source: KeySource): boolean => {
     messages.keyPressed();
+
     // find.clear swallows Escape in normal mode (Vim#dispatch matches and
     // calls event.preventDefault), which would otherwise be the only chance
     // Chromium's built-in "Escape exits HTML fullscreen" gets — so that has
     // to be reimplemented here, falling out to whatever normal-mode Escape
     // already does, matching every other browser.
     if (tabs.isHtmlFullscreen && input.key === "Escape") tabs.leaveHtmlFullscreen();
+
     return vim.handleKey(input, source);
   };
 
@@ -405,8 +424,10 @@ function createWindow(
 
   const runCommand = (line: string): void => {
     const [name = "", ...rest] = line.trim().split(/\s+/);
+
     if (name === "") return;
     const arg = rest.join(" ") || undefined;
+
     if (!commands.execute(name, arg)) {
       messages.warn(`unknown command :${name}`);
     }
@@ -418,6 +439,7 @@ function createWindow(
   // most recently closed window is what the next launch restores.
   win.on("close", () => {
     if (win.isDestroyed()) return;
+
     // A window closed mid-prompt, with no answer, is not a decision.
     // The chrome rendered the prompt, the user dismissed the window
     // without clicking restore or discard, and the saved row must
@@ -427,7 +449,9 @@ function createWindow(
     for (const pending of prompts.pending) {
       if (pending.state.kind === "session-restore") prompts.cancel(pending.id);
     }
+
     const snapshot = tabs.urlsForSession();
+
     if (snapshot === null) {
       // No tabs at close time has two meanings now: the user closed
       // every tab they had open, or the prompt was never answered
@@ -438,6 +462,7 @@ function createWindow(
       const promptStillPending = prompts.pending.some(
         (entry) => entry.state.kind === "session-restore",
       );
+
       if (!promptStillPending) {
         // The prompt was answered and the user closed what they had —
         // either their only tab (the discard branch's homepage) or
@@ -446,8 +471,10 @@ function createWindow(
         // closing everything means.
         sessions.clear();
       }
+
       return;
     }
+
     const bounds = win.getBounds();
     sessions.save(
       {
@@ -478,6 +505,7 @@ function createWindow(
     // Same for anything already said: a config the user has broken is found
     // while the window is still loading, and the echo area was not there yet.
     chrome.message(messages.current);
+
     // The observer already wired `chrome.prompt` to the queue head on
     // subscribe, and a question asked during page load (none today, but
     // possible) would already have reached the chrome by the time we get
@@ -498,8 +526,10 @@ function createWindow(
           // explicitly re-flipped the orientation.
           orientationOverride = null;
           tabs.create();
+
           return;
         }
+
         // The chrome seeds its orientation override from the saved flip
         // before any tabs are created, so the very first paint shows the
         // saved layout, not a horizontal default that flashes before
@@ -510,18 +540,24 @@ function createWindow(
         // shows; the final `activate` is what lands on the saved one.
         let activeId: TabId | null = null;
         let firstCreatedId: TabId | null = null;
+
         for (let i = 0; i < saved.tabs.length; i++) {
           const url = saved.tabs[i]!;
           const id = tabs.create(url, { background: true });
+
           if (id === null) continue;
+
           if (firstCreatedId === null) firstCreatedId = id;
+
           if (i === saved.activeIndex) activeId = id;
         }
+
         // An external-protocol URL at the saved active index (a
         // hand-edited or partially corrupt row) leaves no activated tab
         // and every view hidden — a window of chrome over nothing. Fall
         // back to the first created tab so something is on screen.
         if (activeId === null) activeId = firstCreatedId;
+
         if (activeId !== null) tabs.activate(activeId);
       });
     } else {
@@ -608,6 +644,7 @@ function createWindow(
  * another instance.
  */
 const gotTheLock = app.requestSingleInstanceLock();
+
 if (!gotTheLock) {
   app.quit();
 } else {
@@ -616,6 +653,7 @@ if (!gotTheLock) {
     // refocus whatever window the user is likely after.
     const windows = BrowserWindow.getAllWindows();
     const target = windows[0];
+
     if (target !== undefined) {
       if (target.isMinimized()) target.restore();
       target.focus();
@@ -630,13 +668,16 @@ if (!gotTheLock) {
     // a window that never appears, which is what an unhandled rejection
     // here would do.
     let db: Database;
+
     try {
       db = Database.open(dbPath);
     } catch (error) {
       console.error("kvist: could not open the storage layer:", error);
       app.quit();
+
       return;
     }
+
     const config = createConfigStore();
     const history = new History(db);
     const bookmarks = new Bookmarks(db);
@@ -651,6 +692,7 @@ if (!gotTheLock) {
         omniboxSuggestions: (query) => omniboxSuggestions({ history, bookmarks }, query),
         commandCompletions: (line) => {
           const parsed = parse(commandLine, line);
+
           return parsed.problem === undefined ? completeCommand(parsed.value) : [];
         },
       },
@@ -676,12 +718,15 @@ if (!gotTheLock) {
     const sessions = new Session(db);
     const saved = sessions.load();
     createWindow(zoom, history, bookmarks, sessions, saved);
+
     const releaseConfig = await watchConfig(config, (next) => {
       reportProblems(next);
       void applyConfig(next.config);
     });
+
     const releaseStyleFiles = await watchStyleFiles((sources) => {
       reportStyleProblems(userStyles.setSources(sources));
+
       // A rescan otherwise only reaches a page on its next navigation — an edit
       // or a removed file has to take effect on what is already open, not just
       // on what loads afterward.
@@ -689,6 +734,7 @@ if (!gotTheLock) {
         tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
       }
     });
+
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has
     // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.

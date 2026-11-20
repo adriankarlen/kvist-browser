@@ -68,8 +68,11 @@ export class History {
    */
   record(input: RecordInput): boolean {
     const validated = parse(recordValidator, input);
+
     if (validated.problem !== undefined) return false;
+
     if (originOf(validated.value.url) === null) return false;
+
     if (errorPageTarget(validated.value.url) !== null) return false;
 
     this.#db.drizzle
@@ -81,6 +84,7 @@ export class History {
         visitedAt: validated.value.visitedAt,
       })
       .run();
+
     return true;
   }
 
@@ -92,6 +96,7 @@ export class History {
    */
   search(pattern: string, options: SearchOptions = {}): HistoryRow[] {
     const validation = parse(nonEmptyString, pattern);
+
     if (validation.problem !== undefined) return [];
     const limit = clampLimit(options.limit ?? DEFAULT_LIMIT);
     const like_ = `%${escapeLike(validation.value)}%`;
@@ -116,6 +121,7 @@ export class History {
   /** Newest rows, no query. The shape omnibox suggestions will likely want. */
   recent(limit: number = DEFAULT_LIMIT): HistoryRow[] {
     const capped = clampLimit(limit);
+
     return this.#db.drizzle
       .select({
         id: history.id,

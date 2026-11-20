@@ -95,6 +95,7 @@ export class TabManager {
     this.#window.on("leave-full-screen", () => {
       const id = this.#fullscreenId;
       this.#fullscreenId = null;
+
       if (id !== null) this.#tabs.get(id)?.setBounds(this.#contentRect);
     });
     // A display change, or the user resizing an already-fullscreen window
@@ -195,9 +196,11 @@ export class TabManager {
   /** Doubles as the sender check for the editable channel. */
   setEditable(sender: WebContents, editable: boolean): void {
     const tab = this.tabFor(sender);
+
     if (!tab) return;
 
     tab.setEditable(editable);
+
     // A background tab losing focus to the chrome must not drag mode with it.
     if (tab.id === this.#activeId && tab.isFocused()) this.#onEditable(editable);
   }
@@ -210,6 +213,7 @@ export class TabManager {
    */
   closeIfUncommitted(sender: WebContents): void {
     const tab = this.tabFor(sender);
+
     if (tab && !tab.committed) this.close(tab.id);
   }
 
@@ -232,12 +236,14 @@ export class TabManager {
     // Returning null lets session restore map its saved active index to a
     // real id without a special case for external-protocol URLs.
     const scheme = externalProtocolTarget(url);
+
     if (scheme !== null) {
       // No opener means this came from :tabnew, :open, the default homepage,
       // or a saved session row — the same ambiguous, typed-not-authored
       // input navigate() guards against, so a bare "localhost:3000" is not
       // mistaken for a scheme here either.
       const selfInitiated = options.contents === undefined;
+
       if (!(selfInitiated && looksLikeHostPort(url))) {
         this.#onExternal(
           url,
@@ -246,15 +252,19 @@ export class TabManager {
           selfInitiated,
           options.contents ?? null,
         );
+
         return null;
       }
     }
+
     const tab = this.#adopt(url, options.after);
     this.#views.addPage(this.#viewOf(tab));
     tab.setVisible(false);
     tab.navigate(url);
+
     if (options.background) this.#publish();
     else this.activate(tab.id);
+
     return tab.id;
   }
 
@@ -267,19 +277,23 @@ export class TabManager {
     if (this.#order.length === 0) return null;
     const urls = this.#order.map((id) => this.#tabs.get(id)!.snapshot().url);
     const activeIndex = this.#activeId === null ? 0 : this.#order.indexOf(this.#activeId);
+
     return { urls, activeIndex };
   }
 
   close(id: TabId): void {
     const tab = this.#tabs.get(id);
+
     if (!tab) return;
 
     // Closing the tab that owns fullscreen must not leave the window stuck
     // fullscreen over a view that is about to be removed.
     if (this.#fullscreenId === id) {
       this.#fullscreenId = null;
+
       if (!this.#window.isDestroyed()) this.#window.setFullScreen(false);
     }
+
     this.#views.remove(this.#viewOf(tab));
     tab.close();
     this.#forget(id);
@@ -287,13 +301,16 @@ export class TabManager {
 
   activate(id: TabId): void {
     const target = this.#tabs.get(id);
+
     if (!target) return;
     this.active?.hideContextMenu();
+
     // Switching tabs exits fullscreen, matching every other browser — the
     // `leave-full-screen` listener restores the outgoing tab's bounds.
     if (this.#fullscreenId !== null && this.#fullscreenId !== id && !this.#window.isDestroyed()) {
       this.#window.setFullScreen(false);
     }
+
     this.#activeId = id;
 
     for (const tab of this.#tabs.values()) {
@@ -309,6 +326,7 @@ export class TabManager {
     // mirror before the publish below, or the strip shows — and the next
     // zi/zo steps from — a stale level.
     target.syncZoom();
+
     // Hiding the view that had focus drops it back on the chrome, so without
     // this the page stops receiving keys after the first tab switch.
     if (this.#focusPage) {
@@ -316,6 +334,7 @@ export class TabManager {
       // Mode follows the tab you land on, not the one you left.
       this.#onEditable(target.editable);
     }
+
     // Matches are per tab, so the chrome has to be told whose it is showing.
     this.#onFind(target.findResult);
     this.#publish();
@@ -323,6 +342,7 @@ export class TabManager {
 
   setContentRect(rect: Rect): void {
     this.#contentRect = rect;
+
     // While a tab holds fullscreen, its view keeps the whole window's
     // bounds — the content rect resumes governing it once fullscreen ends.
     if (this.#fullscreenId === null) this.active?.setBounds(rect);
@@ -352,6 +372,7 @@ export class TabManager {
 
     this.#tabs.set(id, tab);
     const index = after === undefined ? -1 : this.#order.indexOf(after);
+
     if (index === -1) this.#order.push(id);
     else this.#order.splice(index + 1, 0, id);
 
@@ -366,6 +387,7 @@ export class TabManager {
   /** The whole window's client area, in the coordinate frame `setBounds` takes. */
   #windowRect(): Rect {
     const { width, height } = this.#window.getContentBounds();
+
     return { x: 0, y: 0, width, height };
   }
 
@@ -377,6 +399,7 @@ export class TabManager {
       },
       openRequest: (url, background, origin) => {
         const opener = this.#tabs.get(id);
+
         if (!opener || this.#window.isDestroyed()) return;
         this.create(url, {
           after: id,
@@ -407,6 +430,7 @@ export class TabManager {
           // `document.exitFullscreen()` on a page that is genuinely and
           // correctly fullscreen right now.
           if (this.#fullscreenId === id) return;
+
           // Only the active, visible tab may claim fullscreen; a hidden
           // document has no business holding it, and a second claim while
           // another tab already owns it is refused. A refusal has to say so
@@ -415,9 +439,12 @@ export class TabManager {
           // correct it.
           if (this.#fullscreenId !== null || id !== this.#activeId || this.#window.isDestroyed()) {
             this.#tabs.get(id)?.cancelFullscreen();
+
             return;
           }
+
           this.#fullscreenId = id;
+
           // Already fullscreen — a second HTML fullscreen request racing the
           // first's own exit, say — is a no-op on the window, so the
           // `enter-full-screen` event this otherwise waits for never fires.
@@ -441,6 +468,7 @@ export class TabManager {
    */
   #forget(id: TabId): void {
     const index = this.#order.indexOf(id);
+
     if (index === -1) return;
 
     this.#tabs.get(id)?.markDead();
@@ -450,11 +478,13 @@ export class TabManager {
 
     if (this.#order.length === 0) {
       this.#window.close();
+
       return;
     }
 
     if (this.#activeId !== id) {
       this.#publish();
+
       return;
     }
 

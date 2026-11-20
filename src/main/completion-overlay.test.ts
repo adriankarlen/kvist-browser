@@ -29,15 +29,18 @@ function createLease() {
   const emit = (event: string) => {
     for (const listener of listeners.get(event)?.splice(0) ?? []) listener();
   };
+
   const destroy = () => {
     destroyed = true;
     emit("destroyed");
   };
+
   const webContents = {
     once: (event: string, listener: () => void) => {
       const eventListeners = listeners.get(event) ?? [];
       eventListeners.push(listener);
       listeners.set(event, eventListeners);
+
       return webContents;
     },
     send: (channel: string, payload: unknown) => {
@@ -77,12 +80,14 @@ function setup(css = "") {
   const view = createLease();
   const open = vi.fn(() => view.lease);
   const restoreFocus = vi.fn();
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
     () => css,
     restoreFocus,
   );
+
   return { overlay, view, open, restoreFocus };
 }
 
@@ -118,6 +123,7 @@ test("a rebuilt view steals focus again, and it is handed back again", async () 
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
   const restoreFocus = vi.fn();
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
@@ -179,8 +185,10 @@ test.each(["before", "after"])(
     const { overlay, view } = setup();
 
     overlay.show(state("a"));
+
     if (timing === "before") overlay.setHeight(0);
     view.finishLoad();
+
     if (timing === "after") overlay.setHeight(0);
 
     expect(view.visible()).toBe(true);
@@ -311,6 +319,7 @@ test("the user's stylesheet reaches the overlay as soon as it can take it", () =
 test("a retheme after the overlay is up is pushed to it", () => {
   let css = "";
   const view = createLease();
+
   const overlay = new CompletionOverlay(
     () => view.lease,
     () => content,
@@ -392,6 +401,7 @@ test("a crashed renderer is released and replaced on the next show", () => {
   const first = createLease();
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
@@ -414,6 +424,7 @@ test("a destroyed renderer releases its view and is replaced on the next show", 
   const first = createLease();
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+
   const overlay = new CompletionOverlay(
     open,
     () => content,

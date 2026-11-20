@@ -20,6 +20,7 @@ export interface DownloadDirSources {
 
 function expandTilde(path: string): string {
   if (path === "~") return homedir();
+
   return path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
 }
 
@@ -37,8 +38,10 @@ export function resolveDownloadDir({
 }: DownloadDirSources): string {
   for (const candidate of [configured, env]) {
     const trimmed = candidate?.trim();
+
     if (trimmed !== undefined && trimmed !== "") return expandTilde(trimmed);
   }
+
   return fallback === home ? join(home, "Downloads") : fallback;
 }
 
@@ -53,6 +56,7 @@ export function uniqueSavePath(
   exists: (path: string) => boolean,
 ): string {
   const first = join(dir, filename);
+
   if (!exists(first)) return first;
 
   // ".tar.gz" counts as ".gz" here, so the suffix lands as "archive.tar-1.gz".
@@ -63,6 +67,7 @@ export function uniqueSavePath(
 
   for (let n = 1; ; n++) {
     const candidate = join(dir, `${stem}-${n}${extension}`);
+
     if (!exists(candidate)) return candidate;
   }
 }

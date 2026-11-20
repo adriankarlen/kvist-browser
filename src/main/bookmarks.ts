@@ -65,6 +65,7 @@ export class Bookmarks {
   /** Called after every write that changed a row. Returns the unsubscribe. */
   observe(observer: () => void): () => void {
     this.#observers.add(observer);
+
     return () => void this.#observers.delete(observer);
   }
 
@@ -81,6 +82,7 @@ export class Bookmarks {
   add(input: AddInput): boolean {
     const createdAt = input.createdAt === undefined ? Date.now() : input.createdAt;
     const validated = parse(addValidator, { ...input, createdAt });
+
     if (validated.problem !== undefined) return false;
 
     this.#db.drizzle
@@ -92,6 +94,7 @@ export class Bookmarks {
       })
       .run();
     this.#changed();
+
     return true;
   }
 
@@ -103,8 +106,10 @@ export class Bookmarks {
   remove(id: number): boolean {
     if (!Number.isInteger(id) || id < 1) return false;
     const result = this.#db.drizzle.delete(bookmarks).where(eq(bookmarks.id, id)).run();
+
     if (result.changes === 0) return false;
     this.#changed();
+
     return true;
   }
 
@@ -114,13 +119,18 @@ export class Bookmarks {
    */
   removeUrl(url: string): number {
     const validation = parse(urlString, url);
+
     if (validation.problem !== undefined) return 0;
+
     const result = this.#db.drizzle
       .delete(bookmarks)
       .where(eq(bookmarks.url, validation.value))
       .run();
+
     const removed = Number(result.changes);
+
     if (removed > 0) this.#changed();
+
     return removed;
   }
 
@@ -131,6 +141,7 @@ export class Bookmarks {
    */
   get(id: number): BookmarkRow | null {
     if (!Number.isInteger(id) || id < 1) return null;
+
     const rows = this.#db.drizzle
       .select({
         id: bookmarks.id,
@@ -141,6 +152,7 @@ export class Bookmarks {
       .from(bookmarks)
       .where(eq(bookmarks.id, id))
       .all();
+
     return rows[0] ?? null;
   }
 
@@ -151,12 +163,15 @@ export class Bookmarks {
    */
   has(url: string): boolean {
     const validation = parse(urlString, url);
+
     if (validation.problem !== undefined) return false;
+
     const rows = this.#db.drizzle
       .select({ id: bookmarks.id })
       .from(bookmarks)
       .where(eq(bookmarks.url, validation.value))
       .all();
+
     return rows.length > 0;
   }
 
@@ -168,6 +183,7 @@ export class Bookmarks {
    */
   search(pattern: string, options: SearchOptions = {}): BookmarkRow[] {
     const validation = parse(nonEmptyString, pattern);
+
     if (validation.problem !== undefined) return [];
     const limit = clampLimit(options.limit ?? DEFAULT_LIMIT);
     const like_ = `%${escapeLike(validation.value)}%`;
@@ -191,6 +207,7 @@ export class Bookmarks {
   /** Newest rows, no query. The shape a panel will likely want. */
   list(options: ListOptions = {}): BookmarkRow[] {
     const capped = clampLimit(options.limit ?? DEFAULT_LIMIT);
+
     return this.#db.drizzle
       .select({
         id: bookmarks.id,

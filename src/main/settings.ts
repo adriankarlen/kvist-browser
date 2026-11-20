@@ -44,8 +44,10 @@ function readString<T extends string | undefined>(
   problems: Problem[],
 ): string | T {
   if (value === undefined) return fallback;
+
   if (isString(value)) return value;
   problems.push({ field, reason: "not a string" });
+
   return fallback;
 }
 
@@ -56,8 +58,10 @@ function readBoolean(
   problems: Problem[],
 ): boolean {
   if (value === undefined) return fallback;
+
   if (isBoolean(value)) return value;
   problems.push({ field, reason: "not true or false" });
+
   return fallback;
 }
 
@@ -71,8 +75,10 @@ function readOption<T extends string>(
   if (value === undefined) return fallback;
   // SAFETY: membership in `allowed` is the parse — T is exactly that set of strings.
   const hit = allowed.includes(value as T) ? (value as T) : undefined;
+
   if (hit !== undefined) return hit;
   problems.push({ field, reason: `not ${allowed.map((option) => `"${option}"`).join(" or ")}` });
+
   return fallback;
 }
 
@@ -87,8 +93,10 @@ function asTable(value: unknown): Record<string, unknown> {
  */
 function section(value: unknown, field: string, problems: Problem[]): Record<string, unknown> {
   if (value === undefined) return {};
+
   if (isTable(value)) return value;
   problems.push({ field, reason: "not a table" });
+
   return {};
 }
 
@@ -98,21 +106,27 @@ function section(value: unknown, field: string, problems: Problem[]): Record<str
  */
 function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
   if (value === undefined) return DEFAULT_SETTINGS.newtabLinks;
+
   if (!Array.isArray(value)) {
     problems.push({ field: "newtab.links", reason: "not a list of { name, url } tables" });
+
     return DEFAULT_SETTINGS.newtabLinks;
   }
 
   const links = value.flatMap((entry) => {
     const { name, url } = asTable(entry);
+
     return isString(name) && isString(url) ? [{ name, url }] : [];
   });
+
   // All-or-nothing: one malformed entry falls back to the defaults rather than
   // silently dropping a link the user can still see in their file.
   if (links.length !== value.length) {
     problems.push({ field: "newtab.links", reason: "an entry is missing a name or a url" });
+
     return DEFAULT_SETTINGS.newtabLinks;
   }
+
   return links;
 }
 
@@ -121,15 +135,20 @@ const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
 function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
   const named = readString(value, "newtab.timezone", undefined, problems);
+
   if (named === undefined) return undefined;
 
   const timezone = named.trim();
+
   if (UTC_RX.test(timezone)) return timezone;
+
   try {
     new Intl.DateTimeFormat("en", { timeZone: timezone });
+
     return timezone;
   } catch {
     problems.push({ field: "newtab.timezone", reason: `not a timezone: "${timezone}"` });
+
     return undefined;
   }
 }
@@ -140,8 +159,10 @@ function parseTimezone(value: unknown, problems: Problem[]): string | undefined 
  */
 function parseSearchUrl(value: unknown, problems: Problem[]): string {
   const template = readString(value, "search", DEFAULT_SETTINGS.searchUrl, problems);
+
   if (template.includes("{q}")) return template;
   problems.push({ field: "search", reason: 'no "{q}" placeholder' });
+
   return DEFAULT_SETTINGS.searchUrl;
 }
 
@@ -157,12 +178,14 @@ export function parseSettings(
   if (source.trim() === "") return { settings: DEFAULT_SETTINGS, problems: [] };
 
   let parsed: unknown;
+
   try {
     parsed = parse(source);
   } catch (error) {
     // A save mid-edit shouldn't throw away the user's whole layout, so the last
     // settings that parsed stand rather than reverting to the defaults.
     const reason = error instanceof Error ? error.message : String(error);
+
     return { settings: previous, problems: [{ field: "config.toml", reason }] };
   }
 

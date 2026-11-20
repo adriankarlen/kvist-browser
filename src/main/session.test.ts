@@ -155,6 +155,7 @@ test("a state with null position and orientation survives the round-trip", () =>
     y: null,
     orientation: null,
   };
+
   expect(session.save(headless, 1)).toBe(true);
   expect(session.load()).toEqual(headless);
 });
