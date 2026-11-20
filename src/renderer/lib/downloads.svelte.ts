@@ -1,4 +1,5 @@
-import type { DownloadState, KvistApi } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { DownloadState } from "../../shared/ipc";
 
 export type Downloads = ReturnType<typeof createDownloads>;
 
@@ -14,13 +15,15 @@ function isFinished(entry: DownloadState): boolean {
 }
 
 export function createDownloads(
-  bridge: Pick<KvistApi, "onDownloads" | "onDownloadsToggle" | "cancelDownload">,
+  bridge: Pick<ChromeBridge, "onDownloads" | "onDownloadsToggle" | "cancelDownload">,
 ) {
-  const state = $state<{ list: DownloadState[]; pinned: boolean; lingering: boolean }>({
-    list: [],
-    pinned: false,
-    lingering: false,
-  });
+  const state = $state<{ list: ReadonlyArray<DownloadState>; pinned: boolean; lingering: boolean }>(
+    {
+      list: [],
+      pinned: false,
+      lingering: false,
+    },
+  );
 
   let seen = new Map<number, DownloadState["status"]>();
   let first = true;
@@ -54,7 +57,7 @@ export function createDownloads(
   });
 
   return {
-    get list(): DownloadState[] {
+    get list(): ReadonlyArray<DownloadState> {
       return state.list;
     },
     /** Whether anything is still moving, which is what shows the panel unasked. */

@@ -1,6 +1,5 @@
 import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { wire } from "../shared/ipc";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
@@ -92,7 +91,6 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const win = {
     isDestroyed: () => false,
     webContents: {
-      send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
       focus: vi.fn(),
     },
   };
@@ -111,6 +109,10 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     zoom as unknown as ZoomStoreAccess,
     bookmarks,
     win as unknown as BrowserWindow,
+    {
+      focusOmnibox: () => void sent.push({ channel: "focusOmnibox" }),
+      downloadsToggle: () => void sent.push({ channel: "downloadsToggle" }),
+    },
     messages as unknown as Messages,
     clipboard,
     opener,
@@ -192,9 +194,9 @@ test("every command reaches the thing it names", () => {
     ["focus.page", () => active.focus.mock.calls.length === 1],
     // Ahead of focus.omnibox below, which is the only other caller of it.
     ["focus.chrome", () => win.webContents.focus.mock.calls.length === 1],
-    ["focus.omnibox", () => sent.some(({ channel }) => channel === wire("focusOmnibox"))],
+    ["focus.omnibox", () => sent.some(({ channel }) => channel === "focusOmnibox")],
     ["insert.leave", () => active.blur.mock.calls.length === 1],
-    ["downloads.toggle", () => sent.some(({ channel }) => channel === wire("downloadsToggle"))],
+    ["downloads.toggle", () => sent.some(({ channel }) => channel === "downloadsToggle")],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
     ["prompt.allow", () => prompts.answerHead.mock.calls.some(([a]) => a === true)],
@@ -342,13 +344,13 @@ test("focusing the omnibox moves window focus first, then asks the chrome", () =
   commands.execute("focus.omnibox");
 
   expect(win.webContents.focus).toHaveBeenCalled();
-  expect(sent).toEqual([{ channel: wire("focusOmnibox"), payload: undefined }]);
+  expect(sent).toEqual([{ channel: "focusOmnibox" }]);
 });
 
 test("the downloads panel is asked to toggle, since the flag is the chrome's", () => {
   const { commands, sent } = createStubs();
   commands.execute("downloads");
-  expect(sent).toEqual([{ channel: wire("downloadsToggle"), payload: undefined }]);
+  expect(sent).toEqual([{ channel: "downloadsToggle" }]);
 });
 
 test("yank copies the active tab's URL and announces it", () => {

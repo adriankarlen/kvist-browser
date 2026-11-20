@@ -1,9 +1,10 @@
-import type { KvistApi, Mode } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { Mode } from "../../shared/ipc";
 
 export type Vim = ReturnType<typeof createVim>;
 
 /** The mode, as main reports it. Main owns it; this only asks. */
-export function createVim(bridge: Pick<KvistApi, "onMode" | "setMode">) {
+export function createVim(bridge: Pick<ChromeBridge, "onMode" | "setMode">) {
   const state = $state<{ mode: Mode }>({ mode: "normal" });
 
   bridge.onMode((mode) => {

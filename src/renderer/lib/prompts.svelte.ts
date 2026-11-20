@@ -1,4 +1,5 @@
-import type { KvistApi, PromptState, PromptWire } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { PromptState, PromptWire } from "../../shared/ipc";
 
 export type Prompts = ReturnType<typeof createPrompts>;
 
@@ -95,7 +96,7 @@ function describePermission(prompt: Extract<PromptState, { kind: "permission" }>
  * dismissal routes through `answer` too, so clearing the prompt means an
  * answer with the current id.
  */
-export function createPrompts(bridge: Pick<KvistApi, "onPrompt" | "answerPrompt">) {
+export function createPrompts(bridge: Pick<ChromeBridge, "onPrompt" | "answerPrompt">) {
   const state = $state<{ current: PromptWire | null }>({ current: null });
 
   bridge.onPrompt((prompt) => {

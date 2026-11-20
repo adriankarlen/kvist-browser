@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { expect, test, vi } from "vite-plus/test";
-import { type FindResult, wire } from "../shared/ipc";
+import type { FindResult } from "../shared/ipc";
+import type { PageSenders } from "./links";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
@@ -44,7 +45,8 @@ function createHost() {
     once: (event: string, listener: (...args: unknown[]) => void) => events.once(event, listener),
     removeListener: (event: string, listener: (...args: unknown[]) => void) =>
       events.removeListener(event, listener),
-    send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
+    postMessage: () => {},
+    off: () => {},
     loadURL: (url: string) => {
       loaded.push(url);
       state.url = url;
@@ -128,6 +130,23 @@ function createHost() {
   };
 }
 
+/** What the tab said to its page, as the calls it made. */
+function recordSends(sent: { channel: string; payload?: unknown }[]): PageSenders {
+  const record =
+    (channel: string) =>
+    (payload?: unknown): void =>
+      void sent.push(payload === undefined ? { channel } : { channel, payload });
+
+  return {
+    pageBlur: record("pageBlur"),
+    pageScroll: record("pageScroll"),
+    hintsShow: record("hintsShow"),
+    hintsKey: record("hintsKey"),
+    hintsHide: record("hintsHide"),
+    contextMenu: record("contextMenu"),
+  };
+}
+
 function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStoreAccess) {
   const host = createHost();
 
@@ -145,6 +164,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStoreAccess
     isBookmarked: () => false,
     externalRequest: vi.fn(),
     fullscreenChange: vi.fn(),
+    connect: () => recordSends(host.sent),
     ...overrides,
   };
 
@@ -435,7 +455,7 @@ test("the context menu carries the styling of the moment", () => {
   host.emit("context-menu", EVENT, menuParams({ x: 10, y: 20, linkURL: "https://link.example" }));
 
   const menu = host.sent.at(-1)!;
-  expect(menu.channel).toBe(wire("contextMenu"));
+  expect(menu.channel).toBe("contextMenu");
   expect(menu.payload).toMatchObject({ x: 10, y: 20, css: ".kv-menu { color: red }" });
 
   tab.pickContextMenu("link.copy");
@@ -452,7 +472,7 @@ test("a pick after the menu is gone does nothing", () => {
   tab.pickContextMenu("link.copy");
   expect(copyText).not.toHaveBeenCalled();
   // The document is gone, so no hide is sent to it either.
-  expect(host.sent.filter(({ channel }) => channel === wire("contextMenu"))).toHaveLength(1);
+  expect(host.sent.filter(({ channel }) => channel === "contextMenu")).toHaveLength(1);
 });
 
 test("opening a link in a new tab attributes it to this tab's own current page", () => {

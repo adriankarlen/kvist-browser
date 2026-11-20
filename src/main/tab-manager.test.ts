@@ -4,6 +4,7 @@ import { beforeEach, expect, test, vi } from "vite-plus/test";
 import type { BrowserState, Rect } from "../shared/ipc";
 import { TabManager } from "./tab-manager";
 import { ViewStack } from "./view-stack";
+import { pageLink } from "./links";
 import { clamp, type ZoomStoreAccess } from "./zoom";
 
 /** Per-origin zoom in memory, standing in for the zoom repository. */
@@ -54,7 +55,8 @@ vi.mock("electron", () => {
           events.once(event, listener),
         removeListener: (event: string, listener: (...args: unknown[]) => void) =>
           events.removeListener(event, listener),
-        send: () => {},
+        postMessage: () => {},
+        off: () => {},
         loadURL: (next: string) => {
           url = next;
 
@@ -159,8 +161,14 @@ function setup(windowRect?: Rect) {
   const emit = vi.fn<(state: BrowserState) => void>();
   const bookmarked = new Set<string>();
 
-  const tabs = new TabManager(win.base, stack, "preload.js", memoryZoom(), emit, (url) =>
-    bookmarked.has(url),
+  const tabs = new TabManager(
+    win.base,
+    stack,
+    "preload.js",
+    memoryZoom(),
+    emit,
+    (url) => bookmarked.has(url),
+    () => pageLink().send,
   );
 
   return { win, tabs, emit, bookmarked };

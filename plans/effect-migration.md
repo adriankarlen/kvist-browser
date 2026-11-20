@@ -393,7 +393,7 @@ Each phase is one PR (or a few), leaves the app working, and passes
 
 - [x] `src/shared/rpc/`: a `MessagePort` protocol for `RpcServer.Protocol.make` (main, `MessagePortMain`) and `RpcClient.Protocol.make` (DOM `MessagePort`). One client id per port. Port close → disconnect → the stream ends.
 - [x] `ChromeRpcs`, `OverlayRpcs`, `PageRpcs` with Schema payloads. They port every channel in `src/shared/ipc.ts`, `fromPage`/`toPage`, `fromOverlay`/`toOverlay` and `toMainQueries`.
-- [ ] Preloads become port forwarders (`src/preload/index.ts`, `overlay.ts`). `page.ts` keeps its port in the isolated world.
+- [x] Preloads become port forwarders (`src/preload/index.ts`, `overlay.ts`). `page.ts` keeps its port in the isolated world.
 - [ ] Delete `src/shared/ipc.ts`, `src/main/ipc.ts`, `isPoint`, `isPromptAnswer`, and their lint overrides.
 - [ ] At this point the renderer still uses runes stores, fed by RPC streams.
 

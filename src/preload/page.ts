@@ -1,16 +1,6 @@
-import { ipcRenderer } from "electron";
-import { fromPage, listeners, senders, toPage } from "../shared/ipc";
 import * as hints from "./hints";
 import * as menu from "./menu";
-
-const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
-
-const fromMain = listeners(toPage, (channel, listener) => {
-  const handler = (_event: unknown, payload: unknown): void => listener(payload);
-  ipcRenderer.on(channel, handler);
-
-  return () => void ipcRenderer.off(channel, handler);
-});
+import { fromMain, pageToMain } from "./page-link";
 
 /**
  * Runs in every tab, exposing nothing over contextBridge — a page must
@@ -73,7 +63,7 @@ document.addEventListener("focusin", report, true);
 
 document.addEventListener("focusout", () => setTimeout(report, 0), true);
 
-fromMain.onPageBlur(() => {
+fromMain.on("BlurRequested", () => {
   // SAFETY: activeElement is an Element; blur() exists on any focusable (HTMLElement).
   (document.activeElement as HTMLElement | null)?.blur();
   report();
@@ -87,7 +77,7 @@ if (document.readyState === "loading") {
 
 const LINE = 60;
 
-fromMain.onPageScroll((command) => {
+fromMain.on("ScrollRequested", ({ command }) => {
   switch (command) {
     case "down":
       scrollBy(0, LINE);
@@ -110,21 +100,21 @@ fromMain.onPageScroll((command) => {
   }
 });
 
-fromMain.onHintsShow(() => {
+fromMain.on("HintsShown", () => {
   if (!hints.show()) pageToMain.hintsDone();
 });
 
-fromMain.onHintsKey((input) => {
-  const { done, click } = hints.key(input);
+fromMain.on("HintKeyPressed", ({ key }) => {
+  const { done, click } = hints.key(key);
 
   if (click) pageToMain.hintsClick(click);
 
   if (done) pageToMain.hintsDone();
 });
 
-fromMain.onHintsHide(() => hints.hide());
+fromMain.on("HintsHidden", () => hints.hide());
 
-fromMain.onContextMenu((state) => {
+fromMain.on("ContextMenuChanged", ({ menu: state }) => {
   if (state === null) menu.hide();
   else menu.show(state);
 });

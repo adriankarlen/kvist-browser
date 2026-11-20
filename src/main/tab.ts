@@ -5,12 +5,10 @@ import {
   type Point,
   type Rect,
   type ScrollCommand,
-  senders,
-  type Senders,
   type TabId,
   type TabState,
-  toPage,
 } from "../shared/ipc";
+import type { PageSenders } from "./links";
 import { httpOrigin, originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
@@ -63,6 +61,8 @@ export interface TabCallbacks {
    * means nothing asked (a typed URL has no page).
    */
   externalRequest(url: string, scheme: string, origin: string | null, selfInitiated: boolean): void;
+  /** Serves this tab's page its RPC surface; what main says to the page goes through the result. */
+  connect(page: PageContents): PageSenders;
 }
 
 /**
@@ -71,6 +71,18 @@ export interface TabCallbacks {
  * hangs the process, so a dead Tab answers every verb with nothing rather
  * than defending each call site.
  */
+/** A closed tab's page is gone, so nothing more is said to it. */
+function unlessClosed(link: PageSenders, closed: () => boolean): PageSenders {
+  return {
+    pageBlur: () => closed() || link.pageBlur(),
+    pageScroll: (command) => closed() || link.pageScroll(command),
+    hintsShow: () => closed() || link.hintsShow(),
+    hintsKey: (key) => closed() || link.hintsKey(key),
+    hintsHide: () => closed() || link.hintsHide(),
+    contextMenu: (menu) => closed() || link.contextMenu(menu),
+  };
+}
+
 export class Tab {
   readonly id: TabId;
   #host: PageHost;
@@ -81,7 +93,7 @@ export class Tab {
    */
   #page: PageContents;
   /** The page's half of the channel tables, bound to this tab's webContents. */
-  #toPage: Senders<typeof toPage>;
+  #toPage: PageSenders;
   #on: TabCallbacks;
   #zoom: ZoomStoreAccess;
   #closed = false;
@@ -118,10 +130,8 @@ export class Tab {
     this.id = id;
     this.#host = host;
     this.#page = host.webContents;
-    this.#toPage = senders(toPage, (channel, payload) => {
-      if (!this.#closed) this.#page.send(channel, payload);
-    });
     this.#on = callbacks;
+    this.#toPage = unlessClosed(callbacks.connect(this.#page), () => this.#closed);
     this.#zoom = zoom;
     this.#title = url;
     this.#url = url;

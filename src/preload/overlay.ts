@@ -1,20 +1,8 @@
-import { contextBridge, ipcRenderer } from "electron";
-import { fromOverlay, listeners, type OverlayApi, senders, toOverlay } from "../shared/ipc";
+import { contextBridge } from "electron";
+import { forwardPort } from "./forward-port";
 
 /**
- * `window.kvistOverlay`, for the view that paints the completion menu over
- * the page. Deliberately not `window.kvist`: this document renders rows and
- * reports the click — the chrome's bridge would let a dropdown navigate
- * tabs, cancel downloads, and answer prompts.
+ * Same shape as the chrome's preload, but main serves this port only the
+ * overlay's group: a dropdown that could navigate tabs would be a hole.
  */
-const api: OverlayApi = {
-  ...senders(fromOverlay, (channel, payload) => ipcRenderer.send(channel, payload)),
-  ...listeners(toOverlay, (channel, listener) => {
-    const handler = (_event: unknown, payload: unknown): void => listener(payload);
-    ipcRenderer.on(channel, handler);
-
-    return () => void ipcRenderer.off(channel, handler);
-  }),
-};
-
-contextBridge.exposeInMainWorld("kvistOverlay", api);
+contextBridge.exposeInMainWorld("kvist", forwardPort());

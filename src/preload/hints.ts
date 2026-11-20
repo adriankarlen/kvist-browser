@@ -4,7 +4,7 @@
  * here keeps a keystroke from costing a round trip.
  */
 
-import type { Point } from "../shared/ipc";
+import type { Point } from "../shared/schema/browser";
 
 const HINT_ALPHABET = "asdfghjkl";
 

@@ -1,5 +1,5 @@
 import { DEFAULT_SETTINGS, type Settings, type TabOrientation } from "../../shared/config";
-import type { KvistApi } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
 
 export type Ui = ReturnType<typeof createUi>;
 
@@ -10,7 +10,7 @@ export type Ui = ReturnType<typeof createUi>;
  * session persists it across relaunch.
  */
 export function createUi(
-  bridge: Pick<KvistApi, "onConfig" | "onRestoreSession" | "orientationOverride">,
+  bridge: Pick<ChromeBridge, "onConfig" | "onRestoreSession" | "orientationOverride">,
   applyCss: (css: string) => void,
 ) {
   const state = $state<{ settings: Settings; orientation: TabOrientation | null }>({

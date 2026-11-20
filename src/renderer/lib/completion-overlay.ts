@@ -1,4 +1,5 @@
-import type { CompletionCandidate, CompletionOverlayState, KvistApi } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { CompletionCandidate, CompletionOverlayState } from "../../shared/ipc";
 
 export interface CompletionOverlayClient {
   show(state: CompletionOverlayState): void;
@@ -13,7 +14,7 @@ export interface CompletionOverlayClient {
  * showed the list last.
  */
 export function createCompletionOverlay(
-  bridge: Pick<KvistApi, "completionOverlay" | "onCompletionAccept">,
+  bridge: Pick<ChromeBridge, "completionOverlay" | "onCompletionAccept">,
 ) {
   const accepts = new Map<symbol, (candidate: CompletionCandidate) => void>();
   // Kept past hide(): a click blurs the input, which hides the list before

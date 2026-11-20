@@ -1,9 +1,10 @@
-import type { BrowserState, KvistApi, Rect, TabState } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { BrowserState, Rect, TabState } from "../../shared/ipc";
 
 export type Browser = ReturnType<typeof createBrowser>;
 
 /** The tab strip's view of main, which is the whole of it: nothing is mirrored. */
-export function createBrowser(bridge: Pick<KvistApi, "onState">) {
+export function createBrowser(bridge: Pick<ChromeBridge, "onState">) {
   let state = $state.raw<BrowserState>({ tabs: [], activeId: null });
 
   bridge.onState((next) => {
@@ -28,7 +29,7 @@ export function createBrowser(bridge: Pick<KvistApi, "onState">) {
  * Reports the content box, not the border box: the tab's WebContentsView is
  * a native layer that would cover a border in the rectangle.
  */
-export function createContentRect(bridge: Pick<KvistApi, "setContentRect">) {
+export function createContentRect(bridge: Pick<ChromeBridge, "setContentRect">) {
   return (node: HTMLElement) => {
     const report = (): void => {
       const box = node.getBoundingClientRect();

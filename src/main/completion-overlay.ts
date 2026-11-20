@@ -1,5 +1,6 @@
 import type { WebContents } from "electron";
-import { type CompletionOverlayState, type Rect, senders, toOverlay } from "../shared/ipc";
+import type { CompletionOverlayState, Rect } from "../shared/ipc";
+import type { OverlaySenders } from "./links";
 import { type ContentSize, placeCompletion } from "./completion-bounds";
 import type { OverlayLease } from "./overlay-host";
 
@@ -135,10 +136,8 @@ export class CompletionOverlay {
     return lease;
   }
 
-  #send(lease: OverlayLease) {
-    return senders(toOverlay, (channel, payload) => {
-      if (!lease.host.webContents.isDestroyed()) lease.host.webContents.send(channel, payload);
-    });
+  #send(lease: OverlayLease): OverlaySenders {
+    return lease.link;
   }
 
   /**

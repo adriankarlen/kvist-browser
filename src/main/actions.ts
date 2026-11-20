@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import { senders, toChrome } from "../shared/ipc";
+import type { ChromeSenders } from "./links";
 import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
@@ -162,6 +162,7 @@ export function createActions(
   zoom: ZoomStoreAccess,
   bookmarks: BookmarkAccess,
   win: BrowserWindow,
+  chrome: Pick<ChromeSenders, "focusOmnibox" | "downloadsToggle">,
   messages: Messages,
   clipboard: Clipboard,
   opener: FileOpener,
@@ -169,10 +170,6 @@ export function createActions(
   quit: () => void,
   getSearchUrl: () => string,
 ): Actions {
-  const chrome = senders(toChrome, (channel, payload) => {
-    if (!win.isDestroyed()) win.webContents.send(channel, payload);
-  });
-
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
   };

@@ -1,7 +1,7 @@
 <script lang="ts">
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, ui, vim } from "./stores.svelte";
+  import { browser, completionOverlay, ui, vim, bridge } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -22,7 +22,7 @@
   // resolveUrl instead of accepting whatever suggestion ranked first.
   const completion = createCompletion(
     async (query) => {
-    const rows = await window.kvist.omniboxSuggestions(query);
+    const rows = await bridge.omniboxSuggestions(query);
 
     return rows.map(
       (row): Candidate => ({
@@ -101,14 +101,14 @@
     event.preventDefault();
 
     if (draft.trim() === "") return;
-    window.kvist.navigate(resolveUrl(draft, ui.searchUrl));
+    bridge.navigate(resolveUrl(draft, ui.searchUrl));
     input?.blur();
   }
 
   // A suggestion is already a concrete destination, not typed search text —
   // accepting one skips resolveUrl and navigates straight to its URL.
   function acceptSuggestion(candidate: Candidate): void {
-    window.kvist.navigate(candidate.value);
+    bridge.navigate(candidate.value);
     input?.blur();
   }
 
@@ -125,7 +125,7 @@
   function onfocus(): void {
     focused = true;
     input?.select();
-    window.kvist.setMode("insert");
+    bridge.setMode("insert");
   }
 
   function onblur(): void {
@@ -137,7 +137,7 @@
     if (document.hasFocus()) vim.toNormal();
   }
 
-  window.kvist.onFocusOmnibox(() => input?.focus());
+  bridge.onFocusOmnibox(() => input?.focus());
 </script>
 
 <form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>
@@ -147,20 +147,20 @@
     type="button"
     title="Back"
     disabled={!browser.active?.canGoBack}
-    onclick={() => window.kvist.goBack()}>&lt;</button
+    onclick={() => bridge.goBack()}>&lt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Forward"
     disabled={!browser.active?.canGoForward}
-    onclick={() => window.kvist.goForward()}>&gt;</button
+    onclick={() => bridge.goForward()}>&gt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Reload"
-    onclick={() => window.kvist.reload()}>r</button
+    onclick={() => bridge.reload()}>r</button
   >
 
   <span class="kv-omnibox__prompt">:</span>
@@ -182,7 +182,7 @@
     title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
     aria-label="Bookmark this page"
     aria-pressed={browser.active?.bookmarked ?? false}
-    onclick={() => window.kvist.runCommand("bookmark.toggle")}>*</button
+    onclick={() => bridge.runCommand("bookmark.toggle")}>*</button
   >
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
@@ -196,6 +196,6 @@
     class="kv-omnibox__button"
     type="button"
     title="DevTools"
-    onclick={() => window.kvist.toggleDevTools()}>d</button
+    onclick={() => bridge.toggleDevTools()}>d</button
   >
 </form>

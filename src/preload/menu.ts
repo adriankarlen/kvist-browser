@@ -5,10 +5,8 @@
  * clicks.
  */
 
-import { ipcRenderer } from "electron";
-import { type ContextMenuState, fromPage, senders } from "../shared/ipc";
-
-const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+import type { ContextMenuState } from "../shared/schema/context-menu";
+import { pageToMain } from "./page-link";
 
 let host: HTMLElement | undefined;
 

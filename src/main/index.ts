@@ -9,25 +9,13 @@ import {
 } from "./local-pages";
 import { createActions } from "./actions";
 import { databaseLayer, prepareDatabaseFile } from "./db/database";
-import { parse } from "./db/validation";
 import { systemClipboard } from "./clipboard";
 import { omniboxSuggestions } from "./omnibox";
 import { Prompts } from "./prompts";
 import { BookmarksRepo } from "./services/bookmarks-repo";
 import { HistoryRepo, type RecordInput } from "./services/history-repo";
 import { SessionRepo, type SessionState } from "./services/session-repo";
-import {
-  fromOverlay,
-  fromPage,
-  type Point,
-  type PromptState,
-  senders,
-  type TabId,
-  toChrome,
-  toMain,
-  toMainQueries,
-} from "../shared/ipc";
-import { handle, handleQueries } from "./ipc";
+import type { PromptState, TabId } from "../shared/ipc";
 import { completeCommand, createCommands } from "./commands";
 import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
 import { Downloads } from "./downloads";
@@ -46,8 +34,14 @@ import { StyleFiles } from "./services/style-files";
 import { ZoomRepo } from "./services/zoom-repo";
 import type { ZoomStoreAccess } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
-import { Effect, Exit, Layer, ManagedRuntime, Schema, Stream } from "effect";
+import { Effect, Exit, Layer, ManagedRuntime, Stream } from "effect";
 import type { Context } from "effect";
+import { RpcServer } from "effect/rpc";
+import { ChromeIntent, ChromeRpcs } from "../shared/rpc/chrome";
+import { OverlayIntent, OverlayRpcs } from "../shared/rpc/overlay";
+import { PageIntent, PageRpcs } from "../shared/rpc/page";
+import { chromeLink, overlayLink, type OverlaySenders, pageLink } from "./links";
+import { serve } from "./services/surface";
 
 applyXdgPaths();
 
@@ -120,9 +114,6 @@ const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
-
-/** A `:` line as it arrives over IPC, parsed rather than trusted. */
-const commandLine = Schema.String;
 
 /**
  * The echo area, app-scoped like the downloads: what main has to say outlives
@@ -258,28 +249,6 @@ function applyConfig(config: UserConfig): Promise<void> {
   return applying;
 }
 
-/**
- * The one payload that is destructured the moment it lands. Everything on
- * these channels comes from our own preload, but a click point that is not a
- * point would take the main process down with it rather than being ignored.
- */
-function isPoint(value: unknown): value is Point {
-  if (typeof value !== "object" || value === null) return false;
-  // SAFETY: just checked value is a non-null object; x and y are validated below.
-  const { x, y } = value as Point;
-
-  return Number.isFinite(x) && Number.isFinite(y);
-}
-
-/** Same lesson as isPoint: a payload that is not an answer is ignored, not destructured. */
-function isPromptAnswer(value: unknown): value is { id: number; allow: boolean } {
-  if (typeof value !== "object" || value === null) return false;
-  // SAFETY: just checked value is a non-null object; id and allow are validated below.
-  const { id, allow } = value as { id: number; allow: boolean };
-
-  return Number.isInteger(id) && typeof allow === "boolean";
-}
-
 function createWindow(
   zoom: ZoomStoreAccess,
   bookmarks: Bookmarks,
@@ -305,9 +274,7 @@ function createWindow(
    */
   let orientationOverride: TabOrientation | null = saved?.orientation ?? null;
 
-  const chrome = senders(toChrome, (channel, payload) => {
-    if (!win.isDestroyed()) win.webContents.send(channel, payload);
-  });
+  const { events: chromeEvents, send: chrome } = chromeLink();
 
   const views = new ViewStack(win.contentView);
 
@@ -318,6 +285,31 @@ function createWindow(
     zoom,
     (state) => chrome.state(state),
     (url) => bookmarks.has(url),
+    (contents) => {
+      const page = pageLink();
+      serve(
+        runtime,
+        contents,
+        RpcServer.make(PageRpcs).pipe(
+          Effect.provide(
+            PageRpcs.toLayer({
+              Subscribe: () => page.events.stream,
+              Dispatch: (message) =>
+                Effect.sync(() =>
+                  PageIntent.match(message, {
+                    EditableChanged: ({ editable }) => tabs.setEditable(contents, editable),
+                    HintClicked: ({ point }) => tabs.tabFor(contents)?.click(point),
+                    HintsEnded: () => vim.endHints(),
+                    ContextMenuPicked: ({ id }) => tabs.tabFor(contents)?.pickContextMenu(id),
+                  }),
+                ),
+            }),
+          ),
+        ),
+      );
+
+      return page.send;
+    },
   );
 
   const releaseBookmarks = bookmarks.observe(() => tabs.refresh());
@@ -340,8 +332,11 @@ function createWindow(
         if (!contents.isDestroyed()) contents.close();
       });
 
+      const overlay = pageOverlay(contents);
+
       return {
         host: view,
+        link: overlay,
         release: () => {
           views.remove(view);
 
@@ -381,6 +376,7 @@ function createWindow(
     zoom,
     bookmarks,
     win,
+    chrome,
     messages,
     systemClipboard,
     shell,
@@ -466,19 +462,6 @@ function createWindow(
 
   // A tab's own channels, accepted from a webContents that owns one and from
   // nothing else.
-  const releasePage = handle(
-    fromPage,
-    {
-      pageEditable: (editable, sender) => tabs.setEditable(sender, editable),
-      hintsDone: () => vim.endHints(),
-      hintsClick: (point, sender) => {
-        if (isPoint(point)) tabs.tabFor(sender)?.click(point);
-      },
-      contextMenuPick: (id, sender) => tabs.tabFor(sender)?.pickContextMenu(id),
-    },
-    (sender) => tabs.ownsTab(sender),
-  );
-
   const runCommand = (line: string): void => {
     const [name = "", ...rest] = line.trim().split(/\s+/);
 
@@ -622,71 +605,89 @@ function createWindow(
     }
   });
 
-  const releaseChrome = handle(
-    toMain,
-    {
-      setContentRect: (rect) => tabs.setContentRect(rect),
-      createTab: (url) => tabs.create(url),
-      closeTab: (id) => tabs.close(id),
-      activateTab: (id) => tabs.activate(id),
-      navigate: (url) => tabs.active?.navigate(url),
-      goBack: () => tabs.active?.goBack(),
-      goForward: () => tabs.active?.goForward(),
-      reload: () => tabs.active?.reload(),
-      toggleDevTools: () => tabs.active?.toggleDevTools(),
-      find: (query) => tabs.active?.find(query),
-      stopFind: () => tabs.active?.stopFind(),
-      setMode: (mode) => vim.requestMode(mode),
-      cancelDownload: (id) => downloads.cancel(id),
-      answerPrompt: (answer) => {
-        if (isPromptAnswer(answer)) prompts.answer(answer.id, answer.allow);
-      },
-      orientationOverride: (value) => {
-        // The chrome is the source of truth for the override; main only
-        // mirrors it so the close handler can persist it with the rest of
-        // the session. Bad input is ignored — the next valid push wins.
-        if (value === "horizontal" || value === "vertical" || value === null) {
-          orientationOverride = value;
-        }
-      },
-      runCommand: (line) => {
-        runCommand(line);
-        // Commands come from a typed `:foo` and end in normal mode. UI-driven
-        // chrome→main channels (`cancelDownload` etc.) must not call this path,
-        // or clicking a button would drop mode out from under a user who is
-        // typing.
-        vim.requestMode("normal");
-      },
-      completionOverlay: (state) => {
-        if (state === null) completion.hide();
-        else completion.show(state);
-      },
-    },
-    (sender) => sender === win.webContents,
-  );
+  /** The overlay's own surface: a list's worth of API, so a dropdown cannot navigate tabs. */
+  function pageOverlay(contents: Electron.WebContents): OverlaySenders {
+    const overlay = overlayLink();
 
-  // The completion overlay's own channels, accepted from its view and from
-  // nothing else — the same shape the page channels take.
-  const releaseOverlay = handle(
-    fromOverlay,
-    {
-      completionHeight: (height) => completion.setHeight(height),
-      completionPick: (candidate) => {
-        chrome.completionAccept(candidate);
-        // The click moved focus into the overlay's webContents. Without this
-        // the keyboard is stranded there: the omnibox has lost focus and the
-        // mode machine sees nothing the user types next.
-        win.webContents.focus();
-      },
-    },
-    (sender) => completion.owns(sender),
+    serve(
+      runtime,
+      contents,
+      RpcServer.make(OverlayRpcs).pipe(
+        Effect.provide(
+          OverlayRpcs.toLayer({
+            Subscribe: () => overlay.events.stream,
+            Dispatch: (message) =>
+              Effect.sync(() =>
+                OverlayIntent.match(message, {
+                  CompletionMeasured: ({ height }) => completion.setHeight(height),
+                  CompletionClicked: ({ candidate }) => {
+                    chrome.completionAccept(candidate);
+                    // The click moved focus into the overlay's webContents.
+                    // Without this the keyboard is stranded there.
+                    win.webContents.focus();
+                  },
+                }),
+              ),
+          }),
+        ),
+      ),
+    );
+
+    return overlay.send;
+  }
+
+  const releaseChrome = serve(
+    runtime,
+    win.webContents,
+    RpcServer.make(ChromeRpcs).pipe(
+      Effect.provide(
+        ChromeRpcs.toLayer({
+          Subscribe: () => chromeEvents.stream,
+          OmniboxSuggestions: ({ query }) => omniboxSuggestions(query),
+          CommandCompletions: ({ line }) => Effect.sync(() => completeCommand(line)),
+          Dispatch: (message) =>
+            Effect.sync(() =>
+              ChromeIntent.match(message, {
+                ContentRectMeasured: ({ rect }) => tabs.setContentRect(rect),
+                TabRequested: ({ url }) => void tabs.create(url),
+                TabCloseRequested: ({ id }) => tabs.close(id),
+                TabActivated: ({ id }) => tabs.activate(id),
+                NavigationRequested: ({ url }) => tabs.active?.navigate(url),
+                BackRequested: () => tabs.active?.goBack(),
+                ForwardRequested: () => tabs.active?.goForward(),
+                ReloadRequested: () => tabs.active?.reload(),
+                DevToolsToggled: () => tabs.active?.toggleDevTools(),
+                FindRequested: ({ query }) => tabs.active?.find(query),
+                FindStopped: () => tabs.active?.stopFind(),
+                ModeRequested: ({ mode }) => vim.requestMode(mode),
+                DownloadCancelRequested: ({ id }) => downloads.cancel(id),
+                PromptAnswered: ({ id, allow }) => prompts.answer(id, allow),
+                // The chrome owns the override; main mirrors it so the close
+                // handler can save it with the rest of the session.
+                OrientationOverridden: ({ orientation }) => {
+                  orientationOverride = orientation;
+                },
+                CommandEntered: ({ line }) => {
+                  runCommand(line);
+                  // A typed `:foo` ends in normal mode. Button-driven intents
+                  // must not take this path, or a click would drop the mode
+                  // out from under someone typing.
+                  vim.requestMode("normal");
+                },
+                CompletionOverlayChanged: ({ state }) => {
+                  if (state === null) completion.hide();
+                  else completion.show(state);
+                },
+              }),
+            ),
+        }),
+      ),
+    ),
   );
 
   // ipcMain is process-global; these belong to this window.
   win.on("closed", () => {
     releaseChrome();
-    releasePage();
-    releaseOverlay();
     releaseMessages();
     releasePermissions();
     releaseBookmarks();
@@ -731,23 +732,6 @@ if (!gotTheLock) {
       return;
     }
 
-    // Bookmarks, History and the command table are app-scoped, not
-    // per-window, so these queries are registered once for the app's whole
-    // life. `ipcMain.handle` throws on a second registration, which a second
-    // window would hit at once. Nothing narrower to release into, as with
-    // `Downloads`/`Permissions`.
-    handleQueries(
-      toMainQueries,
-      {
-        omniboxSuggestions: (query) => runtime.runPromise(omniboxSuggestions(query)),
-        commandCompletions: (line) => {
-          const parsed = parse(commandLine, line);
-
-          return parsed.problem === undefined ? completeCommand(parsed.value) : [];
-        },
-      },
-      (sender) => BrowserWindow.getAllWindows().some((window) => window.webContents === sender),
-    );
     // The first load is the startup config; every later one is a save.
     const configLoaded = Promise.withResolvers<void>();
 

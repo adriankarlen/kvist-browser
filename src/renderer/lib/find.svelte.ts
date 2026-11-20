@@ -1,4 +1,5 @@
-import type { FindResult, KvistApi } from "../../shared/ipc";
+import type { ChromeBridge } from "./bridge";
+import type { FindResult } from "../../shared/ipc";
 
 export type Find = ReturnType<typeof createFind>;
 
@@ -7,7 +8,7 @@ export type Find = ReturnType<typeof createFind>;
  * matches live on the tab, so switching tabs has to change what the chrome
  * shows, and only main knows that.
  */
-export function createFind(bridge: Pick<KvistApi, "onFindResult" | "find" | "stopFind">) {
+export function createFind(bridge: Pick<ChromeBridge, "onFindResult" | "find" | "stopFind">) {
   const state = $state<{ result: FindResult | null }>({ result: null });
 
   bridge.onFindResult((result) => {

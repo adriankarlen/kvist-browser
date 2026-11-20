@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
 import { composeContextMenuCss } from "./context-menu";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
+import type { PageSenders } from "./links";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { ViewStack } from "./view-stack";
@@ -33,6 +34,7 @@ export class TabManager {
   #views: ViewStack;
   #emit: (state: BrowserState) => void;
   #isBookmarked: (url: string) => boolean;
+  #connectPage: (page: PageContents) => PageSenders;
   #onKey: (input: KeyInput, source: KeySource) => boolean = () => false;
   #onEditable: (editable: boolean) => void = () => {};
   #onFind: (result: FindResult | null) => void = () => {};
@@ -76,6 +78,7 @@ export class TabManager {
     zoom: ZoomStoreAccess,
     emit: (state: BrowserState) => void,
     isBookmarked: (url: string) => boolean,
+    connectPage: (page: PageContents) => PageSenders,
   ) {
     this.#window = window;
     this.#views = views;
@@ -83,6 +86,7 @@ export class TabManager {
     this.#zoom = zoom;
     this.#emit = emit;
     this.#isBookmarked = isBookmarked;
+    this.#connectPage = connectPage;
 
     // The single place fullscreen state resets, however the exit was
     // triggered — the page's own script, our Escape handling below, or the
@@ -194,7 +198,7 @@ export class TabManager {
   }
 
   /** Doubles as the sender check for the editable channel. */
-  setEditable(sender: WebContents, editable: boolean): void {
+  setEditable(sender: PageContents, editable: boolean): void {
     const tab = this.tabFor(sender);
 
     if (!tab) return;
@@ -423,6 +427,7 @@ export class TabManager {
       },
       menuCss: () => this.#menuCss,
       isBookmarked: (url) => this.#isBookmarked(url),
+      connect: (page) => this.#connectPage(page),
       fullscreenChange: (entering) => {
         if (entering) {
           // A duplicate or re-entrant claim from the tab that already owns

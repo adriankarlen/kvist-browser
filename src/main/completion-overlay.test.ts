@@ -24,6 +24,14 @@ function createLease() {
   const sent: { channel: string; payload: unknown }[] = [];
   /** Everything that happened, in order, so a test can assert on sequence. */
   const log: string[] = [];
+
+  const record =
+    (channel: string) =>
+    (payload: unknown): void => {
+      sent.push({ channel, payload });
+      log.push(`send ${channel}`);
+    };
+
   let destroyed = false;
 
   const emit = (event: string) => {
@@ -43,10 +51,6 @@ function createLease() {
 
       return webContents;
     },
-    send: (channel: string, payload: unknown) => {
-      sent.push({ channel, payload });
-      log.push(`send ${channel}`);
-    },
     isDestroyed: () => destroyed,
   };
 
@@ -59,6 +63,11 @@ function createLease() {
       setBounds: vi.fn((bounds: Rect) => void log.push(`bounds ${bounds.width}x${bounds.height}`)),
     },
     release: vi.fn(destroy),
+    link: {
+      completionState: record("kvist:completion-state"),
+      completionInset: record("kvist:completion-inset"),
+      completionCss: record("kvist:completion-css"),
+    },
   };
 
   return {

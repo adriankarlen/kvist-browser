@@ -1,4 +1,5 @@
 import { createBrowser, createContentRect } from "./browser.svelte";
+import { createChromeBridge } from "./bridge";
 import { createCompletionOverlay } from "./completion-overlay";
 import { createDownloads } from "./downloads.svelte";
 import { createFind } from "./find.svelte";
@@ -9,11 +10,11 @@ import { injectUserCss } from "../../shared/inject-css";
 import { createVim } from "./vim.svelte";
 
 /**
- * The chrome's state, bound to the preload's bridge. The one place in the
- * renderer that reaches for `window.kvist`: every store takes the slice of it
- * that it uses, so a test hands each one a fake instead.
+ * The chrome's state, bound to its RPC port. The one place in the renderer
+ * that reaches for `window.kvist`: every store takes the slice of the bridge
+ * it uses, so a test hands each one a fake instead.
  */
-const bridge = window.kvist;
+export const bridge = createChromeBridge(() => window.kvist.connect());
 
 export const browser = createBrowser(bridge);
 export const completionOverlay = createCompletionOverlay(bridge);

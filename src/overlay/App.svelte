@@ -2,11 +2,12 @@
   import type { Attachment } from "svelte/attachments";
   import CompletionMenu from "./CompletionMenu.svelte";
   import { injectUserCss } from "../shared/inject-css";
+  import { createOverlayBridge } from "./bridge";
   import type {
     CompletionCandidate,
     CompletionInset,
     CompletionOverlayState,
-  } from "../shared/ipc";
+  } from "../shared/schema/completion";
 
   // Raw, not deep: the list is replaced wholesale on every push, and a
   // `$state` proxy cannot cross IPC — structured clone rejects it, so a
@@ -20,23 +21,24 @@
    */
   let inset = $state.raw<CompletionInset | null>(null);
 
-  window.kvistOverlay.onCompletionState((next) => {
-    state = next;
+  const overlay = createOverlayBridge(() => window.kvist.connect());
+
+  overlay.events.on("CompletionStateChanged", (event) => {
+    state = event.state;
   });
 
-  window.kvistOverlay.onCompletionInset((next) => {
-    inset = next;
+  overlay.events.on("CompletionInsetChanged", (event) => {
+    inset = event.inset;
   });
 
-  window.kvistOverlay.onCompletionCss((css) => injectUserCss(css));
+  overlay.events.on("CompletionCssChanged", (event) => injectUserCss(event.css));
 
   /**
    * Report the unrounded height so main need not model row styles.
    * Main retains the last height when the size stays unchanged.
    */
   const reportHeight: Attachment<HTMLElement> = (node) => {
-    const report = (): void =>
-      window.kvistOverlay.completionHeight(node.getBoundingClientRect().height);
+    const report = (): void => overlay.measured(node.getBoundingClientRect().height);
 
     const observer = new ResizeObserver(report);
     observer.observe(node);
@@ -46,7 +48,7 @@
   };
 
   function accept(candidate: CompletionCandidate): void {
-    window.kvistOverlay.completionPick(candidate);
+    overlay.clicked(candidate);
   }
 </script>
 
