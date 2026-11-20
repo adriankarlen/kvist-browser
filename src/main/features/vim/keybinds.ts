@@ -16,6 +16,7 @@ export const DEFAULT_KEYBINDS: readonly Keybind[] = [
   // ── normal mode ──────────────────────────────────────────────
   { mode: "normal", keys: "t", command: "tab.new" },
   { mode: "normal", keys: "x", command: "tab.close" },
+  { mode: "normal", keys: "X", command: "tab.reopen" },
   { mode: "normal", keys: "gt", command: "tab.next" },
   { mode: "normal", keys: "gT", command: "tab.prev" },
   { mode: "normal", keys: "H", command: "nav.back" },

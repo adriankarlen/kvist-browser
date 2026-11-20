@@ -54,6 +54,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     active,
     create: vi.fn<(url?: string) => void>(),
     closeActive: vi.fn(),
+    reopen: vi.fn(),
     step: vi.fn<(offset: number) => void>(),
   };
 
@@ -163,6 +164,7 @@ test("every command reaches the thing it names", () => {
   const expected: [string, () => boolean][] = [
     ["tab.new", () => tabs.create.mock.calls.length === 1],
     ["tab.close", () => tabs.closeActive.mock.calls.length === 1],
+    ["tab.reopen", () => tabs.reopen.mock.calls.length === 1],
     ["tab.next", () => tabs.step.mock.calls.some(([offset]) => offset === 1)],
     ["tab.prev", () => tabs.step.mock.calls.some(([offset]) => offset === -1)],
     ["nav.back", () => active.goBack.mock.calls.length === 1],
@@ -221,6 +223,9 @@ test("aliases run the command they stand for", () => {
 
   commands.execute("qa");
   expect(quit).toHaveBeenCalledTimes(1);
+
+  commands.execute("undo");
+  expect(tabs.reopen).toHaveBeenCalledTimes(1);
 });
 
 test("a bare host is opened as https, and anything else is searched for", () => {
