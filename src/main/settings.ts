@@ -61,7 +61,7 @@ const Link = Schema.Struct({ name: Schema.String, url: Schema.String });
  * All-or-nothing: one malformed entry falls back to the defaults rather than
  * silently dropping a link the user can still see in their file.
  */
-function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
+function parseLinks(value: unknown, problems: Problem[]): ReadonlyArray<NewtabLink> {
   const fallback = DEFAULT_SETTINGS.newtabLinks;
 
   if (value === undefined) return fallback;

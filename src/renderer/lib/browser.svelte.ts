@@ -4,15 +4,14 @@ export type Browser = ReturnType<typeof createBrowser>;
 
 /** The tab strip's view of main, which is the whole of it: nothing is mirrored. */
 export function createBrowser(bridge: Pick<KvistApi, "onState">) {
-  const state = $state<BrowserState>({ tabs: [], activeId: null });
+  let state = $state.raw<BrowserState>({ tabs: [], activeId: null });
 
   bridge.onState((next) => {
-    state.tabs = next.tabs;
-    state.activeId = next.activeId;
+    state = next;
   });
 
   return {
-    get tabs(): TabState[] {
+    get tabs(): ReadonlyArray<TabState> {
       return state.tabs;
     },
     get activeId(): number | null {

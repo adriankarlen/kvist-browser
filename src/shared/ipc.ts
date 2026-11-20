@@ -1,223 +1,51 @@
 import type { TabOrientation, UserConfig } from "./config";
+import type {
+  BrowserState,
+  FindResult,
+  Message,
+  Mode,
+  Point,
+  Rect,
+  RestoreSessionState,
+  ScrollCommand,
+  TabId,
+} from "./schema/browser";
+import type {
+  CompletionCandidate,
+  CompletionInset,
+  CompletionOverlayState,
+  OmniboxSuggestion,
+} from "./schema/completion";
+import type { ContextMenuState } from "./schema/context-menu";
+import type { DownloadState } from "./schema/downloads";
+import type { PromptWire } from "./schema/prompts";
 
-export type TabId = number;
+export type {
+  BrowserState,
+  FindResult,
+  Message,
+  Mode,
+  Point,
+  Rect,
+  RestoreSessionState,
+  ScrollCommand,
+  TabId,
+  TabState,
+} from "./schema/browser";
 
-export type Mode = "normal" | "insert" | "command" | "hint" | "find" | "prompt";
+export type {
+  CompletionCandidate,
+  CompletionGrow,
+  CompletionInset,
+  CompletionOverlayState,
+  OmniboxSuggestion,
+} from "./schema/completion";
 
-/** Scrolling lives in the page, so main names the movement rather than the pixels. */
-export type ScrollCommand = "down" | "up" | "half-down" | "half-up" | "top" | "bottom";
+export type { ContextMenuItem, ContextMenuState } from "./schema/context-menu";
 
-export interface TabState {
-  id: TabId;
-  title: string;
-  url: string;
-  favicon: string | null;
-  loading: boolean;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  /**
-   * The page's current zoom level (0 = 100%, +1 / -1 ≈ 20% step). Mirrored
-   * here so the chrome can show it without reaching back into main.
-   */
-  zoomLevel: number;
-  /** Whether at least one bookmark points at this URL. */
-  bookmarked: boolean;
-}
+export type { DownloadState, DownloadStatus } from "./schema/downloads";
 
-/** Where a find has got to, as `found-in-page` reports it. */
-export interface FindResult {
-  query: string;
-  matches: number;
-  /** 1-based index of the highlighted match; 0 when there are none. */
-  active: number;
-}
-
-export interface BrowserState {
-  tabs: TabState[];
-  activeId: TabId | null;
-}
-
-/** Where a download has got to, as Chromium's `DownloadItem` reports it. */
-export type DownloadStatus = "progressing" | "paused" | "completed" | "cancelled" | "interrupted";
-
-export interface DownloadState {
-  /** Ours, not Chromium's — a `DownloadItem` carries no stable identifier. */
-  id: number;
-  /** Basename of the path we chose, which is not always what the server suggested. */
-  filename: string;
-  url: string;
-  status: DownloadStatus;
-  receivedBytes: number;
-  /** 0 when the server sent no length, which is what makes progress unknowable. */
-  totalBytes: number;
-  /**
-   * Smoothed throughput, and 0 once a transfer stops. Measured in main: the
-   * chrome only sees throttled snapshots, and none at all while a transfer
-   * stalls, so it has no stream of samples to average.
-   */
-  bytesPerSecond: number;
-}
-
-/** One row of the context menu; a separator is a row of its own. */
-export type ContextMenuItem =
-  | { type: "separator" }
-  | {
-      type: "item";
-      id: string;
-      label: string;
-      enabled: boolean;
-      /** Right-aligned hint slot, reserved for e.g. keybinds; unset for now. */
-      hint?: string;
-    };
-
-/**
- * Everything the page needs to render its context menu, in page coordinates.
- * null hides the menu instead.
- */
-export interface ContextMenuState {
-  x: number;
-  y: number;
-  items: ContextMenuItem[];
-  /**
-   * tokens + menu styles + the user's config.css, injected into the menu's
-   * shadow root so it themes exactly like the chrome.
-   */
-  css: string;
-}
-
-/**
- * A line of feedback for the echo area. `error` is for something the user
- * did or wrote that could not be used; `info` for everything else.
- */
-export interface Message {
-  text: string;
-  level: "info" | "error";
-}
-
-export interface Rect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface Point {
-  x: number;
-  y: number;
-}
-
-/** A permission a page may be asked about rather than silently granted or denied. */
-export type PromptablePermission = "media" | "geolocation" | "notifications" | "clipboard-read";
-
-/**
- * Payload of `toChrome.restoreSession`, sent on startup when a saved
- * session exists. Main restores the tabs itself; only the orientation
- * reaches the chrome, which seeds its override from the saved flip before
- * the first paint. `null` means "follow config".
- */
-export interface RestoreSessionState {
-  orientation: TabOrientation | null;
-}
-
-/**
- * A question the chrome renders as a one-line prompt. The union leaves
- * room for future kinds without a channel change. The id travels
- * separately so the queue owns it end-to-end and the asker never invents
- * or strips one.
- */
-export type PromptState =
-  | {
-      kind: "permission";
-      origin: string;
-      permission: PromptablePermission;
-      mediaTypes?: ("video" | "audio")[];
-    }
-  | {
-      kind: "session-restore";
-      tabCount: number;
-    }
-  | {
-      kind: "external-protocol";
-      /**
-       * The page asking, or null when nothing asked on a page's behalf — a
-       * typed URL, `:tabnew`, or a restored session tab. The user's own
-       * choice, but still asked once per scheme: the OS sees the same
-       * request either way.
-       */
-      origin: string | null;
-      scheme: string;
-      /** Shown truncated in the prompt line: the scheme alone does not say what is being sent to the OS. */
-      url: string;
-    };
-
-/** The wire shape of a queued prompt: the state plus the id the queue stamped. */
-export interface PromptWire {
-  id: number;
-  state: PromptState;
-}
-
-/**
- * One row offered while typing in the omnibox: a concrete destination, not
- * typed search text — accepting one navigates straight to `value`, without
- * a re-resolve. `kind` picks the badge `completion.svelte.ts` renders so a
- * bookmarked row reads differently from a history-only one.
- */
-export interface OmniboxSuggestion {
-  label: string;
-  value: string;
-  kind: "bookmark" | "history";
-}
-
-/**
- * One row of a completion list, generic over what is being completed. Shared
- * rather than renderer-owned because the list is rendered in an overlay view
- * of its own, and the candidate crosses main to get there and back.
- */
-export interface CompletionCandidate {
-  label: string;
-  value: string;
-  hint?: string;
-  /**
-   * A free-form tag such as "bookmark", "history", "search", or "command".
-   * Nothing here has a fixed vocabulary for it — a kind becomes a one-letter
-   * badge (its first character) coloured by `--kv-completion-kind-<kind>-fg`,
-   * a token the caller's feature defines.
-   */
-  kind?: string;
-}
-
-/**
- * Which edge of its anchor a completion list grows from. The omnibox sits
- * above the page and grows down; the command line sits below it and grows up.
- */
-export type CompletionGrow = "down" | "up";
-
-/**
- * What the completion overlay renders, and what main places it by. `anchor`
- * is the input the list belongs to, measured in the chrome's own coordinates
- * — the same frame `setContentRect` reports in, so main can hand it to
- * `setBounds` without translating.
- */
-export interface CompletionOverlayState {
-  candidates: CompletionCandidate[];
-  /** The highlighted row, or -1 when nothing is selected yet. */
-  index: number;
-  anchor: Rect;
-  grow: CompletionGrow;
-}
-
-/**
- * Position of the list inside its view, in CSS pixels.
- *
- * View bounds are whole pixels but the omnibox sits on fractions (`ch`
- * padding), so the view contains the list, whose border lands exactly on
- * the chrome's.
- */
-export interface CompletionInset {
-  left: number;
-  top: number;
-  width: number;
-}
+export type { PromptablePermission, PromptState, PromptWire } from "./schema/prompts";
 
 /**
  * A channel and what it carries. `payload` is a phantom: it never exists at

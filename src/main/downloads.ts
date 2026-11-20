@@ -3,9 +3,14 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import { app, type DownloadItem, type Event, type Session, type WebContents } from "electron";
 import type { Settings } from "../shared/config";
-import type { DownloadState, DownloadStatus } from "../shared/ipc";
+import type { Types } from "effect";
+import type { DownloadState as WireDownload, DownloadStatus } from "../shared/ipc";
+
 import { type RateState, sampleRate, startRate } from "./download-rate";
 import { resolveDownloadDir, uniqueSavePath } from "./downloads-path";
+
+/** Updated in place as the transfer reports; the wire copy is a snapshot of it. */
+type DownloadState = Types.Mutable<WireDownload>;
 
 /**
  * `updated` fires per chunk, so the snapshot is throttled — but every terminal
