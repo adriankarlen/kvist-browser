@@ -409,7 +409,7 @@ Order chosen so each step has few dependents:
 - [x] `completion` overlay (`completion-overlay.ts`, `completion-bounds.ts`, `overlay-host.ts`)
 - [x] `config` / `styles` / `adblock` / `local-pages` apply, as one serialized interpreter. That replaces the `applying` promise chain.
 - [x] `history`, `bookmarks`, `zoom`, `session` persistence Cmds
-- [ ] `src/main/index.ts` reduced to the composition root
+- [x] `src/main/index.ts` reduced to the composition root
 
 ### Phase 4: renderers on TEA
 
