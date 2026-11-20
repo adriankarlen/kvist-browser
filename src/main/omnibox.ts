@@ -1,8 +1,8 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import type { OmniboxSuggestion } from "../shared/ipc";
-import type { Bookmarks } from "./bookmarks";
 import { parse } from "./db/validation";
-import type { History } from "./history";
+import { BookmarksRepo } from "./services/bookmarks-repo";
+import { HistoryRepo } from "./services/history-repo";
 
 /** Rows asked of each source; the omnibox shows only a handful, so a deep search would be wasted work. */
 const SOURCE_LIMIT = 8;
@@ -10,18 +10,13 @@ const SOURCE_LIMIT = 8;
 /** A query string, as it should arrive from the wire — validated here rather than trusted from it. */
 const queryValidator = Schema.String;
 
-export interface OmniboxSources {
-  history: History;
-  bookmarks: Bookmarks;
-}
-
 /**
  * Keeps the first row per URL. Both `History` (a reload is its own row)
  * and `Bookmarks` (two rows per URL is intentional, see `db/schema/
  * bookmarks.ts`) can return duplicates; both return newest first, so the
  * first occurrence is the newest.
  */
-function dedupeByUrl<T extends { url: string }>(rows: T[]): T[] {
+function dedupeByUrl<T extends { url: string }>(rows: ReadonlyArray<T>): T[] {
   const seen = new Set<string>();
   const deduped: T[] = [];
 
@@ -41,31 +36,36 @@ function dedupeByUrl<T extends { url: string }>(rows: T[]): T[] {
  *
  * `query` is validated, not trusted: it crosses IPC as `unknown`.
  */
-export function omniboxSuggestions(sources: OmniboxSources, query: unknown): OmniboxSuggestion[] {
-  const validated = parse(queryValidator, query);
-  // One trim up front: an empty query (invalid payload or whitespace) answers
-  // nothing, and neither source search should see padded input.
-  const trimmed = validated.problem === undefined ? validated.value.trim() : "";
+export const omniboxSuggestions = (
+  query: unknown,
+): Effect.Effect<OmniboxSuggestion[], never, HistoryRepo | BookmarksRepo> =>
+  Effect.gen(function* () {
+    const validated = parse(queryValidator, query);
+    // One trim up front: an empty query (invalid payload or whitespace) answers
+    // nothing, and neither source search should see padded input.
+    const trimmed = validated.problem === undefined ? validated.value.trim() : "";
 
-  if (trimmed === "") return [];
+    if (trimmed === "") return [];
 
-  const bookmarkRows = dedupeByUrl(sources.bookmarks.search(trimmed, { limit: SOURCE_LIMIT }));
-  const bookmarked = new Set(bookmarkRows.map((row) => row.url));
+    const history = yield* HistoryRepo;
+    const bookmarks = yield* BookmarksRepo;
+    const bookmarkRows = dedupeByUrl(yield* bookmarks.search(trimmed, SOURCE_LIMIT));
+    const bookmarked = new Set(bookmarkRows.map((row) => row.url));
 
-  const historyRows = dedupeByUrl(sources.history.search(trimmed, { limit: SOURCE_LIMIT })).filter(
-    (row) => !bookmarked.has(row.url),
-  );
+    const historyRows = dedupeByUrl(yield* history.search(trimmed, SOURCE_LIMIT)).filter(
+      (row) => !bookmarked.has(row.url),
+    );
 
-  return [
-    ...bookmarkRows.map((row): OmniboxSuggestion => ({
-      label: row.title,
-      value: row.url,
-      kind: "bookmark",
-    })),
-    ...historyRows.map((row): OmniboxSuggestion => ({
-      label: row.title,
-      value: row.url,
-      kind: "history",
-    })),
-  ];
-}
+    return [
+      ...bookmarkRows.map((row): OmniboxSuggestion => ({
+        label: row.title,
+        value: row.url,
+        kind: "bookmark",
+      })),
+      ...historyRows.map((row): OmniboxSuggestion => ({
+        label: row.title,
+        value: row.url,
+        kind: "history",
+      })),
+    ];
+  });

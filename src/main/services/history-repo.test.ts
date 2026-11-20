@@ -1,21 +1,21 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
-import type { Database } from "./db/database";
-import { closeTestDatabase, openTestDatabase } from "./db/test-database";
-import { formatErrorPageUrl } from "./error-page";
-import { History } from "./history";
+import { repoRunner, type RepoRunner } from "../db/test-repos";
+import { formatErrorPageUrl } from "../error-page";
+import { HistoryRepo, type RecordInput } from "./history-repo";
 
-let dir: string;
-let db: Database;
-let history: History;
+let runner: RepoRunner<HistoryRepo["Service"]>;
 
 beforeEach(() => {
-  ({ dir, db } = openTestDatabase("history"));
-  history = new History(db);
+  runner = repoRunner(HistoryRepo, HistoryRepo.layer);
 });
 
-afterEach(() => {
-  closeTestDatabase({ dir, db });
-});
+afterEach(() => runner.dispose());
+
+const history = {
+  record: (input: RecordInput) => runner.run((repo) => repo.record(input)),
+  search: (pattern: string, limit?: number) => runner.run((repo) => repo.search(pattern, limit)),
+  recent: (limit?: number) => runner.run((repo) => repo.recent(limit)),
+};
 
 const record = (url: string, title = url, visitedAt = 1): boolean =>
   history.record({ url, title, visitedAt });
@@ -88,13 +88,13 @@ test("search returns rows newest first", () => {
 
 test("search respects the limit", () => {
   for (let i = 0; i < 10; i++) record(`https://x.example/${i}`, `X ${i}`, i);
-  expect(history.search("example", { limit: 3 })).toHaveLength(3);
+  expect(history.search("example", 3)).toHaveLength(3);
 });
 
 test("search returns all rows when the limit is above the hard cap", () => {
   for (let i = 0; i < 5; i++) record(`https://y.example/${i}`, `Y ${i}`, i);
   // The cap is 500; five rows is well under it, so this returns all of them.
-  expect(history.search("example", { limit: 1000 })).toHaveLength(5);
+  expect(history.search("example", 1000)).toHaveLength(5);
 });
 
 test("search returns no rows for an empty pattern", () => {

@@ -24,8 +24,6 @@ export const stylesDir = join(configDir, "styles");
 /** Where the SQLite database lives. Exposed as a path string so tests can point the storage at a tmpdir without going through `app.getPath`. */
 export const dataDir = xdg("XDG_DATA_HOME", join(".local", "share"));
 
-export const dbPath = join(dataDir, "kvist.db");
-
 /**
  * Electron puts userData under XDG_CONFIG_HOME on Linux, so Chromium
  * profile state would bury the hand-edited config. Keeps ~/.config/kvist

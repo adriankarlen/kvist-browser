@@ -1,42 +1,22 @@
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
-import { Database } from "./db/database";
-import { session as sessionTable } from "./db/schema";
-import { Session, type SessionState } from "./session";
+import { repoRunner, type RepoRunner } from "../db/test-repos";
+import { SessionRepo, type SessionState } from "./session-repo";
 
-const REAL_MIGRATIONS = join(process.cwd(), "src/main/db/migrations");
-
-let dir: string;
-let migDir: string;
-let db: Database;
-let session: Session;
+let runner: RepoRunner<SessionRepo["Service"]>;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "kvist-session-"));
-  migDir = join(dir, "migrations");
-  mkdirSync(migDir, { recursive: true });
-
-  // Copy the real migrations into the test folder so `Database.open` runs
-  // them and both `history` and `session` tables exist before the test
-  // starts — `session` is the table this file is about, but the migrator
-  // expects the full ordered set.
-  for (const entry of readdirSync(REAL_MIGRATIONS, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    cpSync(join(REAL_MIGRATIONS, entry.name), join(migDir, entry.name), {
-      recursive: true,
-    });
-  }
-
-  db = Database.open(join(dir, "session.db"), migDir);
-  session = new Session(db);
+  runner = repoRunner(SessionRepo, SessionRepo.layer);
 });
 
-afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
-});
+afterEach(() => runner.dispose());
+
+const plant: RepoRunner<SessionRepo["Service"]>["sql"] = (statement) => runner.sql(statement);
+
+const session = {
+  save: (state: SessionState, savedAt: number) => runner.run((repo) => repo.save(state, savedAt)),
+  clear: () => runner.run((repo) => repo.clear),
+  load: () => runner.run((repo) => repo.load),
+};
 
 const baseState: SessionState = {
   tabs: ["https://example.com/", "https://example.org/"],
@@ -120,31 +100,31 @@ test("load returns null when the row's activeIndex is out of range", () => {
   // matters (a corrupted row from a previous version), not a present-day
   // input bug.
   expect(session.save(baseState, 1)).toBe(true);
-  db.drizzle.update(sessionTable).set({ activeIndex: 99 }).run();
+  plant((sql) => sql`UPDATE session SET active_index = 99`);
   expect(session.load()).toBeNull();
 });
 
 test("load returns null when the JSON column does not decode", () => {
   expect(session.save(baseState, 1)).toBe(true);
-  db.drizzle.update(sessionTable).set({ tabsJson: "not json" }).run();
+  plant((sql) => sql`UPDATE session SET tabs_json = ${"not json"}`);
   expect(session.load()).toBeNull();
 });
 
 test("load returns null when the JSON column decodes to a non-array", () => {
   expect(session.save(baseState, 1)).toBe(true);
-  db.drizzle.update(sessionTable).set({ tabsJson: '{"not":"an array"}' }).run();
+  plant((sql) => sql`UPDATE session SET tabs_json = ${'{"not":"an array"}'}`);
   expect(session.load()).toBeNull();
 });
 
 test("load returns null when the URL list decodes to an empty array", () => {
   expect(session.save(baseState, 1)).toBe(true);
-  db.drizzle.update(sessionTable).set({ tabsJson: "[]" }).run();
+  plant((sql) => sql`UPDATE session SET tabs_json = ${"[]"}`);
   expect(session.load()).toBeNull();
 });
 
 test("load returns null when the URL list contains an empty string", () => {
   expect(session.save(baseState, 1)).toBe(true);
-  db.drizzle.update(sessionTable).set({ tabsJson: '["https://ok.example", ""]' }).run();
+  plant((sql) => sql`UPDATE session SET tabs_json = ${'["https://ok.example", ""]'}`);
   expect(session.load()).toBeNull();
 });
 

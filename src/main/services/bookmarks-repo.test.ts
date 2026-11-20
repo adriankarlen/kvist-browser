@@ -1,20 +1,27 @@
-import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { Bookmarks } from "./bookmarks";
-import type { Database } from "./db/database";
-import { closeTestDatabase, openTestDatabase } from "./db/test-database";
+import { describe, it } from "@effect/vitest";
+import { Effect, Layer, Stream } from "effect";
+import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { testDatabase } from "../db/database";
+import { repoRunner, type RepoRunner } from "../db/test-repos";
+import { type AddInput, BookmarksRepo } from "./bookmarks-repo";
 
-let dir: string;
-let db: Database;
-let bookmarks: Bookmarks;
+let runner: RepoRunner<BookmarksRepo["Service"]>;
 
 beforeEach(() => {
-  ({ dir, db } = openTestDatabase("bookmarks"));
-  bookmarks = new Bookmarks(db);
+  runner = repoRunner(BookmarksRepo, BookmarksRepo.layer);
 });
 
-afterEach(() => {
-  closeTestDatabase({ dir, db });
-});
+afterEach(() => runner.dispose());
+
+const bookmarks = {
+  add: (input: AddInput) => runner.run((repo) => repo.add(input)),
+  remove: (id: number) => runner.run((repo) => repo.remove(id)),
+  removeUrl: (url: string) => runner.run((repo) => repo.removeUrl(url)),
+  get: (id: number) => runner.run((repo) => repo.get(id)),
+  has: (url: string) => runner.run((repo) => repo.has(url)),
+  search: (pattern: string, limit?: number) => runner.run((repo) => repo.search(pattern, limit)),
+  list: (limit?: number) => runner.run((repo) => repo.list(limit)),
+};
 
 const add = (url: string, title = url, createdAt = 1): boolean =>
   bookmarks.add({ url, title, createdAt });
@@ -89,13 +96,13 @@ test("list orders newest first", () => {
 
 test("list respects the limit", () => {
   for (let i = 0; i < 10; i++) add(`https://x.example/${i}`, `X ${i}`, i);
-  expect(bookmarks.list({ limit: 3 })).toHaveLength(3);
+  expect(bookmarks.list(3)).toHaveLength(3);
 });
 
 test("list returns all rows when the limit is above the hard cap", () => {
   for (let i = 0; i < 5; i++) add(`https://y.example/${i}`, `Y ${i}`, i);
   // The cap is 500; five rows is well under it, so this returns all of them.
-  expect(bookmarks.list({ limit: 1000 })).toHaveLength(5);
+  expect(bookmarks.list(1000)).toHaveLength(5);
 });
 
 test("get returns the matching row", () => {
@@ -193,39 +200,6 @@ test("removeUrl returns 0 for an unknown or invalid URL", () => {
   expect(bookmarks.list()).toHaveLength(1);
 });
 
-test("observers hear about writes that changed a row", () => {
-  const observer = vi.fn();
-  bookmarks.observe(observer);
-
-  add("https://a.example/", "A", 1);
-  add("https://a.example/", "A again", 2);
-  bookmarks.remove(bookmarks.list()[0]!.id);
-  bookmarks.removeUrl("https://a.example/");
-
-  expect(observer).toHaveBeenCalledTimes(4);
-});
-
-test("observers hear nothing from writes that changed nothing", () => {
-  const observer = vi.fn();
-  bookmarks.observe(observer);
-
-  add("not a url");
-  bookmarks.remove(999);
-  bookmarks.removeUrl("https://a.example/");
-
-  expect(observer).not.toHaveBeenCalled();
-});
-
-test("an unsubscribed observer hears nothing more", () => {
-  const observer = vi.fn();
-  const release = bookmarks.observe(observer);
-  release();
-
-  add("https://a.example/", "A", 1);
-
-  expect(observer).not.toHaveBeenCalled();
-});
-
 test("search matches URL substrings", () => {
   add("https://example.com/", "Example", 1);
   add("https://other.com/", "Other", 2);
@@ -253,12 +227,12 @@ test("search returns rows newest first", () => {
 
 test("search respects the limit", () => {
   for (let i = 0; i < 10; i++) add(`https://x.example/${i}`, `X ${i}`, i);
-  expect(bookmarks.search("example", { limit: 3 })).toHaveLength(3);
+  expect(bookmarks.search("example", 3)).toHaveLength(3);
 });
 
 test("search returns all rows when the limit is above the hard cap", () => {
   for (let i = 0; i < 5; i++) add(`https://y.example/${i}`, `Y ${i}`, i);
-  expect(bookmarks.search("example", { limit: 1000 })).toHaveLength(5);
+  expect(bookmarks.search("example", 1000)).toHaveLength(5);
 });
 
 test("search returns no rows for an empty pattern", () => {
@@ -289,4 +263,34 @@ test("search treats '\\' as a literal escape character in the query", () => {
   // Without escape handling, the backslash collides with our ESCAPE
   // clause and the second row would also match.
   expect(bookmarks.search("\\").map((row) => row.url)).toEqual(["https://example.com/path\\file"]);
+});
+
+describe("changes", () => {
+  it.effect("one change per write that changed a row, none for writes that did not", () =>
+    Effect.gen(function* () {
+      let seen = 0;
+
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const repo = yield* BookmarksRepo;
+
+          yield* repo.changes.pipe(
+            Stream.runForEach(() => Effect.sync(() => void seen++)),
+            Effect.forkScoped,
+          );
+          yield* Effect.yieldNow;
+          yield* repo.add({ url: "https://a.example/", title: "A", createdAt: 1 });
+          yield* repo.add({ url: "https://a.example/", title: "A again", createdAt: 2 });
+          yield* repo.add({ url: "not a url", title: "x" });
+          yield* repo.remove(999);
+          yield* repo.remove((yield* repo.list())[0]!.id);
+          yield* repo.removeUrl("https://a.example/");
+          yield* repo.removeUrl("https://a.example/");
+          yield* Effect.yieldNow;
+        }),
+      ).pipe(Effect.provide(BookmarksRepo.layer.pipe(Layer.provide(testDatabase))));
+
+      expect(seen).toBe(4);
+    }),
+  );
 });

@@ -8,14 +8,14 @@ import {
   registerKvistScheme,
 } from "./local-pages";
 import { createActions } from "./actions";
-import { Bookmarks } from "./bookmarks";
-import { Database } from "./db/database";
+import { databaseLayer, prepareDatabaseFile } from "./db/database";
 import { parse } from "./db/validation";
 import { systemClipboard } from "./clipboard";
-import { History } from "./history";
 import { omniboxSuggestions } from "./omnibox";
 import { Prompts } from "./prompts";
-import { Session, type SessionState } from "./session";
+import { BookmarksRepo } from "./services/bookmarks-repo";
+import { HistoryRepo, type RecordInput } from "./services/history-repo";
+import { SessionRepo, type SessionState } from "./services/session-repo";
 import {
   fromOverlay,
   fromPage,
@@ -34,7 +34,7 @@ import { Downloads } from "./downloads";
 import { ExternalProtocols } from "./external";
 import { Messages } from "./messages";
 import { DEFAULT_KEYBINDS } from "./keybinds";
-import { applyXdgPaths, dbPath } from "./paths";
+import { applyXdgPaths, dataDir } from "./paths";
 import { interceptKeys } from "./keys";
 import { Permissions } from "./permissions";
 import { TabManager } from "./tab-manager";
@@ -45,7 +45,8 @@ import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { StyleFiles } from "./services/style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
-import { Effect, Layer, ManagedRuntime, Schema, Stream } from "effect";
+import { Effect, Exit, Layer, ManagedRuntime, Schema, Stream } from "effect";
+import type { Context } from "effect";
 
 applyXdgPaths();
 
@@ -53,8 +54,59 @@ registerKvistScheme();
 
 /** The app scope: closed on `quit`, never on `will-quit`, which can be cancelled. */
 const runtime = ManagedRuntime.make(
-  Layer.mergeAll(ConfigFiles.layer, StyleFiles.layer).pipe(Layer.provideMerge(AppLayer)),
+  Layer.mergeAll(
+    ConfigFiles.layer,
+    StyleFiles.layer,
+    Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer).pipe(
+      Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
+    ),
+  ).pipe(Layer.provideMerge(AppLayer)),
 );
+
+type MainServices = ManagedRuntime.ManagedRuntime.Services<typeof runtime>;
+
+/**
+ * Runs one repository call to completion on this tick. `node:sqlite` is
+ * synchronous, so the imperative code that has not moved onto the store yet
+ * can keep calling the repositories as plain functions.
+ */
+function useSync<I extends MainServices, S, A>(
+  tag: Context.Key<I, S>,
+  call: (service: S) => Effect.Effect<A>,
+): A {
+  return runtime.runSync(Effect.flatMap(Effect.service(tag), call));
+}
+
+const history = {
+  record: (input: RecordInput) => useSync(HistoryRepo, (repo) => repo.record(input)),
+};
+
+const bookmarks = {
+  has: (url: string) => useSync(BookmarksRepo, (repo) => repo.has(url)),
+  add: (input: { url: string; title: string }) => useSync(BookmarksRepo, (repo) => repo.add(input)),
+  removeUrl: (url: string) => useSync(BookmarksRepo, (repo) => repo.removeUrl(url)),
+  /** Calls `onChange` after every bookmark write, until the returned release. */
+  observe: (onChange: () => void): (() => void) => {
+    const fiber = runtime.runFork(
+      Effect.flatMap(Effect.service(BookmarksRepo), (repo) =>
+        Stream.runForEach(repo.changes, () => Effect.sync(onChange)),
+      ),
+    );
+
+    return () => fiber.interruptUnsafe();
+  },
+};
+
+type Bookmarks = typeof bookmarks;
+
+const sessions = {
+  save: (state: SessionState, savedAt: number) =>
+    useSync(SessionRepo, (repo) => repo.save(state, savedAt)),
+  clear: () => useSync(SessionRepo, (repo) => repo.clear),
+  load: () => useSync(SessionRepo, (repo) => repo.load),
+};
+
+type Sessions = typeof sessions;
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -224,9 +276,8 @@ function isPromptAnswer(value: unknown): value is { id: number; allow: boolean }
 
 function createWindow(
   zoom: ZoomStore,
-  history: History,
   bookmarks: Bookmarks,
-  sessions: Session,
+  sessions: Sessions,
   saved: SessionState | null,
 ): void {
   const win = new BrowserWindow({
@@ -663,23 +714,17 @@ if (!gotTheLock) {
   void app.whenReady().then(async () => {
     downloads.attach(session.defaultSession);
     permissions.attach(session.defaultSession);
-    // A bad migration, corrupted DB, or missing migrations folder is a
-    // real failure — log and quit rather than leave the user staring at
-    // a window that never appears, which is what an unhandled rejection
-    // here would do.
-    let db: Database;
+    // A bad migration or a corrupt database is a real failure: log and quit
+    // rather than leave the user staring at a window that never appears.
+    const built = await runtime.runPromiseExit(Effect.void);
 
-    try {
-      db = Database.open(dbPath);
-    } catch (error) {
-      console.error("kvist: could not open the storage layer:", error);
+    if (Exit.isFailure(built)) {
+      console.error("kvist: could not start:", built.cause);
       app.quit();
 
       return;
     }
 
-    const history = new History(db);
-    const bookmarks = new Bookmarks(db);
     // Bookmarks, History and the command table are app-scoped, not
     // per-window, so these queries are registered once for the app's whole
     // life. `ipcMain.handle` throws on a second registration, which a second
@@ -688,7 +733,7 @@ if (!gotTheLock) {
     handleQueries(
       toMainQueries,
       {
-        omniboxSuggestions: (query) => omniboxSuggestions({ history, bookmarks }, query),
+        omniboxSuggestions: (query) => runtime.runPromise(omniboxSuggestions(query)),
         commandCompletions: (line) => {
           const parsed = parse(commandLine, line);
 
@@ -752,9 +797,7 @@ if (!gotTheLock) {
     // null, which is indistinguishable from a fresh first launch — the right
     // answer when an old build has never written the table or when a corrupt
     // row is left behind by a crash.
-    const sessions = new Session(db);
-    const saved = sessions.load();
-    createWindow(zoom, history, bookmarks, sessions, saved);
+    createWindow(zoom, bookmarks, sessions, sessions.load());
 
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has
@@ -766,7 +809,6 @@ if (!gotTheLock) {
     // query — `activate` calling `Session.load` is the one that surfaced.
     // `quit` only fires once the app is definitely going.
     app.on("quit", () => {
-      db.close();
       disposeNow(runtime);
     });
     runtime.runFork(Effect.logInfo("kvist started"));
@@ -777,7 +819,7 @@ if (!gotTheLock) {
       // session, same as cold start. Re-reading from the store is cheap and
       // avoids the alternative of carrying the row across the app's lifetime.
       if (BrowserWindow.getAllWindows().length === 0)
-        createWindow(zoom, history, bookmarks, sessions, sessions.load());
+        createWindow(zoom, bookmarks, sessions, sessions.load());
     });
   });
 }

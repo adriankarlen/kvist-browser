@@ -15,8 +15,6 @@
     "check": "effect-tsgo vp check",
     "test": "vp test",
     "package": "vp build && electron-builder --publish never",
-    "db:generate": "drizzle-kit generate",
-    "db:check": "drizzle-kit check",
     "postinstall": "install-electron"
   },
   "dependencies": {
@@ -55,9 +53,6 @@
     "files": [
       "dist/**/*",
       "images/kvist-logo.png"
-    ],
-    "asarUnpack": [
-      "dist/main/migrations/**/*"
     ],
     "directories": {
       "output": "release"
