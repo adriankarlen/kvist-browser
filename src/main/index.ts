@@ -29,13 +29,7 @@ import {
 } from "../shared/ipc";
 import { handle, handleQueries } from "./ipc";
 import { completeCommand, createCommands } from "./commands";
-import {
-  createConfigStore,
-  describeProblem,
-  type LoadedConfig,
-  loadConfig,
-  watchConfig,
-} from "./config";
+import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
 import { Downloads } from "./downloads";
 import { ExternalProtocols } from "./external";
 import { Messages } from "./messages";
@@ -51,14 +45,14 @@ import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
-import { Effect, ManagedRuntime, Schema } from "effect";
+import { Effect, Layer, ManagedRuntime, Schema, Stream } from "effect";
 
 applyXdgPaths();
 
 registerKvistScheme();
 
 /** The app scope: closed on `quit`, never on `will-quit`, which can be cancelled. */
-const runtime = ManagedRuntime.make(AppLayer);
+const runtime = ManagedRuntime.make(ConfigFiles.layer.pipe(Layer.provideMerge(AppLayer)));
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -682,7 +676,6 @@ if (!gotTheLock) {
       return;
     }
 
-    const config = createConfigStore();
     const history = new History(db);
     const bookmarks = new Bookmarks(db);
     // Bookmarks, History and the command table are app-scoped, not
@@ -702,9 +695,24 @@ if (!gotTheLock) {
       },
       (sender) => BrowserWindow.getAllWindows().some((window) => window.webContents === sender),
     );
-    const loaded = await loadConfig(config);
-    reportProblems(loaded);
-    await applyConfig(loaded.config);
+    // The first load is the startup config; every later one is a save.
+    const configLoaded = Promise.withResolvers<void>();
+
+    const configFiber = runtime.runFork(
+      Effect.gen(function* () {
+        const { changes } = yield* ConfigFiles;
+
+        yield* Stream.runForEach(changes, (loaded) =>
+          Effect.promise(async () => {
+            reportProblems(loaded);
+            await applyConfig(loaded.config);
+            configLoaded.resolve();
+          }),
+        );
+      }),
+    );
+
+    await configLoaded.promise;
     registerKvistProtocol();
 
     reportStyleProblems(userStyles.setSources(await readStyleFiles()));
@@ -723,11 +731,6 @@ if (!gotTheLock) {
     const saved = sessions.load();
     createWindow(zoom, history, bookmarks, sessions, saved);
 
-    const releaseConfig = await watchConfig(config, (next) => {
-      reportProblems(next);
-      void applyConfig(next.config);
-    });
-
     const releaseStyleFiles = await watchStyleFiles((sources) => {
       reportStyleProblems(userStyles.setSources(sources));
 
@@ -742,7 +745,7 @@ if (!gotTheLock) {
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has
     // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
-    app.on("will-quit", releaseConfig);
+    app.on("will-quit", () => configFiber.interruptUnsafe());
     app.on("will-quit", releaseStyleFiles);
     // `quit` rather than `will-quit`: `will-quit` is cancellable, and an app
     // that keeps running with a closed database throws out of every later
