@@ -376,7 +376,7 @@ Each phase is one PR (or a few), leaves the app working, and passes
   - Run `require-readable-spacing --fix` as a separate whitespace-only commit. Format again and confirm that a second pass changes nothing.
   - Fix new findings in the current code. Most are short-lived, but the rules must be green before the migration starts.
   - Write `tools/oxlint/anti-slop/UPSTREAM.md`. Run the upstream rule tests against the merged copy, adapted to `vite-plus/lint/plugins`, to cover the changed rules.
-- [ ] Write `docs/architecture.md` (the Architecture section above). Replace "Resource lifetimes", "Persistence" and the IPC bullets in `AGENTS.md`, and point to it.
+- [x] Write `docs/architecture.md` (the Architecture section above). Replace "Resource lifetimes", "Persistence" and the IPC bullets in `AGENTS.md`, and point to it.
 
 ### Phase 1: kernel and leaf services (main still imperative)
 

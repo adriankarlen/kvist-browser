@@ -21,6 +21,13 @@ subcommands. Two footguns:
 
 ## Architecture
 
+**Read [`docs/architecture.md`](docs/architecture.md) first.** It is the
+rulebook: Effect services and layers, an Elm-style loop (Model, Msg, pure
+`update`, Cmds, view) in every process, scopes for lifetimes, and Schema at
+every boundary. The move onto it is tracked in
+[`plans/effect-migration.md`](plans/effect-migration.md); code not yet
+migrated still has the older shape described below.
+
 The shape of the project, with the _why_ living next to the code it
 constrains.
 
@@ -42,8 +49,9 @@ constrains.
 - **Renderer owns layout.** The renderer measures its own content area with a
   `ResizeObserver` and pushes a `Rect` over `kvist:content-rect`; main just
   applies it via `view.setBounds`. Tab orientation is a pure CSS concern.
-- **IPC is full-snapshot**, not diffs: fire-and-forget `send` one way, plus
-  `kvist:state` and `kvist:config` broadcasts back.
+- **IPC is Effect RPC over a `MessagePort` per surface**, full snapshots
+  main → renderer and `dispatch(intent)` back. The port is the capability:
+  see [IPC](docs/architecture.md#ipc).
 - **Mode machine lives in main.** `before-input-event` is synchronous and
   per-webContents, so keys are intercepted on both the page and the chrome.
   Mode changes have two entry points — keys (intercepted) and `kvist:set-mode`
@@ -62,63 +70,38 @@ constrains.
 
 ## Resource lifetimes
 
+See [Lifetimes](docs/architecture.md#lifetimes). Everything with a lifetime
+past its call is acquired in a `Scope`, and scopes nest app → window → tab.
+
 Nothing may cancel a quit. `will-quit` is cancellable, and Electron drops an
 `app.quit()` that lands on the same tick as the `will-quit` that cancelled it
 — so the "preventDefault, finish the work, re-arm the quit" shape leaves the
-app alive in the dock with its teardown already run. Quit-time work is
-synchronous (`ZoomStore.release`), and anything that must not be torn down
-early hangs off `quit` rather than `will-quit` (the `Database`).
+app alive in the dock with its teardown already run. The app scope closes on
+`quit`, synchronously, and every quit-time finalizer is synchronous.
 
-Anything acquired with a lifetime past the call that acquired it — a
-listener, a timer, a filesystem watcher, a reservation, an IPC subscription
-— returns or is paired with a `release`, not a fire-and-forget. Pair it at
-the point of acquisition: `config.ts`'s `watchConfig` (watcher + debounce
-timer), `downloads.ts`'s save-path reservation and its `updated`/`done`
-listeners, and `permissions.ts`'s per-waiter `destroyed` listener all follow
-this shape (PR #24, KVI-35).
-
-A release reachable from only one exit path is half a fix. `permissions.ts`
-first released a waiter's `destroyed` listener only when its tab died, not
-when the question was answered normally — every resolved permission left one
-dead listener on a long-lived tab. Ask both: how does this get released when
-the resource retires normally, and how does it get released if the thing
-being watched disappears first?
-
-App/session-scoped acquisitions are the deliberate exception: `Downloads` and
-`Permissions` attach their session handlers once, for the app's whole life,
-with nothing narrower to release into — there is only one app. Everything
-window-scoped follows `observe()` → disposer: `Messages`, `Downloads` and
-`Permissions` all hand back an unsubscribe that `createWindow` calls on
-`win.on("closed", ...)`, the same shape `watchConfig`'s release takes on
-`will-quit`. A new module with a per-window subscription should return the
-same shape rather than invent its own teardown.
+Ask two questions of every acquisition: how is it released when the resource
+retires normally, and how is it released if the thing being watched
+disappears first? `permissions.ts` once answered only the second, and every
+resolved permission left a dead listener on a long-lived tab. A scope makes
+both answers the same path.
 
 ## Persistence
 
-The storage layer is `node:sqlite` behind Drizzle, with ArkType for runtime
-validation of typed boundaries (KVI-24). The driver is Node's built-in
-module, the ORM is pinned to the Drizzle 1.0 RC line, and the validator
-is ArkType 2.x — the pins are intentional, so the eventual bump to
-stable is a version change rather than a rewrite.
+SQLite through `effect/sql` and `@effect/sql-sqlite-node` (Node's built-in
+`node:sqlite` driver; no native rebuilds). Rows and JSON columns are decoded
+with `effect/Schema`.
 
-- The single `Database` instance is opened in `app.whenReady` and released
-  on `quit`, not `will-quit`: `will-quit` is cancellable, and an app that
-  keeps running with a closed connection throws out of every later query.
-  Consumers take the same instance and call `db.drizzle`
-  to query. One process, one connection; WAL mode is on, but readers and
-  writers are not a concurrency story Kvist needs.
-- Schemas live in `src/main/db/schema.ts` and migrations in
-  `src/main/db/migrations/`. The workflow for adding a table: define it,
-  re-export it from `schema.ts`, run `pnpm db:generate`, check the
-  generated SQL in. The migrator is read-only at runtime; the schema is
-  the source of truth.
-- Runtime validation of typed boundaries goes through ArkType via
-  `parse()` / `parseAll()` in `src/main/db/validation.ts`. The result
-  adapts to the existing `Problem` interface from `shared/config.ts`, so
-  config-style `reportProblems` flows read validation errors from any
-  boundary. For DB rows, `drizzle-arktype`'s `createSelectSchema(table)`
-  derives a validator from the Drizzle schema — types and runtime checks
-  come from one source.
+- One `SqliteClient` for the app, closed with the app scope on `quit`, not
+  `will-quit`: an app that keeps running with a closed connection throws
+  out of every later query.
+- Migrations are TypeScript modules in `src/main/db/migrations/`, run by
+  the Effect `Migrator` at startup. To add a table, add the next numbered
+  migration; never edit one that has shipped.
+- Each table has a repository service (`HistoryRepo`, `BookmarksRepo`,
+  `SessionRepo`, `ZoomRepo`) built from `SqlSchema` + a Schema row.
+- `src/main/db/validation.ts` adapts a Schema failure to the `Problem`
+  shape from `shared/config.ts`, so config-style `reportProblems` flows read
+  validation errors from any boundary.
 
 ## Completion overlay
 
