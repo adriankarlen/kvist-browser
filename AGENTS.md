@@ -24,8 +24,7 @@ subcommands. Two footguns:
 **Read [`docs/architecture.md`](docs/architecture.md) first.** It is the
 rulebook: Effect services and layers, an Elm-style loop (Model, Msg, pure
 `update`, Cmds, view) in every process, scopes for lifetimes, and Schema at
-every boundary. The move onto it is recorded in
-[`plans/effect-migration.md`](plans/effect-migration.md).
+every boundary.
 
 Where things are, with the _why_ living next to the code it constrains.
 
