@@ -35,6 +35,7 @@ import { Requesters } from "./services/requesters";
 import { Desktop } from "./services/desktop";
 import { LegacyWindow, type WindowHooks } from "./services/legacy-window";
 import { TabViews } from "./tab-views";
+import { Msg as CompletionMsg } from "./features/completion/completion.program";
 import {
   activeFind,
   layout,
@@ -425,6 +426,20 @@ function createWindow(
     },
   );
 
+  // The overlay is the completion slice's view: height first, so a list that
+  // just arrived is placed at the size it last measured.
+  const completionFiber = runtime.runFork(
+    project(
+      (model) => model.completion,
+      ({ state, height }) => {
+        if (height !== null) completion.setHeight(height);
+
+        if (state === null) completion.hide();
+        else completion.show(state);
+      },
+    ),
+  );
+
   if (process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
@@ -622,6 +637,7 @@ function createWindow(
     windows.delete(applyToWindow);
     tabManagers.delete(tabViews);
     tabsFiber.interruptUnsafe();
+    completionFiber.interruptUnsafe();
   });
 
   win.webContents.once("did-finish-load", () => {
@@ -709,7 +725,10 @@ function createWindow(
             Dispatch: (message) =>
               Effect.sync(() =>
                 OverlayIntent.match(message, {
-                  CompletionMeasured: ({ height }) => completion.setHeight(height),
+                  CompletionMeasured: ({ height }) =>
+                    mainStore().dispatch(
+                      CompletionMsg.cases.CompletionHeightMeasured.make({ height }),
+                    ),
                   CompletionClicked: ({ candidate }) => {
                     chrome.completionAccept(candidate);
                     // The click moved focus into the overlay's webContents.
@@ -770,10 +789,8 @@ function createWindow(
                   // out from under someone typing.
                   vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode: "normal" }));
                 },
-                CompletionOverlayChanged: ({ state }) => {
-                  if (state === null) completion.hide();
-                  else completion.show(state);
-                },
+                CompletionOverlayChanged: ({ state }) =>
+                  mainStore().dispatch(CompletionMsg.cases.CompletionChanged.make({ state })),
               }),
             ),
         }),
