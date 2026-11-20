@@ -1,5 +1,5 @@
 import { desc, eq, sql } from "drizzle-orm";
-import { type } from "arktype";
+import { Schema } from "effect";
 import type { Database } from "./db/database";
 import { bookmarks } from "./db/schema";
 import { clampLimit, DEFAULT_LIMIT, escapeLike } from "./db/query";
@@ -7,7 +7,7 @@ import { epochMillis, nonEmptyString, parse, urlString } from "./db/validation";
 
 /**
  * A row of the bookmarks table, as it comes back from a query. The shape is
- * what `drizzle-arktype` derives from the table; `Bookmarks` returns these
+ * what the table's select returns; `Bookmarks` returns these
  * directly so callers do not have to remember which keys are camelCase.
  */
 export interface BookmarkRow {
@@ -22,7 +22,7 @@ export interface BookmarkRow {
  * single `parse()` call produces one failure report and the validated value
  * feeds straight into the insert.
  */
-const addValidator = type({
+const addValidator = Schema.Struct({
   url: urlString,
   title: nonEmptyString,
   createdAt: epochMillis,

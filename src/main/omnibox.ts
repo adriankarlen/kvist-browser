@@ -1,4 +1,4 @@
-import { type } from "arktype";
+import { Schema } from "effect";
 import type { OmniboxSuggestion } from "../shared/ipc";
 import type { Bookmarks } from "./bookmarks";
 import { parse } from "./db/validation";
@@ -8,7 +8,7 @@ import type { History } from "./history";
 const SOURCE_LIMIT = 8;
 
 /** A query string, as it should arrive from the wire — validated here rather than trusted from it. */
-const queryValidator = type("string");
+const queryValidator = Schema.String;
 
 export interface OmniboxSources {
   history: History;

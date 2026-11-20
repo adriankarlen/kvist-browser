@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { type } from "arktype";
+import { Schema } from "effect";
 import type { TabOrientation } from "../shared/config";
 import type { Database } from "./db/database";
 import { session } from "./db/schema";
@@ -125,11 +125,11 @@ export class Session {
 
     try {
       // The JSON column is just bytes as far as SQLite is concerned —
-      // arktype decodes it into the shape we can actually use here.
+      // Schema decodes it into the shape we can actually use here.
       const validated = parse(urlListValidator, JSON.parse(row.tabsJson));
 
       if (validated.problem !== undefined) return null;
-      urls = validated.value;
+      urls = [...validated.value];
     } catch {
       return null;
     }
@@ -157,43 +157,30 @@ export class Session {
   }
 }
 
-/**
- * Tab URLs are anything `loadURL` accepts — producers already pass
- * `externalProtocolTarget` — so a non-empty string array suffices.
- *
- * The cross-field narrow mirrors `load()`: an empty entry or bad index
- * would make a row the load path drops, leaving nothing restored.
- */
-const inputValidator = type({
-  tabs: "string[] > 0",
-  activeIndex: "number.integer >= 0",
-  width: "number.integer > 0",
-  height: "number.integer > 0",
-  x: "number.integer | null",
-  y: "number.integer | null",
-  orientation: "'horizontal' | 'vertical' | null",
-  savedAt: "number.integer >= 0",
-}).narrow((value, ctx) => {
-  if (value.tabs.some((entry) => entry === "")) {
-    return ctx.mustBe("non-empty tab URL");
-  }
+/** Non-empty tab URLs; producers already pass `externalProtocolTarget`. */
+const urlList = Schema.NonEmptyArray(Schema.NonEmptyString);
 
-  if (value.activeIndex >= value.tabs.length) {
-    return ctx.mustBe("activeIndex within tabs.length");
-  }
-
-  return true;
-});
+const int = Schema.Int;
 
 /**
- * The decoded JSON column's shape: non-empty array of non-empty strings.
- * `> 0` enforces non-empty; the `narrow` rejects empty entries that
- * would otherwise sneak through `loadURL` with surprising results.
+ * The cross-field check mirrors `load()`: an index past the last tab would
+ * make a row the load path drops, leaving nothing restored.
  */
-const urlListValidator = type("string[] > 0").narrow((value, ctx) => {
-  for (const entry of value) {
-    if (entry === "") return ctx.mustBe("non-empty string array");
-  }
+const inputValidator = Schema.Struct({
+  tabs: urlList,
+  activeIndex: int.check(Schema.isGreaterThanOrEqualTo(0)),
+  width: int.check(Schema.isGreaterThan(0)),
+  height: int.check(Schema.isGreaterThan(0)),
+  x: Schema.NullOr(int),
+  y: Schema.NullOr(int),
+  orientation: Schema.NullOr(Schema.Literals(["horizontal", "vertical"])),
+  savedAt: int.check(Schema.isGreaterThanOrEqualTo(0)),
+}).check(
+  Schema.makeFilter(
+    (value: { tabs: ReadonlyArray<string>; activeIndex: number }) =>
+      value.activeIndex < value.tabs.length || "activeIndex within tabs.length",
+  ),
+);
 
-  return true;
-});
+/** The decoded JSON column's shape. */
+const urlListValidator = urlList;

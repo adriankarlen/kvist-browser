@@ -1,5 +1,5 @@
 import { desc, sql } from "drizzle-orm";
-import { type } from "arktype";
+import { Schema } from "effect";
 import { originOf } from "../shared/url";
 import type { Database } from "./db/database";
 import { history } from "./db/schema";
@@ -9,7 +9,7 @@ import { errorPageTarget } from "./error-page";
 
 /**
  * A row of the history table, as it comes back from a query. The shape is
- * what `drizzle-arktype` derives from the table; `History` returns these
+ * what the table's select returns; `History` returns these
  * directly so callers do not have to remember which keys are camelCase.
  */
 export interface HistoryRow {
@@ -25,7 +25,7 @@ export interface HistoryRow {
  * single `parse()` call produces one failure report and the validated value
  * feeds straight into the insert.
  */
-const recordValidator = type({
+const recordValidator = Schema.Struct({
   url: urlString,
   title: nonEmptyString,
   visitedAt: epochMillis,

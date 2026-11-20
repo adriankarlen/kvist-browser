@@ -1,5 +1,4 @@
 import { basename, join } from "node:path";
-import { type } from "arktype";
 import { app, BrowserWindow, session, shell, WebContentsView } from "electron";
 import type { TabOrientation, UserConfig } from "../shared/config";
 import { applySettings as applyAdblockSettings, refreshCosmeticStyles } from "./adblock";
@@ -52,7 +51,7 @@ import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { readStyleFiles, watchStyleFiles } from "./user-style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
-import { Effect, ManagedRuntime } from "effect";
+import { Effect, ManagedRuntime, Schema } from "effect";
 
 applyXdgPaths();
 
@@ -69,7 +68,7 @@ const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 /** A `:` line as it arrives over IPC, parsed rather than trusted. */
-const commandLine = type("string");
+const commandLine = Schema.String;
 
 /**
  * The echo area, app-scoped like the downloads: what main has to say outlives
