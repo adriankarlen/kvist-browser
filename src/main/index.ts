@@ -43,7 +43,8 @@ import { ViewStack } from "./view-stack";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { StyleFiles } from "./services/style-files";
-import { flushOnQuit, ZoomStore } from "./zoom";
+import { ZoomRepo } from "./services/zoom-repo";
+import type { ZoomStoreAccess } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
 import { Effect, Exit, Layer, ManagedRuntime, Schema, Stream } from "effect";
 import type { Context } from "effect";
@@ -57,7 +58,7 @@ const runtime = ManagedRuntime.make(
   Layer.mergeAll(
     ConfigFiles.layer,
     StyleFiles.layer,
-    Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer).pipe(
+    Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer, ZoomRepo.layer).pipe(
       Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
     ),
   ).pipe(Layer.provideMerge(AppLayer)),
@@ -107,6 +108,11 @@ const sessions = {
 };
 
 type Sessions = typeof sessions;
+
+const zoom: ZoomStoreAccess = {
+  get: (origin) => useSync(ZoomRepo, (repo) => repo.get(origin)),
+  set: (origin, level) => useSync(ZoomRepo, (repo) => repo.set(origin, level)),
+};
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -275,7 +281,7 @@ function isPromptAnswer(value: unknown): value is { id: number; allow: boolean }
 }
 
 function createWindow(
-  zoom: ZoomStore,
+  zoom: ZoomStoreAccess,
   bookmarks: Bookmarks,
   sessions: Sessions,
   saved: SessionState | null,
@@ -787,7 +793,6 @@ if (!gotTheLock) {
 
     await stylesLoaded.promise;
 
-    const zoom = await ZoomStore.load();
     // The single prompt queue: permission asks and the session-restore ask
     // share one mechanism, one observer wiring, one keybind set, one IPC
     // channel. App-scoped because the chrome renders one line at a time and
@@ -812,7 +817,6 @@ if (!gotTheLock) {
       disposeNow(runtime);
     });
     runtime.runFork(Effect.logInfo("kvist started"));
-    flushOnQuit(app, zoom);
 
     app.on("activate", () => {
       // macOS reopen: a re-launched app with no windows restores the last

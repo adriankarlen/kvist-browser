@@ -386,7 +386,7 @@ Each phase is one PR (or a few), leaves the app working, and passes
 - [x] Config as a service: `src/main/config.ts` + `src/main/settings.ts` become `ConfigFiles` (`FileSystem.watch` → `Stream.debounce(50 millis)` → `Toml.parse` → Schema decode with per-field fallback). The "keep last good settings on a syntax error" rule moves into the stream (`Stream.scan`).
 - [x] Style files: `src/main/user-style-files.ts` gets the same treatment.
 - [x] SQL: `src/main/db/database.ts` → `SqliteClient.layer` + `Migrator` with migrations as TS modules (`import.meta.glob`). That deletes the `kvist-db-migrations` Vite plugin, the `asarUnpack` entry and the `existsSync`/asar workaround. Start fresh: use a new DB file (`kvist.sqlite`) and delete the old `kvist.db` (and its `-wal`/`-shm` files) on first launch. Drop `src/main/db/migrations/` and `drizzle.config.ts`. Repositories: `HistoryRepo`, `BookmarksRepo`, `SessionRepo` with `SqlSchema` + Schema rows. Keep `escapeLike` and `clampLimit` from `src/main/db/query.ts`.
-- [ ] Zoom: move from `zoom.json` to a `zoom` table (`origin` primary key, `level`), behind a `ZoomRepo`. Ignore any existing `zoom.json`. That deletes the debounce, the atomic-rename write and `flushOnQuit` in `src/main/zoom.ts`.
+- [x] Zoom: move from `zoom.json` to a `zoom` table (`origin` primary key, `level`), behind a `ZoomRepo`. Ignore any existing `zoom.json`. That deletes the debounce, the atomic-rename write and `flushOnQuit` in `src/main/zoom.ts`.
 - [ ] Remove `arktype`, `drizzle-*`, `smol-toml`.
 
 ### Phase 2: RPC transport

@@ -18,7 +18,7 @@ import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
 import type { KeyInput, KeySource } from "./vim";
-import type { ZoomStore } from "./zoom";
+import type { ZoomStoreAccess } from "./zoom";
 
 /**
  * What a Tab reports upward. A Tab never names the collection it belongs to:
@@ -83,7 +83,7 @@ export class Tab {
   /** The page's half of the channel tables, bound to this tab's webContents. */
   #toPage: Senders<typeof toPage>;
   #on: TabCallbacks;
-  #zoom: ZoomStore;
+  #zoom: ZoomStoreAccess;
   #closed = false;
 
   #title: string;
@@ -108,7 +108,13 @@ export class Tab {
    */
   #zoomLevel = 0;
 
-  constructor(id: TabId, host: PageHost, callbacks: TabCallbacks, zoom: ZoomStore, url: string) {
+  constructor(
+    id: TabId,
+    host: PageHost,
+    callbacks: TabCallbacks,
+    zoom: ZoomStoreAccess,
+    url: string,
+  ) {
     this.id = id;
     this.#host = host;
     this.#page = host.webContents;

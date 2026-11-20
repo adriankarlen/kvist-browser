@@ -4,7 +4,17 @@ import { type FindResult, wire } from "../shared/ipc";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
-import { ZoomStore } from "./zoom";
+import { clamp, type ZoomStoreAccess } from "./zoom";
+
+/** Per-origin zoom in memory, standing in for the zoom repository. */
+function memoryZoom(): ZoomStoreAccess {
+  const levels = new Map<string, number>();
+
+  return {
+    get: (origin) => levels.get(origin) ?? 0,
+    set: (origin, level) => void levels.set(origin, clamp(level)),
+  };
+}
 
 /**
  * The in-memory adapter at the `PageHost` seam. Records what a Tab asked
@@ -118,7 +128,7 @@ function createHost() {
   };
 }
 
-function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
+function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStoreAccess) {
   const host = createHost();
 
   const callbacks: TabCallbacks = {
@@ -139,7 +149,7 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
   };
 
   return {
-    tab: new Tab(1, host.host, callbacks, zoom ?? new ZoomStore(), "https://a.example"),
+    tab: new Tab(1, host.host, callbacks, zoom ?? memoryZoom(), "https://a.example"),
     host,
     callbacks,
   };
@@ -693,7 +703,7 @@ test("setZoomLevel on a closed tab is a no-op", () => {
 });
 
 test("a main-frame navigation re-applies the saved zoom for the new origin", async () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   zoom.set("https://example.com", 1.5);
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://example.com";
@@ -721,7 +731,7 @@ test("a navigation to an unzoomable origin does not call setZoomLevel", async ()
 });
 
 test("zoom-changed reflects in the snapshot and is persisted", async () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://example.com";
 
@@ -737,7 +747,7 @@ test("zoom-changed reflects in the snapshot and is persisted", async () => {
 });
 
 test("zoom-changed on an unzoomable origin is not persisted", () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "about:blank";
 
@@ -765,7 +775,7 @@ test("an error page is reported as such until a real navigation starts", () => {
 });
 
 test("a Ctrl+wheel zoom on an error page is mirrored but never persisted", () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://gone.example";
   host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);

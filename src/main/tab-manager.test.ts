@@ -4,7 +4,17 @@ import { beforeEach, expect, test, vi } from "vite-plus/test";
 import type { BrowserState, Rect } from "../shared/ipc";
 import { TabManager } from "./tab-manager";
 import { ViewStack } from "./view-stack";
-import { ZoomStore } from "./zoom";
+import { clamp, type ZoomStoreAccess } from "./zoom";
+
+/** Per-origin zoom in memory, standing in for the zoom repository. */
+function memoryZoom(): ZoomStoreAccess {
+  const levels = new Map<string, number>();
+
+  return {
+    get: (origin) => levels.get(origin) ?? 0,
+    set: (origin, level) => void levels.set(origin, clamp(level)),
+  };
+}
 
 /**
  * One fake `WebContentsView` per tab, in creation order, so a test reaches
@@ -149,7 +159,7 @@ function setup(windowRect?: Rect) {
   const emit = vi.fn<(state: BrowserState) => void>();
   const bookmarked = new Set<string>();
 
-  const tabs = new TabManager(win.base, stack, "preload.js", new ZoomStore(), emit, (url) =>
+  const tabs = new TabManager(win.base, stack, "preload.js", memoryZoom(), emit, (url) =>
     bookmarked.has(url),
   );
 

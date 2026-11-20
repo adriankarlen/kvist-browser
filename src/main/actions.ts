@@ -4,7 +4,7 @@ import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
 import type { Messages } from "./messages";
 import type { TabManager } from "./tab-manager";
-import { clamp, STEP } from "./zoom";
+import { clamp, STEP, type ZoomStoreAccess } from "./zoom";
 
 /**
  * Every action takes the command's argument, because a command line is the
@@ -35,16 +35,6 @@ export interface FileOpener {
 /** What `:style` asks `UserStyles` for: which files are in force on a URL. */
 export interface StyleFileLookup {
   filesFor(url: string): string[];
-}
-
-/**
- * The slice of the zoom store the action layer reads and writes. The store
- * owns the persistence and the debounce; the actions only ask for a level
- * or hand one back.
- */
-export interface ZoomStoreAccess {
-  get(origin: string): number;
-  set(origin: string, level: number): void;
 }
 
 /** The slice of `Bookmarks` the toggle needs: whether a URL is saved, and both writes. */

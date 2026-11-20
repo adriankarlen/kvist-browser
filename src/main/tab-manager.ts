@@ -7,7 +7,7 @@ import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { ViewStack } from "./view-stack";
 import type { KeyInput, KeySource } from "./vim";
-import type { ZoomStore } from "./zoom";
+import type { ZoomStoreAccess } from "./zoom";
 
 interface CreateOptions {
   /** Open next to this tab rather than at the end, as a page-opened tab should. */
@@ -46,7 +46,7 @@ export class TabManager {
     contents: PageContents | null,
   ) => void = () => {};
   #pagePreload: string;
-  #zoom: ZoomStore;
+  #zoom: ZoomStoreAccess;
   #tabs = new Map<TabId, Tab>();
   /**
    * The views, kept beside the tabs. A view leaves the window once, in
@@ -73,7 +73,7 @@ export class TabManager {
     window: BaseWindow,
     views: ViewStack,
     pagePreload: string,
-    zoom: ZoomStore,
+    zoom: ZoomStoreAccess,
     emit: (state: BrowserState) => void,
     isBookmarked: (url: string) => boolean,
   ) {
