@@ -60,7 +60,7 @@ export interface Route<Root, Msg, Cmd> {
 export function route<Root, K extends keyof Root, Owned extends Msg, Msg extends Tagged, Cmd>(
   key: K,
   owned: TaggedCases<Owned>,
-  update: (msg: Owned, slice: Root[K], root: Root) => Next<Root[K], Msg, Cmd>,
+  update: (msg: Owned, slice: Root[K], root: Root) => Next<Root[K], NoInfer<Msg>, NoInfer<Cmd>>,
 ): Route<Root, Msg, Cmd> {
   const tags = tagsOf(owned);
   const owns = (msg: Msg): msg is Owned => tags.has(msg._tag);

@@ -5,7 +5,7 @@ import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
 import { completeCommand, createCommands } from "./commands";
 import type { Downloads } from "./downloads";
-import type { Messages } from "./messages";
+import type { Messenger as Messages } from "./messenger";
 import type { Prompts } from "./prompts";
 import type { TabManager } from "./tab-manager";
 

@@ -395,13 +395,13 @@ Each phase is one PR (or a few), leaves the app working, and passes
 - [x] `ChromeRpcs`, `OverlayRpcs`, `PageRpcs` with Schema payloads. They port every channel in `src/shared/ipc.ts`, `fromPage`/`toPage`, `fromOverlay`/`toOverlay` and `toMainQueries`.
 - [x] Preloads become port forwarders (`src/preload/index.ts`, `overlay.ts`). `page.ts` keeps its port in the isolated world.
 - [x] Delete `src/shared/ipc.ts`, `src/main/ipc.ts`, `isPoint`, `isPromptAnswer`, and their lint overrides.
-- [ ] At this point the renderer still uses runes stores, fed by RPC streams.
+- [x] At this point the renderer still uses runes stores, fed by RPC streams.
 
 ### Phase 3: main on TEA, feature by feature
 
 Order chosen so each step has few dependents:
 
-- [ ] `messages` (`src/main/messages.ts`)
+- [x] `messages` (`src/main/messages.ts`)
 - [ ] `prompts` with permissions, external protocols and session restore (`prompts.ts`, `permissions.ts`, `external.ts`, the restore flow in `src/main/index.ts:492-530`). Electron `callback(allow)` continuations become `Deferred`s in a `PendingAnswers` service, released by the prompt's tab scope.
 - [ ] `vim` (`vim.ts`, `keys.ts`, `keybinds.ts`, `commands.ts`, `actions.ts`). `resolveKey` is pure. `actions.ts` dissolves into Cmds.
 - [ ] `downloads` (`downloads.ts`, `download-rate.ts`, `downloads-path.ts`). The throttle becomes `Stream.throttle`.

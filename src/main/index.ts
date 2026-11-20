@@ -21,7 +21,9 @@ import { completeCommand, createCommands } from "./commands";
 import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
 import { Downloads } from "./downloads";
 import { ExternalProtocols } from "./external";
-import { Messages } from "./messages";
+import { MainStore, project } from "./app/store";
+import { Msg as MessagesMsg, say, warn } from "./features/messages/messages.program";
+import type { Messenger } from "./messenger";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths, dataDir } from "./paths";
 import { interceptKeys } from "./keys";
@@ -53,6 +55,7 @@ const runtime = ManagedRuntime.make(
   Layer.mergeAll(
     ConfigFiles.layer,
     StyleFiles.layer,
+    MainStore.layer,
     Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer, ZoomRepo.layer).pipe(
       Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
     ),
@@ -116,11 +119,14 @@ const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
-/**
- * The echo area, app-scoped like the downloads: what main has to say outlives
- * any one window, and a window subscribes while it is open.
- */
-const messages = new Messages();
+/** Main's loop. Built with the runtime, so only reached once startup has built it. */
+const mainStore = () => runtime.runSync(Effect.service(MainStore));
+
+/** The echo area, as the imperative code that has not moved onto the store calls it. */
+const messages: Messenger = {
+  say: (text) => mainStore().dispatch(say(text)),
+  warn: (text) => mainStore().dispatch(warn(text)),
+};
 
 /**
  * Session-scoped, so it is attached once and outlives every window; a window
@@ -367,7 +373,15 @@ function createWindow(
   };
 
   downloads.observe((list) => chrome.downloads(list));
-  const releaseMessages = messages.observe((message) => chrome.message(message));
+
+  const messageFiber = runtime.runFork(
+    project(
+      (model) => model.messages.current,
+      (message) => chrome.message(message),
+    ),
+  );
+
+  const releaseMessages = () => messageFiber.interruptUnsafe();
   downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
   const actions = createActions(
@@ -412,7 +426,7 @@ function createWindow(
   // Any key at all ends whatever the echo area is showing, wherever it came
   // from — the page's keys and the chrome's both arrive here.
   const onKey = (input: KeyInput, source: KeySource): boolean => {
-    messages.keyPressed();
+    mainStore().dispatch(MessagesMsg.cases.MessageDismissed.make({}));
 
     // find.clear swallows Escape in normal mode (Vim#dispatch matches and
     // calls event.preventDefault), which would otherwise be the only chance
@@ -543,9 +557,6 @@ function createWindow(
     // A transfer can outlive the window it started in, so the chrome is told
     // what is already going rather than only what starts from now on.
     chrome.downloads(downloads.list);
-    // Same for anything already said: a config the user has broken is found
-    // while the window is still loading, and the echo area was not there yet.
-    chrome.message(messages.current);
 
     // The observer already wired `chrome.prompt` to the queue head on
     // subscribe, and a question asked during page load (none today, but

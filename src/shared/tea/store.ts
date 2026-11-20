@@ -1,6 +1,6 @@
 import { Cause, Effect, FiberMap, FiberSet, PubSub, Stream } from "effect";
 import type { Scope } from "effect";
-import type { Program } from "./program";
+import { type Program, type Tagged, type TaggedCases, tagsOf } from "./program";
 
 /** The impure half: turns one Cmd into work, reporting back through `dispatch`. */
 export type Interpret<Msg, Cmd, E, R> = (
@@ -111,3 +111,42 @@ export const make = <Model, Msg, Cmd, E, R>(
       changes: Stream.fromPubSub(models),
     };
   });
+
+/** One feature's interpreter, bound to the Cmd tags it owns. */
+export interface CmdRoute<Msg, Cmd, E, R> {
+  readonly tags: ReadonlySet<string>;
+  readonly interpret: Interpret<Msg, Cmd, E, R>;
+}
+
+/**
+ * Binds a feature's interpreter to its Cmds. The root routes each Cmd by tag,
+ * so a feature interpreter only ever sees its own.
+ */
+export function interpreter<Owned extends Cmd, Cmd extends Tagged, Msg, E, R>(
+  owned: TaggedCases<Owned>,
+  interpret: Interpret<NoInfer<Msg>, Owned, E, R>,
+): CmdRoute<Msg, Cmd, E, R> {
+  const tags = tagsOf(owned);
+  const owns = (cmd: Cmd): cmd is Owned => tags.has(cmd._tag);
+
+  return {
+    tags,
+    interpret: (cmd, dispatch) => (owns(cmd) ? interpret(cmd, dispatch) : Effect.void),
+  };
+}
+
+/** The root interpreter: each Cmd goes to the one feature that owns its tag. */
+export function interpretAll<Msg, Cmd extends Tagged, E, R>(
+  routes: ReadonlyArray<CmdRoute<Msg, Cmd, E, R>>,
+): Interpret<Msg, Cmd, E, R> {
+  const owners = new Map<string, CmdRoute<Msg, Cmd, E, R>>();
+
+  for (const owner of routes) {
+    for (const tag of owner.tags) {
+      if (owners.has(tag)) throw new Error(`kvist: two features own the Cmd ${tag}`);
+      owners.set(tag, owner);
+    }
+  }
+
+  return (cmd, dispatch) => owners.get(cmd._tag)?.interpret(cmd, dispatch) ?? Effect.void;
+}

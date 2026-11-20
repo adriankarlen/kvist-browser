@@ -2,7 +2,7 @@ import type { BrowserWindow } from "electron";
 import type { ChromeSenders } from "./links";
 import { originOf, resolveUrl } from "../shared/url";
 import type { Downloads } from "./downloads";
-import type { Messages } from "./messages";
+import type { Messenger as Messages } from "./messenger";
 import type { TabManager } from "./tab-manager";
 import { clamp, STEP, type ZoomStoreAccess } from "./zoom";
 
