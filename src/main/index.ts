@@ -42,7 +42,7 @@ import { CompletionOverlay } from "./completion-overlay";
 import { ViewStack } from "./view-stack";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
-import { readStyleFiles, watchStyleFiles } from "./user-style-files";
+import { StyleFiles } from "./services/style-files";
 import { flushOnQuit, ZoomStore } from "./zoom";
 import { AppLayer, disposeNow } from "./runtime";
 import { Effect, Layer, ManagedRuntime, Schema, Stream } from "effect";
@@ -52,7 +52,9 @@ applyXdgPaths();
 registerKvistScheme();
 
 /** The app scope: closed on `quit`, never on `will-quit`, which can be cancelled. */
-const runtime = ManagedRuntime.make(ConfigFiles.layer.pipe(Layer.provideMerge(AppLayer)));
+const runtime = ManagedRuntime.make(
+  Layer.mergeAll(ConfigFiles.layer, StyleFiles.layer).pipe(Layer.provideMerge(AppLayer)),
+);
 
 const preload = join(import.meta.dirname, "../preload/index.cjs");
 const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
@@ -715,7 +717,30 @@ if (!gotTheLock) {
     await configLoaded.promise;
     registerKvistProtocol();
 
-    reportStyleProblems(userStyles.setSources(await readStyleFiles()));
+    // Like the config: the first scan is startup, every later one an edit.
+    const stylesLoaded = Promise.withResolvers<void>();
+
+    const styleFiber = runtime.runFork(
+      Effect.gen(function* () {
+        const { changes } = yield* StyleFiles;
+
+        yield* Stream.runForEach(changes, (sources) =>
+          Effect.sync(() => {
+            reportStyleProblems(userStyles.setSources([...sources]));
+
+            // An edit must restyle what is already open, not wait for each
+            // page's next navigation.
+            for (const tabs of tabManagers) {
+              tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
+            }
+
+            stylesLoaded.resolve();
+          }),
+        );
+      }),
+    );
+
+    await stylesLoaded.promise;
 
     const zoom = await ZoomStore.load();
     // The single prompt queue: permission asks and the session-restore ask
@@ -731,22 +756,11 @@ if (!gotTheLock) {
     const saved = sessions.load();
     createWindow(zoom, history, bookmarks, sessions, saved);
 
-    const releaseStyleFiles = await watchStyleFiles((sources) => {
-      reportStyleProblems(userStyles.setSources(sources));
-
-      // A rescan otherwise only reaches a page on its next navigation — an edit
-      // or a removed file has to take effect on what is already open, not just
-      // on what loads afterward.
-      for (const tabs of tabManagers) {
-        tabs.forEachTab((contents, url) => userStyles.applyTo(contents, url));
-      }
-    });
-
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has
     // landed: a Ctrl-wheel nudge inside the debounce window is otherwise lost.
     app.on("will-quit", () => configFiber.interruptUnsafe());
-    app.on("will-quit", releaseStyleFiles);
+    app.on("will-quit", () => styleFiber.interruptUnsafe());
     // `quit` rather than `will-quit`: `will-quit` is cancellable, and an app
     // that keeps running with a closed database throws out of every later
     // query — `activate` calling `Session.load` is the one that surfaced.
