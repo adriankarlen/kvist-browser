@@ -284,7 +284,15 @@ export function createWindow(saved: SessionState | null): void {
     () => win.getContentBounds(),
     () => currentConfig().css,
     () => {
-      if (!win.isDestroyed()) win.webContents.focus();
+      runtime.runFork(
+        Effect.sleep(0).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              if (!win.isDestroyed()) win.webContents.focus();
+            }),
+          ),
+        ),
+      );
     },
   );
 

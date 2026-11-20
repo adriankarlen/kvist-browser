@@ -55,7 +55,7 @@ if (!gotTheLock) {
     const built = await runtime.runPromiseExit(Effect.void);
 
     if (Exit.isFailure(built)) {
-      console.error("kvist: could not start:", built.cause);
+      Effect.runSync(Effect.logError("could not start", built.cause));
       app.quit();
 
       return;

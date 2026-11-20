@@ -30,6 +30,11 @@ export const Msg = Schema.TaggedUnion({
   /** Anything that moves the page leaves the markers pointing at the wrong things. */
   PageScrolled: {},
   FocusChanged: { editable: Schema.Boolean },
+  /**
+   * focusout fires before the next element takes focus, so focus is read a
+   * turn later, or every tab between two fields would look like a blur.
+   */
+  FocusLeft: {},
   /** The menu closed, with the picked item's id or null. */
   MenuClosed: { id: Schema.NullOr(Schema.String) },
 });
@@ -47,6 +52,8 @@ export const Cmd = Schema.TaggedUnion({
   ShowMenu: { menu: ContextMenuState },
   HideMenu: {},
   SendToMain: { intent: PageIntent },
+  /** Keyed: a newer focusout restarts the wait. */
+  ReadFocusSoon: {},
 });
 
 export type Cmd = typeof Cmd.Type;
@@ -100,6 +107,7 @@ function update(msg: Msg, model: Model): Result {
       editable === model.editable
         ? next(model)
         : next({ ...model, editable }, [send(PageIntent.cases.EditableChanged.make({ editable }))]),
+    FocusLeft: () => next(model, [C.ReadFocusSoon.make({})]),
     MenuClosed: ({ id }) => next(model, [send(PageIntent.cases.ContextMenuPicked.make({ id }))]),
   });
 }
@@ -107,4 +115,5 @@ function update(msg: Msg, model: Model): Result {
 export const program: Program<Model, Msg, Cmd> = {
   init: next({ hints: null, editable: null }),
   update,
+  keyOf: (cmd) => (Cmd.guards.ReadFocusSoon(cmd) ? "focus" : undefined),
 };

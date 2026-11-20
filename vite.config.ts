@@ -120,6 +120,83 @@ export default defineConfig({
         },
       },
       {
+        // A program decides; it never does. No runtime, no platform, no
+        // services: only the pure modules of Effect. See docs/architecture.md.
+        files: ["src/**/*.program.ts"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                {
+                  name: "effect",
+                  importNames: [
+                    "Effect",
+                    "Stream",
+                    "Layer",
+                    "Fiber",
+                    "ManagedRuntime",
+                    "Queue",
+                    "PubSub",
+                    "Context",
+                  ],
+                  message: "A program is pure: return Cmds and let an interpreter run them.",
+                },
+                { name: "electron", message: "A program never touches Electron." },
+                { name: "svelte", message: "A program never touches the view." },
+              ],
+              patterns: [
+                { group: ["node:*"], message: "A program never touches the platform." },
+                { group: ["**/services/**"], message: "Programs never yield services." },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // Time and logging go through Effect, so tests control them and one
+        // logger sees everything. The kernel is where Effect meets the loop.
+        files: ["src/**/*.ts"],
+        excludeFiles: ["src/shared/tea/**", "**/*.test.ts"],
+        rules: {
+          "no-restricted-globals": [
+            "error",
+            { name: "setTimeout", message: "Use Effect.sleep, Schedule or a keyed Cmd." },
+            { name: "setInterval", message: "Use Schedule or Stream." },
+            { name: "console", message: "Use Effect.log*." },
+          ],
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                { name: "node:fs", message: "Use FileSystem from effect." },
+                { name: "node:fs/promises", message: "Use FileSystem from effect." },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // `will-download` must pick the save path before it returns, so the
+        // reservation check there is a synchronous file system call.
+        files: ["src/main/services/downloads-gate.ts"],
+        rules: { "no-restricted-imports": "off" },
+      },
+      {
+        // Components read the model and dispatch; the client is the store's.
+        files: ["src/renderer/**/*.svelte", "src/overlay/**/*.svelte"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                { group: ["**/rpc/**"], message: "Dispatch a Msg; components never call RPC." },
+              ],
+            },
+          ],
+        },
+      },
+      {
         // Tests stub seams with partial fakes; the casts stay SAFETY-commented.
         files: ["**/*.test.ts"],
         rules: {

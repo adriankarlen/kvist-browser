@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
+import { readText } from "./platform";
 import { DEFAULT_SETTINGS, type NewtabLink, type Settings } from "../shared/config";
 
 /** Config-driven data for the newtab page, served as config.json. */
@@ -105,7 +105,7 @@ export function registerKvistProtocol(): void {
     let body: string;
 
     try {
-      body = await readFile(file, "utf8");
+      body = await readText(file);
     } catch {
       return new Response("Not found", { status: 404 });
     }

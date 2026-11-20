@@ -1,4 +1,5 @@
 import type { WebContents } from "electron";
+import { logError } from "./platform";
 
 /**
  * What replacing a stylesheet needs from a page, and nothing more: a tab
@@ -15,7 +16,7 @@ const logFailure =
   (what: string) =>
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejection reasons are unknown; they are only logged
   (error: unknown): void =>
-    console.error(what, error);
+    logError(what, error);
 
 /**
  * One sheet per page: insert removes the last. Swaps serialize per target

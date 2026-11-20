@@ -106,6 +106,7 @@ const interpret: Interpret<Msg, Cmd, never, never> = (cmd, dispatch) =>
     ShowMenu: ({ menu: state }) => Effect.sync(() => menu.show(state)),
     HideMenu: () => Effect.sync(() => menu.hide()),
     SendToMain: ({ intent }) => sendToMain(intent),
+    ReadFocusSoon: () => Effect.sleep(0).pipe(Effect.andThen(Effect.sync(reportFocus))),
   });
 
 function sendToMain(intent: PageIntent): Effect.Effect<void> {
@@ -135,7 +136,7 @@ function reportFocus(): void {
 // before reading it or every tab between two fields looks like a blur.
 document.addEventListener("focusin", reportFocus, true);
 
-document.addEventListener("focusout", () => setTimeout(reportFocus, 0), true);
+document.addEventListener("focusout", () => store.dispatch(Msg.cases.FocusLeft.make({})), true);
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", reportFocus, { once: true });

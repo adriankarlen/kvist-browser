@@ -100,11 +100,9 @@ export class CompletionOverlay {
   #start(): OverlayLease {
     const lease = this.#open();
     this.#lease = lease;
-    // A newly mounted view takes keyboard focus. Restore it next turn;
-    // Chromium ignores restoration during the focus event.
-    lease.host.webContents.once("focus", () => {
-      setTimeout(this.#restoreFocus, 0);
-    });
+    // A newly mounted view takes keyboard focus; the owner hands it back
+    // on a later turn, because Chromium ignores a restore during the event.
+    lease.host.webContents.once("focus", () => this.#restoreFocus());
     // Registered before the load can finish: `loadURL` is asynchronous, so
     // this cannot miss the event it is waiting for.
     lease.host.webContents.once("did-finish-load", () => {
