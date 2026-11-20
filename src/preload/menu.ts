@@ -6,9 +6,15 @@
  */
 
 import type { ContextMenuState } from "../shared/schema/context-menu";
-import { pageToMain } from "./page-link";
 
 let host: HTMLElement | undefined;
+
+/** Who hears the menu close, with the picked id or null. Set once by the page. */
+let closed: (id: string | null) => void = () => {};
+
+export function onClose(listener: (id: string | null) => void): void {
+  closed = listener;
+}
 
 function removeListeners(): void {
   window.removeEventListener("mousedown", onOutside, true);
@@ -21,7 +27,7 @@ function close(id: string | null): void {
   host.remove();
   host = undefined;
   removeListeners();
-  pageToMain.contextMenuPick(id);
+  closed(id);
 }
 
 function onOutside(event: MouseEvent): void {

@@ -5,8 +5,7 @@
  */
 
 import type { Point } from "../shared/schema/browser";
-
-const HINT_ALPHABET = "asdfghjkl";
+import { HINT_ALPHABET } from "./page.program";
 
 const CLICKABLE = [
   "a[href]",
@@ -32,7 +31,6 @@ interface Hint {
 
 let container: HTMLElement | undefined;
 let hints: Hint[] = [];
-let typed = "";
 
 /**
  * Labels are drawn from a fixed alphabet and all share a length, so no label
@@ -115,13 +113,12 @@ export function hide(): boolean {
   container?.remove();
   container = undefined;
   hints = [];
-  typed = "";
 
   return wasShowing;
 }
 
 /** True when there was anything to hint; main leaves hint mode if not. */
-export function show(): boolean {
+function show(): boolean {
   hide();
 
   const elements = targets();
@@ -178,43 +175,26 @@ function activate(element: HTMLElement): Point | undefined {
   return undefined;
 }
 
-export interface HintResult {
-  /** Hinting is over, either because something matched or nothing can. */
-  done: boolean;
-  click?: Point;
+/** Puts a marker on every target; the labels, in order, or none when there is nothing to hint. */
+export function render(): ReadonlyArray<string> {
+  return show() ? hints.map((hint) => hint.label) : [];
 }
 
-export function key(input: string): HintResult {
-  if (input === "Backspace") {
-    typed = typed.slice(0, -1);
-  } else if (HINT_ALPHABET.includes(input)) {
-    typed += input;
-  } else {
-    return { done: false };
-  }
-
-  const matches = hints.filter((hint) => hint.label.startsWith(typed));
-
-  if (matches.length === 0) {
-    hide();
-
-    return { done: true };
-  }
-
-  // Labels are fixed width, so a single match on a full-length prefix is the one.
-  const only = matches[0]!;
-
-  if (matches.length === 1 && only.label === typed) {
-    const { element } = only;
-    // Before activating, so the markers cannot intercept the click.
-    hide();
-
-    return { done: true, click: activate(element) };
-  }
-
+/** Dims every marker that no longer matches what has been typed. */
+export function dim(typed: string): void {
   for (const hint of hints) {
     hint.marker.style.opacity = hint.label.startsWith(typed) ? "1" : "0.25";
   }
+}
 
-  return { done: false };
+/**
+ * Hides the markers, then activates the labelled element: where main
+ * should click, or nothing when the page handled it here.
+ */
+export function activateLabel(label: string): Point | undefined {
+  const element = hints.find((hint) => hint.label === label)?.element;
+
+  hide();
+
+  return element === undefined ? undefined : activate(element);
 }
