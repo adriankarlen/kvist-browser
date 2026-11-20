@@ -184,11 +184,16 @@ export default defineConfig({
             // peer-dep-resolved copy in `drizzle-arktype` would be
             // different module instances, and `parse()`'s
             // `instanceof ArkErrors` check would silently return
-            // rejected data as success. Node's built-in `node:sqlite`
-            // is auto-externalized.
+            // rejected data as success. Effect is the same case: a
+            // bundled copy and the one `@effect/*` resolves would hold two
+            // service registries. Node's built-in `node:sqlite` is
+            // auto-externalized.
             rolldownOptions: {
               external: [
                 "@ghostery/adblocker-electron",
+                "effect",
+                /^effect\//,
+                /^@effect\//,
                 "arktype",
                 /^drizzle-orm\//,
                 "drizzle-orm",
