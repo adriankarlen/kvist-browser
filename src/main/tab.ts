@@ -15,7 +15,7 @@ import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
-import type { KeyInput, KeySource } from "./vim";
+import type { KeyInput, KeySource } from "./features/vim/vim.program";
 import type { ZoomStoreAccess } from "./zoom";
 
 /**

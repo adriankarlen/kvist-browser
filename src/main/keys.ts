@@ -1,5 +1,5 @@
 import type { PageContents } from "./page-host";
-import type { KeyInput, KeySource } from "./vim";
+import type { KeyInput, KeySource } from "./features/vim/vim.program";
 
 /**
  * Routes a webContents' keys to the mode machine before its document sees

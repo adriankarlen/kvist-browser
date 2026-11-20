@@ -7,6 +7,7 @@ import {
 import { next, type Next } from "../../../shared/tea/program";
 import { warn } from "../messages/messages.program";
 import type { Msg as MessagesMsg } from "../messages/messages.program";
+import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
 
 const MediaType = Schema.Literals(["video", "audio"]);
 
@@ -94,7 +95,7 @@ export const Cmd = Schema.TaggedUnion({
 
 export type Cmd = typeof Cmd.Type;
 
-type Result = Next<Model, Msg | MessagesMsg, Cmd>;
+type Result = Next<Model, Msg | MessagesMsg | VimMsg, Cmd>;
 
 export function permissionKey(origin: string, permission: string, mediaType?: MediaType): string {
   return mediaType === undefined
@@ -265,7 +266,20 @@ function requesterGone(model: Model, requester: number): Result {
   return next(abandoned ? without(model, entry.id) : replace(model, { ...entry, requesters }));
 }
 
+/** A question appearing or the last one going captures or frees normal mode. */
 export function update(msg: Msg, model: Model): Result {
+  const result = handle(msg, model);
+  const pending = result.model.queue.length > 0;
+
+  if (pending === model.queue.length > 0) return result;
+
+  return next(result.model, result.cmds, [
+    ...result.msgs,
+    VimMsgs.cases.PromptPendingChanged.make({ pending }),
+  ]);
+}
+
+function handle(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
     PermissionRequested: (request) => requestPermission(model, request),
     ExternalProtocolRequested: (request) => requestExternal(model, request),

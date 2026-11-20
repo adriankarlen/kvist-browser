@@ -7,6 +7,8 @@ import { Context, Layer } from "effect";
  */
 export interface WindowHooks {
   restoreSession: (allow: boolean) => void;
+  /** Runs a command by name; an unknown one is reported in the echo area. */
+  runCommand: (name: string, arg: string | undefined) => void;
 }
 
 export class LegacyWindow extends Context.Service<

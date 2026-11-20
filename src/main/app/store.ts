@@ -4,6 +4,8 @@ import * as Messages from "../features/messages/messages.program";
 import * as MessagesFx from "../features/messages/messages.effects";
 import * as Prompts from "../features/prompts/prompts.program";
 import * as PromptsFx from "../features/prompts/prompts.effects";
+import * as Vim from "../features/vim/vim.program";
+import * as VimFx from "../features/vim/vim.effects";
 import type { Desktop } from "../services/desktop";
 import type { LegacyWindow } from "../services/legacy-window";
 import type { Requesters } from "../services/requesters";
@@ -14,6 +16,7 @@ const interpreter = interpretersFor<Msg, Cmd, never, Requesters | Desktop | Lega
 const interpret = interpretAll<Msg, Cmd, never, Requesters | Desktop | LegacyWindow>([
   interpreter(Messages.Cmd, MessagesFx.interpret),
   interpreter(Prompts.Cmd, PromptsFx.interpret),
+  interpreter(Vim.Cmd, VimFx.interpret),
 ]);
 
 /** Main's one loop, app-scoped: it starts with the runtime and stops with it. */

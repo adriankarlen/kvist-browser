@@ -19,9 +19,8 @@ import { completeCommand, createCommands } from "./commands";
 import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
 import { Downloads } from "./downloads";
 import { MainStore, project } from "./app/store";
-import { Msg as MessagesMsg, say, warn } from "./features/messages/messages.program";
+import { say, warn } from "./features/messages/messages.program";
 import type { Messenger } from "./messenger";
-import { DEFAULT_KEYBINDS } from "./keybinds";
 import { applyXdgPaths, dataDir } from "./paths";
 import { interceptKeys } from "./keys";
 import {
@@ -32,11 +31,17 @@ import {
 import { PromptsGate } from "./services/prompts-gate";
 import { Requesters } from "./services/requesters";
 import { Desktop } from "./services/desktop";
-import { LegacyWindow } from "./services/legacy-window";
+import { LegacyWindow, type WindowHooks } from "./services/legacy-window";
 import { TabManager } from "./tab-manager";
 import { CompletionOverlay } from "./completion-overlay";
 import { ViewStack } from "./view-stack";
-import { type KeyInput, type KeySource, Vim } from "./vim";
+import {
+  type KeyInput,
+  type KeySource,
+  type Msg as VimMsg,
+  Msg as VimMsgs,
+  resolveKey,
+} from "./features/vim/vim.program";
 import { UserStyles, type UserStyleProblem } from "./user-styles";
 import { StyleFiles } from "./services/style-files";
 import { ZoomRepo } from "./services/zoom-repo";
@@ -290,7 +295,7 @@ function createWindow(
                   PageIntent.match(message, {
                     EditableChanged: ({ editable }) => tabs.setEditable(contents, editable),
                     HintClicked: ({ point }) => tabs.tabFor(contents)?.click(point),
-                    HintsEnded: () => vim.endHints(),
+                    HintsEnded: () => vim.dispatch(VimMsgs.cases.HintsEnded.make({})),
                     ContextMenuPicked: ({ id }) => tabs.tabFor(contents)?.pickContextMenu(id),
                   }),
                 ),
@@ -388,14 +393,27 @@ function createWindow(
 
   const commands = createCommands(actions);
 
-  const vim = new Vim(
-    DEFAULT_KEYBINDS,
-    (name, arg) => {
-      if (!commands.execute(name, arg)) {
-        messages.warn(`unknown command ${name}`);
-      }
+  /** How the store's Cmds reach this window's code until it moves onto the store. */
+  const windowHooks: WindowHooks = {
+    restoreSession: () => {},
+    runCommand: (name, arg) => {
+      if (!commands.execute(name, arg)) messages.warn(`unknown command ${name}`);
     },
-    (mode) => chrome.mode(mode),
+  };
+
+  const legacy = runtime.runSync(Effect.service(LegacyWindow));
+
+  legacy.current = windowHooks;
+
+  const vim = {
+    dispatch: (msg: VimMsg) => mainStore().dispatch(msg),
+  };
+
+  const modeFiber = runtime.runFork(
+    project(
+      (model) => model.vim.mode,
+      (mode) => chrome.mode(mode),
+    ),
   );
 
   // The prompt the window shows and the mode the keyboard is in both follow
@@ -404,20 +422,18 @@ function createWindow(
   const promptFiber = runtime.runFork(
     project(
       (model) => promptHead(model.prompts),
-      (head) => {
-        chrome.prompt(head);
-        vim.setPromptPending(head !== null);
-      },
+      (head) => chrome.prompt(head),
     ),
   );
 
-  const releasePermissions = () => promptFiber.interruptUnsafe();
+  const releasePermissions = () => {
+    promptFiber.interruptUnsafe();
+    modeFiber.interruptUnsafe();
+  };
 
   // Any key at all ends whatever the echo area is showing, wherever it came
   // from — the page's keys and the chrome's both arrive here.
   const onKey = (input: KeyInput, source: KeySource): boolean => {
-    mainStore().dispatch(MessagesMsg.cases.MessageDismissed.make({}));
-
     // find.clear swallows Escape in normal mode (Vim#dispatch matches and
     // calls event.preventDefault), which would otherwise be the only chance
     // Chromium's built-in "Escape exits HTML fullscreen" gets — so that has
@@ -425,7 +441,13 @@ function createWindow(
     // already does, matching every other browser.
     if (tabs.isHtmlFullscreen && input.key === "Escape") tabs.leaveHtmlFullscreen();
 
-    return vim.handleKey(input, source);
+    // Asked first, on this tick: `before-input-event` must know now whether
+    // the key is kept from the page. The update then makes the same step.
+    const consumed = resolveKey(mainStore().get().vim, input, source);
+
+    vim.dispatch(VimMsgs.cases.KeyPressed.make({ ...input, source }));
+
+    return consumed;
   };
 
   tabs.interceptKeys(onKey);
@@ -442,7 +464,9 @@ function createWindow(
       Effect.sync(() => gate.requestExternal(url, scheme, origin, selfInitiated, contents)),
     );
   });
-  tabs.observeEditable((editable) => vim.setEditable(editable));
+  tabs.observeEditable((editable) =>
+    vim.dispatch(VimMsgs.cases.EditableChanged.make({ editable })),
+  );
   tabs.observeFind((result) => chrome.findResult(result));
   // Both halves of "the URL changed": a committed navigation and a history-API
   // one. The user's styles are keyed to the URL rather than the document, so a
@@ -541,7 +565,6 @@ function createWindow(
   win.webContents.once("did-finish-load", () => {
     windows.add(applyToWindow);
     applyToWindow(current);
-    chrome.mode(vim.mode);
     // A transfer can outlive the window it started in, so the chrome is told
     // what is already going rather than only what starts from now on.
     chrome.downloads(downloads.list);
@@ -557,8 +580,6 @@ function createWindow(
       // "discard" reachable and gives the user a clear exit from the
       // last session. Permission prompts go through the same queue, so the
       // chrome line is one component and y/n/Escape one keybind set.
-      const hooks = runtime.runSync(Effect.service(LegacyWindow));
-
       const restore = (allow: boolean): void => {
         if (!allow) {
           // Same path as a fresh launch: one homepage tab. The mirror
@@ -603,7 +624,7 @@ function createWindow(
         if (activeId !== null) tabs.activate(activeId);
       };
 
-      hooks.current = { restoreSession: restore };
+      windowHooks.restoreSession = restore;
       mainStore().dispatch(
         PromptsMsg.cases.SessionRestoreAsked.make({ tabCount: saved.tabs.length }),
       );
@@ -666,7 +687,8 @@ function createWindow(
                 DevToolsToggled: () => tabs.active?.toggleDevTools(),
                 FindRequested: ({ query }) => tabs.active?.find(query),
                 FindStopped: () => tabs.active?.stopFind(),
-                ModeRequested: ({ mode }) => vim.requestMode(mode),
+                ModeRequested: ({ mode }) =>
+                  vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode })),
                 DownloadCancelRequested: ({ id }) => downloads.cancel(id),
                 PromptAnswered: ({ id, allow }) =>
                   mainStore().dispatch(PromptsMsg.cases.PromptAnswered.make({ id, allow })),
@@ -680,7 +702,7 @@ function createWindow(
                   // A typed `:foo` ends in normal mode. Button-driven intents
                   // must not take this path, or a click would drop the mode
                   // out from under someone typing.
-                  vim.requestMode("normal");
+                  vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode: "normal" }));
                 },
                 CompletionOverlayChanged: ({ state }) => {
                   if (state === null) completion.hide();
@@ -696,6 +718,8 @@ function createWindow(
   // ipcMain is process-global; these belong to this window.
   win.on("closed", () => {
     releaseChrome();
+
+    if (legacy.current === windowHooks) legacy.current = undefined;
     releaseMessages();
     releasePermissions();
     releaseBookmarks();

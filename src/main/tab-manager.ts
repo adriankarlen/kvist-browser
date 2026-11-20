@@ -7,7 +7,7 @@ import type { PageSenders } from "./links";
 import type { PageContents } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
 import type { ViewStack } from "./view-stack";
-import type { KeyInput, KeySource } from "./vim";
+import type { KeyInput, KeySource } from "./features/vim/vim.program";
 import type { ZoomStoreAccess } from "./zoom";
 
 interface CreateOptions {

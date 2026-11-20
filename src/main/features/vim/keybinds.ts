@@ -1,5 +1,5 @@
-import type { Mode } from "../shared/schema/browser";
-import type { CommandName } from "./commands";
+import type { Mode } from "../../../shared/schema/browser";
+import type { CommandName } from "../../commands";
 
 export interface Keybind {
   /** The mode in which this binding is active. */

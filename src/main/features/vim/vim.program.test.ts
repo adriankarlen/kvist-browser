@@ -1,7 +1,86 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
-import type { Mode } from "../shared/schema/browser";
-import { DEFAULT_KEYBINDS } from "./keybinds";
-import { type KeyInput, type KeySource, Vim } from "./vim";
+import type { Mode } from "../../../shared/schema/browser";
+import type { Next } from "../../../shared/tea/program";
+import { DEFAULT_KEYBINDS, type Keybind } from "./keybinds";
+import {
+  type Cmd,
+  init,
+  type KeyInput,
+  type KeySource,
+  type Model,
+  Msg,
+  step,
+  update,
+} from "./vim.program";
+
+/**
+ * The program driven through the shape the old `Vim` class had, so each
+ * case below reads as before: commands come out of Cmds, mode changes out
+ * of the model.
+ */
+class Vim {
+  #model: Model = init;
+  readonly #keybinds: ReadonlyArray<Keybind>;
+  readonly #execute: (name: string, arg?: string) => void;
+  readonly #onMode: (mode: Mode) => void;
+
+  constructor(
+    keybinds: ReadonlyArray<Keybind>,
+    execute: (name: string, arg?: string) => void,
+    onMode: (mode: Mode) => void,
+  ) {
+    this.#keybinds = keybinds;
+    this.#execute = execute;
+    this.#onMode = onMode;
+  }
+
+  get mode(): Mode {
+    return this.#model.mode;
+  }
+
+  #apply(result: { readonly model: Model; readonly cmds: ReadonlyArray<Cmd> }): void {
+    const before = this.#model.mode;
+
+    this.#model = result.model;
+
+    for (const { name, arg } of result.cmds) {
+      if (arg === undefined) this.#execute(name);
+      else this.#execute(name, arg);
+    }
+
+    if (this.#model.mode !== before) this.#onMode(this.#model.mode);
+  }
+
+  #send(msg: Msg): void {
+    const result: Next<Model, unknown, Cmd> = update(msg, this.#model);
+
+    this.#apply(result);
+  }
+
+  handleKey(input: KeyInput, source: KeySource): boolean {
+    const stepped = step(this.#model, input, source, this.#keybinds);
+
+    this.#apply(stepped);
+
+    return stepped.consumed;
+  }
+
+  setPromptPending(pending: boolean): void {
+    this.#send(Msg.cases.PromptPendingChanged.make({ pending }));
+  }
+
+  requestMode(mode: Mode): void {
+    this.#send(Msg.cases.ModeRequested.make({ mode }));
+  }
+
+  setEditable(editable: boolean): void {
+    this.#send(Msg.cases.EditableChanged.make({ editable }));
+  }
+
+  endHints(): void {
+    this.#send(Msg.cases.HintsEnded.make({}));
+  }
+}
 
 let execute: ReturnType<typeof vi.fn<(name: string, arg?: string) => void>>;
 let vim: Vim;
