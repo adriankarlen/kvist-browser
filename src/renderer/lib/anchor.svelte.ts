@@ -1,4 +1,4 @@
-import type { Rect } from "../../shared/ipc";
+import type { Rect } from "../../shared/schema/browser";
 
 /** Report the element's border box so the dropdown meets its outer edge. */
 export function createAnchor() {

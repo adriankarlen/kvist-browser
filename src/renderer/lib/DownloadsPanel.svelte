@@ -1,7 +1,7 @@
 <script lang="ts">
   import "./DownloadsPanel.css";
   import { formatBytes } from "../../shared/bytes";
-  import type { DownloadState } from "../../shared/ipc";
+  import type { DownloadState } from "../../shared/schema/downloads";
   import { formatEta, formatRate, percent } from "../../shared/progress";
   import { downloads } from "./stores.svelte";
 

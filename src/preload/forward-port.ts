@@ -5,7 +5,11 @@ import { ipcRenderer } from "electron";
  * `contextBridge`, so it goes by `window.postMessage`; the document asks
  * once it is listening, through the one function exposed.
  */
-export function forwardPort(): { readonly connect: () => void } {
+export interface PortRequest {
+  readonly connect: () => void;
+}
+
+export function forwardPort(): PortRequest {
   ipcRenderer.on("kvist:port", (event) => window.postMessage("kvist:port", "*", [...event.ports]));
 
   return { connect: () => ipcRenderer.send("kvist:connect") };

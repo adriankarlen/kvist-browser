@@ -4,7 +4,11 @@ import { createUi } from "./settings.svelte";
 
 function createBridge() {
   let broadcast: (config: UserConfig) => void = () => {};
-  let onRestore: (state: import("../../shared/ipc").RestoreSessionState) => void = () => {};
+
+  let onRestore: (
+    state: import("../../shared/schema/browser").RestoreSessionState,
+  ) => void = () => {};
+
   const applyCss = vi.fn<(css: string) => void>();
   const orientationOverride = vi.fn<(value: "horizontal" | "vertical" | null) => void>();
 
@@ -29,7 +33,7 @@ function createBridge() {
       broadcast({ css, settings: { ...DEFAULT_SETTINGS, ...settings } }),
     applyCss,
     orientationOverride,
-    restore: (state: import("../../shared/ipc").RestoreSessionState) => onRestore(state),
+    restore: (state: import("../../shared/schema/browser").RestoreSessionState) => onRestore(state),
   };
 }
 

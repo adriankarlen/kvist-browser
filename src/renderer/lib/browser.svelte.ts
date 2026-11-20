@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { BrowserState, Rect, TabState } from "../../shared/ipc";
+import type { BrowserState, Rect, TabState } from "../../shared/schema/browser";
 
 export type Browser = ReturnType<typeof createBrowser>;
 

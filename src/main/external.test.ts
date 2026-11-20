@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
-import type { PromptState } from "../shared/ipc";
+import type { PromptState } from "../shared/schema/prompts";
 import { ExternalProtocols, externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageContents } from "./page-host";
 import { Prompts } from "./prompts";

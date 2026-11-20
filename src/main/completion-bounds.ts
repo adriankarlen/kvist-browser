@@ -1,4 +1,5 @@
-import type { CompletionGrow, CompletionInset, Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { CompletionGrow, CompletionInset } from "../shared/schema/completion";
 
 /** The window's client area: the frame every rectangle here is measured in. */
 export interface ContentSize {

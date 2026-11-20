@@ -1,6 +1,6 @@
 import { type BaseWindow, clipboard, type WebContents, WebContentsView } from "electron";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
-import type { BrowserState, FindResult, Rect, TabId } from "../shared/ipc";
+import type { BrowserState, FindResult, Rect, TabId } from "../shared/schema/browser";
 import { composeContextMenuCss } from "./context-menu";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import type { PageSenders } from "./links";
@@ -191,10 +191,6 @@ export class TabManager {
   /** The tab a webContents belongs to; the sender check for every tab channel. */
   tabFor(sender: PageContents): Tab | undefined {
     return [...this.#tabs.values()].find((tab) => tab.contents === sender);
-  }
-
-  ownsTab(sender: WebContents): boolean {
-    return this.tabFor(sender) !== undefined;
   }
 
   /** Doubles as the sender check for the editable channel. */

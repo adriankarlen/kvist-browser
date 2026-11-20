@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
-import type { Mode } from "../shared/ipc";
+import type { Mode } from "../shared/schema/browser";
 import { DEFAULT_KEYBINDS } from "./keybinds";
 import { type KeyInput, type KeySource, Vim } from "./vim";
 

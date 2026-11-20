@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { expect, test, vi } from "vite-plus/test";
-import type { FindResult } from "../shared/ipc";
+import type { FindResult } from "../shared/schema/browser";
 import type { PageSenders } from "./links";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";

@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import type { WebContents } from "electron";
-import type { PromptState } from "../shared/ipc";
+import type { PromptState } from "../shared/schema/prompts";
 import { Permissions } from "./permissions";
 import { Prompts } from "./prompts";
 

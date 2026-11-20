@@ -1,13 +1,13 @@
 import type { ContextMenuParams } from "electron";
-import {
-  type ContextMenuState,
-  type FindResult,
-  type Point,
-  type Rect,
-  type ScrollCommand,
-  type TabId,
-  type TabState,
-} from "../shared/ipc";
+import type {
+  FindResult,
+  Point,
+  Rect,
+  ScrollCommand,
+  TabId,
+  TabState,
+} from "../shared/schema/browser";
+import type { ContextMenuState } from "../shared/schema/context-menu";
 import type { PageSenders } from "./links";
 import { httpOrigin, originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";

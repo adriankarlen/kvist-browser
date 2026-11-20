@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { Mode } from "../../shared/ipc";
+import type { Mode } from "../../shared/schema/browser";
 
 export type Vim = ReturnType<typeof createVim>;
 

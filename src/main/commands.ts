@@ -1,4 +1,4 @@
-import type { CompletionCandidate } from "../shared/ipc";
+import type { CompletionCandidate } from "../shared/schema/completion";
 import type { Action, Actions } from "./actions";
 
 interface CommandSpec {

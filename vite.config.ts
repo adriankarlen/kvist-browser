@@ -92,12 +92,10 @@ export default defineConfig({
     },
     overrides: [
       {
-        // The typed IPC seam: a channel table erases to `unknown` exactly here,
-        // at the transport boundary, so both sides stay typed from one table.
-        files: ["src/shared/ipc.ts", "src/main/ipc.ts", "src/preload/**"],
+        // The RPC transport: a port carries protocol messages that are
+        // `unknown` until the RPC layer decodes them with the group's schemas.
+        files: ["src/shared/rpc/**"],
         rules: {
-          "anti-slop/no-chained-type-assertions": "off",
-          "anti-slop/no-known-value-widening": "off",
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unknown-returns": "off",
         },
@@ -105,29 +103,20 @@ export default defineConfig({
       {
         // The config.toml parser is the boundary decoder these rules ask for;
         // its inputs are `unknown` and its intermediate tables open by nature.
-        files: ["src/main/settings.ts", "src/main/index.ts", "src/main/zoom.ts"],
+        files: ["src/main/settings.ts"],
         rules: {
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unsafe-dictionary-type": "off",
         },
       },
       {
-        // The validation utility is the typed boundary for ArkType: callers
+        // The validation utility is the typed boundary for Schema: callers
         // hand it `unknown` precisely so it can decode, and the field-path
         // builder has to look at runtime segment shapes.
         files: ["src/main/db/validation.ts"],
         rules: {
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unsafe-dictionary-type": "off",
-        },
-      },
-      {
-        // The omnibox query is the typed boundary for what an IPC query hands
-        // main: `handleQueries` erases it to `unknown` at the transport seam,
-        // and this is where it gets decoded back into a domain value.
-        files: ["src/main/omnibox.ts"],
-        rules: {
-          "anti-slop/no-unknown-parameters": "off",
         },
       },
       {

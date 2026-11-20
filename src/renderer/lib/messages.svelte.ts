@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { Message } from "../../shared/ipc";
+import type { Message } from "../../shared/schema/browser";
 
 export type Messages = ReturnType<typeof createMessages>;
 

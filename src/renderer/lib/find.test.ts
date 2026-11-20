@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
-import type { FindResult } from "../../shared/ipc";
+import type { FindResult } from "../../shared/schema/browser";
 import { createFind } from "./find.svelte";
 
 function createBridge() {

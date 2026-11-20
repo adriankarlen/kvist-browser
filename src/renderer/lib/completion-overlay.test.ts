@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
-import type { CompletionCandidate, CompletionOverlayState } from "../../shared/ipc";
+import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
 import { createCompletionOverlay } from "./completion-overlay";
 
 function createBridge() {

@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
-import type { PromptState, PromptWire } from "../../shared/ipc";
+import type { PromptState, PromptWire } from "../../shared/schema/prompts";
 import { buttonLabels, createPrompts, describePrompt } from "./prompts.svelte";
 
 function createBridge() {

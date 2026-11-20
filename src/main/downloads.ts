@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import { app, type DownloadItem, type Event, type Session, type WebContents } from "electron";
 import type { Settings } from "../shared/config";
 import type { Types } from "effect";
-import type { DownloadState as WireDownload, DownloadStatus } from "../shared/ipc";
+import type { DownloadState as WireDownload, DownloadStatus } from "../shared/schema/downloads";
 
 import { type RateState, sampleRate, startRate } from "./download-rate";
 import { resolveDownloadDir, uniqueSavePath } from "./downloads-path";

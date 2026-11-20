@@ -1,6 +1,6 @@
-import type { WebContents } from "electron";
 import { expect, test, vi } from "vite-plus/test";
-import type { CompletionOverlayState, Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { CompletionOverlayState } from "../shared/schema/completion";
 import { CompletionOverlay } from "./completion-overlay";
 import type { OverlayLease } from "./overlay-host";
 
@@ -352,23 +352,6 @@ test("a retheme before the overlay exists is dropped rather than queued", () => 
   expect(open).not.toHaveBeenCalled();
 });
 
-test("only the overlay's own webContents may talk back", () => {
-  const { overlay, view } = setup();
-  overlay.show(state("a"));
-
-  // SAFETY: identity is all `owns` compares; this is the sender the fake lease handed over.
-  expect(overlay.owns(view.lease.host.webContents as unknown as WebContents)).toBe(true);
-  // SAFETY: identity is all `owns` compares; a bare object is a different sender.
-  expect(overlay.owns({} as WebContents)).toBe(false);
-});
-
-test("nothing owns the overlay's channels before it exists", () => {
-  const { overlay } = setup();
-
-  // SAFETY: identity is all `owns` compares; a bare object is a different sender.
-  expect(overlay.owns({} as WebContents)).toBe(false);
-});
-
 test("releasing hands the view back and forgets the list it was showing", () => {
   const { overlay, view, open } = setup();
 
@@ -378,8 +361,6 @@ test("releasing hands the view back and forgets the list it was showing", () => 
   overlay.release();
 
   expect(view.lease.release).toHaveBeenCalledTimes(1);
-  // SAFETY: identity is all `owns` compares; a released overlay owns nothing.
-  expect(overlay.owns(view.lease.host.webContents as unknown as WebContents)).toBe(false);
 
   overlay.show(state("b"));
   expect(open).toHaveBeenCalledTimes(2);

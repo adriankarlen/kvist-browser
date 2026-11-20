@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import type { Message } from "../shared/ipc";
+import type { Message } from "../shared/schema/browser";
 import { Messages } from "./messages";
 
 // Every case here stubs the console; a stub left behind would silence the

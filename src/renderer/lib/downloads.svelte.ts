@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { DownloadState } from "../../shared/ipc";
+import type { DownloadState } from "../../shared/schema/downloads";
 
 export type Downloads = ReturnType<typeof createDownloads>;
 

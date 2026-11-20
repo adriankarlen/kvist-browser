@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import type { BrowserState, TabState } from "../../shared/ipc";
+import type { BrowserState, TabState } from "../../shared/schema/browser";
 import { createBrowser } from "./browser.svelte";
 
 const tab = (id: number): TabState => ({

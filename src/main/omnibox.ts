@@ -1,14 +1,10 @@
-import { Effect, Schema } from "effect";
-import type { OmniboxSuggestion } from "../shared/ipc";
-import { parse } from "./db/validation";
+import { Effect } from "effect";
+import type { OmniboxSuggestion } from "../shared/schema/completion";
 import { BookmarksRepo } from "./services/bookmarks-repo";
 import { HistoryRepo } from "./services/history-repo";
 
 /** Rows asked of each source; the omnibox shows only a handful, so a deep search would be wasted work. */
 const SOURCE_LIMIT = 8;
-
-/** A query string, as it should arrive from the wire — validated here rather than trusted from it. */
-const queryValidator = Schema.String;
 
 /**
  * Keeps the first row per URL. Both `History` (a reload is its own row)
@@ -33,17 +29,14 @@ function dedupeByUrl<T extends { url: string }>(rows: ReadonlyArray<T>): T[] {
  * Candidates for the omnibox dropdown, merged from `Bookmarks.search` and
  * `History.search`. A bookmark is the deliberate signal — chosen, not
  * visited — so a double-hit URL shows once, as a bookmark, first.
- *
- * `query` is validated, not trusted: it crosses IPC as `unknown`.
  */
 export const omniboxSuggestions = (
-  query: unknown,
+  query: string,
 ): Effect.Effect<OmniboxSuggestion[], never, HistoryRepo | BookmarksRepo> =>
   Effect.gen(function* () {
-    const validated = parse(queryValidator, query);
-    // One trim up front: an empty query (invalid payload or whitespace) answers
-    // nothing, and neither source search should see padded input.
-    const trimmed = validated.problem === undefined ? validated.value.trim() : "";
+    // One trim up front: a blank query answers nothing, and neither source
+    // search should see padded input.
+    const trimmed = query.trim();
 
     if (trimmed === "") return [];
 

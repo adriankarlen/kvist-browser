@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import type { ContextMenuParams } from "electron";
-import type { ContextMenuItem } from "../shared/ipc";
+import type { ContextMenuItem } from "../shared/schema/context-menu";
 import { buildContextMenuItems } from "./context-menu";
 
 // Only the fields the builder reads; the rest of the params are Chromium's

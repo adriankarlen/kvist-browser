@@ -1,4 +1,4 @@
-import type { PromptState } from "../shared/ipc";
+import type { PromptState } from "../shared/schema/prompts";
 import type { PageContents } from "./page-host";
 import type { Prompts } from "./prompts";
 

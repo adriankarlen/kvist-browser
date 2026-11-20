@@ -1,4 +1,4 @@
-import type { Mode } from "../shared/ipc";
+import type { Mode } from "../shared/schema/browser";
 import type { CommandName } from "./commands";
 
 export interface Keybind {

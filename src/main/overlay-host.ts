@@ -1,5 +1,5 @@
 import type { WebContents } from "electron";
-import type { Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
 import type { OverlaySenders } from "./links";
 
 /** Everything the completion overlay uses from Chromium. */

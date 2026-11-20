@@ -1,5 +1,5 @@
 import type { Session, WebContents } from "electron";
-import type { PromptablePermission, PromptState } from "../shared/ipc";
+import type { PromptState, PromptablePermission } from "../shared/schema/prompts";
 import { httpOrigin } from "../shared/url";
 import { Prompts } from "./prompts";
 

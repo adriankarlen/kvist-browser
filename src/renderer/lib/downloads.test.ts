@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import type { DownloadState } from "../../shared/ipc";
+import type { DownloadState } from "../../shared/schema/downloads";
 import { createDownloads } from "./downloads.svelte";
 
 const transfer = (id: number, status: DownloadState["status"]): DownloadState => ({

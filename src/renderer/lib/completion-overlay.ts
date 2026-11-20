@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { CompletionCandidate, CompletionOverlayState } from "../../shared/ipc";
+import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
 
 export interface CompletionOverlayClient {
   show(state: CompletionOverlayState): void;

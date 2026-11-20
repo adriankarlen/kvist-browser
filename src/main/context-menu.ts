@@ -1,5 +1,5 @@
 import type { ContextMenuParams } from "electron";
-import type { ContextMenuItem } from "../shared/ipc";
+import type { ContextMenuItem } from "../shared/schema/context-menu";
 
 /**
  * What a right-click gets, decided in main from the `context-menu` params.

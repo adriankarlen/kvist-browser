@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { FindResult } from "../../shared/ipc";
+import type { FindResult } from "../../shared/schema/browser";
 
 export type Find = ReturnType<typeof createFind>;
 

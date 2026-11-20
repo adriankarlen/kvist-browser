@@ -17,7 +17,7 @@ beforeEach(() => {
 
 afterEach(() => Effect.runSync(runtime.disposeEffect));
 
-const suggest = (query: unknown) => runtime.runSync(omniboxSuggestions(query));
+const suggest = (query: string) => runtime.runSync(omniboxSuggestions(query));
 
 const history = {
   record: (input: { url: string; title: string; visitedAt: number }) =>
@@ -33,13 +33,6 @@ test("an empty query returns no suggestions", () => {
   history.record({ url: "https://example.com/", title: "Example", visitedAt: 1 });
   expect(suggest("")).toEqual([]);
   expect(suggest("   ")).toEqual([]);
-});
-
-test("a non-string query returns no suggestions", () => {
-  history.record({ url: "https://example.com/", title: "Example", visitedAt: 1 });
-  expect(suggest(7)).toEqual([]);
-  expect(suggest(null)).toEqual([]);
-  expect(suggest(undefined)).toEqual([]);
 });
 
 test("matches from both sources are merged, bookmarks first", () => {

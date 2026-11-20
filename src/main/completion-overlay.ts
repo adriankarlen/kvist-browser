@@ -1,5 +1,5 @@
-import type { WebContents } from "electron";
-import type { CompletionOverlayState, Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { CompletionOverlayState } from "../shared/schema/completion";
 import type { OverlaySenders } from "./links";
 import { type ContentSize, placeCompletion } from "./completion-bounds";
 import type { OverlayLease } from "./overlay-host";
@@ -42,11 +42,6 @@ export class CompletionOverlay {
     this.#contentSize = contentSize;
     this.#css = css;
     this.#restoreFocus = restoreFocus;
-  }
-
-  /** The overlay's own webContents, for the sender check on `fromOverlay`. */
-  owns(sender: WebContents): boolean {
-    return this.#lease !== null && sender === this.#lease.host.webContents;
   }
 
   show(state: CompletionOverlayState): void {

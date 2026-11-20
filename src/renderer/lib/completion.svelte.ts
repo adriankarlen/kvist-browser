@@ -3,7 +3,7 @@
  * The caller supplies the source and owns accepting; this module owns the
  * list, the selection, and the keys that drive both.
  */
-import type { CompletionCandidate } from "../../shared/ipc";
+import type { CompletionCandidate } from "../../shared/schema/completion";
 
 export type Candidate = CompletionCandidate;
 

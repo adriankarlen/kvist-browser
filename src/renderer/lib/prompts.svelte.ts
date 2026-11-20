@@ -1,5 +1,5 @@
 import type { ChromeBridge } from "./bridge";
-import type { PromptState, PromptWire } from "../../shared/ipc";
+import type { PromptState, PromptWire } from "../../shared/schema/prompts";
 
 export type Prompts = ReturnType<typeof createPrompts>;
 

@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { BaseWindow } from "electron";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
-import type { BrowserState, Rect } from "../shared/ipc";
+import type { BrowserState, Rect } from "../shared/schema/browser";
 import { TabManager } from "./tab-manager";
 import { ViewStack } from "./view-stack";
 import { pageLink } from "./links";

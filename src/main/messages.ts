@@ -1,4 +1,4 @@
-import type { Message } from "../shared/ipc";
+import type { Message } from "../shared/schema/browser";
 
 /**
  * The echo area's source, Neovim-style: one message at a time from main,
