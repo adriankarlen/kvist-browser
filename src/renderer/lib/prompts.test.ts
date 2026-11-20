@@ -1,45 +1,17 @@
-import { expect, test, vi } from "vite-plus/test";
-import type { PromptState, PromptWire } from "../../shared/ipc";
-import { buttonLabels, createPrompts, describePrompt } from "./prompts.svelte";
-
-function createBridge() {
-  let push: (prompt: PromptWire | null) => void = () => {};
-  const answerPrompt = vi.fn<(answer: { id: number; allow: boolean }) => void>();
-
-  return {
-    bridge: {
-      onPrompt: (listener: (prompt: PromptWire | null) => void) => {
-        push = listener;
-        return () => {};
-      },
-      answerPrompt,
-    },
-    push: (prompt: PromptWire | null) => push(prompt),
-    answerPrompt,
-  };
-}
+import { expect, test } from "vite-plus/test";
+import type { PromptWire } from "../../shared/schema/prompts";
+import { buttonLabels, describePrompt } from "./prompts.svelte";
 
 const permission = (
   id: number,
   kind: "media" | "geolocation" | "notifications" | "clipboard-read",
   mediaTypes?: ("video" | "audio")[],
-): PromptWire => {
-  // SAFETY: narrowing the state literal to the permission variant keeps
-  // the test concise. `kind` is one of the four `PromptablePermission`
-  // members and the test never exercises session-restore through this
-  // helper, so the cast is sound.
-  const state = {
-    kind: "permission",
-    origin: "https://meet.example.com",
-    permission: kind,
-    mediaTypes,
-  } as Extract<PromptState, { kind: "permission" }>;
-  return { id, state };
-};
-
-const restore = (id: number, tabCount: number): PromptWire => ({
+): PromptWire => ({
   id,
-  state: { kind: "session-restore", tabCount },
+  state:
+    mediaTypes === undefined
+      ? { kind: "permission", origin: "https://meet.example.com", permission: kind }
+      : { kind: "permission", origin: "https://meet.example.com", permission: kind, mediaTypes },
 });
 
 const externalProtocol = (
@@ -52,37 +24,9 @@ const externalProtocol = (
   state: { kind: "external-protocol", origin, scheme, url },
 });
 
-test("the question main asks is the one shown", () => {
-  const { bridge, push } = createBridge();
-  const prompts = createPrompts(bridge);
-
-  expect(prompts.current).toBeNull();
-
-  push(permission(1, "geolocation"));
-  expect(prompts.current?.state.kind).toBe("permission");
-  if (prompts.current?.state.kind !== "permission") return;
-  expect(prompts.current.state.permission).toBe("geolocation");
-
-  push(null);
-  expect(prompts.current).toBeNull();
-});
-
-test("answering carries the id, so a stale click settles nothing new", () => {
-  const { bridge, push, answerPrompt } = createBridge();
-  const prompts = createPrompts(bridge);
-
-  push(permission(7, "notifications"));
-  prompts.answer(true);
-  expect(answerPrompt).toHaveBeenCalledWith({ id: 7, allow: true });
-
-  prompts.answer(false);
-  expect(answerPrompt).toHaveBeenCalledWith({ id: 7, allow: false });
-});
-
-test("nothing up means an answer goes nowhere", () => {
-  const { bridge, answerPrompt } = createBridge();
-  createPrompts(bridge).answer(true);
-  expect(answerPrompt).not.toHaveBeenCalled();
+const restore = (id: number, tabCount: number): PromptWire => ({
+  id,
+  state: { kind: "session-restore", tabCount },
 });
 
 test("a permission question is described in the site's own terms", () => {

@@ -196,15 +196,15 @@ needed.
 
 ```toml
 homepage = "https://example.com"
-adblock = true              # ad and tracker blocking
+adblock = true # ad and tracker blocking
 
 # Where an omnibox input that is not a URL goes. {q} is replaced with the
 # encoded query; without it Kvist searches DuckDuckGo.
 # search = "https://duckduckgo.com/?q={q}"
 
 [tabs]
-orientation = "horizontal"  # or "vertical"
-focus-page = true           # hand keyboard focus to the page after a tab switch
+orientation = "horizontal" # or "vertical"
+focus-page = true # hand keyboard focus to the page after a tab switch
 
 # Where downloads are saved. Without it Kvist follows $XDG_DOWNLOAD_DIR, and
 # falls back to ~/Downloads.

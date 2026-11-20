@@ -1,7 +1,9 @@
 <script lang="ts">
+  import type { Attachment } from "svelte/attachments";
+  import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, ui, vim } from "./stores.svelte";
+  import { browser, completionOverlay, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -12,6 +14,7 @@
 
   $effect(() => {
     const url = browser.active?.url ?? "";
+
     if (!focused) draft = url;
   });
 
@@ -21,7 +24,8 @@
   // resolveUrl instead of accepting whatever suggestion ranked first.
   const completion = createCompletion(
     async (query) => {
-    const rows = await window.kvist.omniboxSuggestions(query);
+    const rows = await browse.omniboxSuggestions(query);
+
     return rows.map(
       (row): Candidate => ({
         label: row.label,
@@ -43,10 +47,13 @@
   $effect(() => {
     if (!focused || draft.trim() === "") {
       completion.close();
+
       return;
     }
+
     const query = draft;
     const timer = setTimeout(() => void completion.update(query), 75);
+
     return () => clearTimeout(timer);
   });
 
@@ -56,6 +63,7 @@
     completion.close();
     acceptSuggestion(candidate);
   });
+
   $effect(() => () => overlay.release());
 
   /**
@@ -66,10 +74,13 @@
    */
   $effect(() => {
     const box = anchor.current;
+
     if (!focused || box === null || !completion.open) {
       overlay.hide();
+
       return;
     }
+
     overlay.show({
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
@@ -84,25 +95,28 @@
   // on the page.
   const zoom = $derived.by(() => {
     const level = browser.active?.zoomLevel ?? 0;
+
     return Math.round(100 * 1.2 ** level);
   });
 
   function submit(event: SubmitEvent): void {
     event.preventDefault();
+
     if (draft.trim() === "") return;
-    window.kvist.navigate(resolveUrl(draft, ui.searchUrl));
+    browse.navigate(resolveUrl(draft, ui.searchUrl));
     input?.blur();
   }
 
   // A suggestion is already a concrete destination, not typed search text —
   // accepting one skips resolveUrl and navigates straight to its URL.
   function acceptSuggestion(candidate: Candidate): void {
-    window.kvist.navigate(candidate.value);
+    browse.navigate(candidate.value);
     input?.blur();
   }
 
   function onkeydown(event: KeyboardEvent): void {
     if (handleCompletionKey(completion, event, acceptSuggestion)) return;
+
     if (event.key !== "Escape") return;
     event.preventDefault();
     input?.blur();
@@ -113,18 +127,20 @@
   function onfocus(): void {
     focused = true;
     input?.select();
-    window.kvist.setMode("insert");
+    browse.setMode("insert");
   }
 
   function onblur(): void {
     focused = false;
+
     // The window going to the background also blurs the input. Dropping to
     // normal there would pull focus onto the page behind the user's back, so
     // only treat a blur as leaving the omnibox while the chrome still has it.
     if (document.hasFocus()) vim.toNormal();
   }
 
-  window.kvist.onFocusOmnibox(() => input?.focus());
+  // Main asks for focus with a Cmd; the omnibox only has to be findable.
+  const focusable: Attachment<HTMLInputElement> = (node) => registerElement("omnibox", node);
 </script>
 
 <form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>
@@ -134,26 +150,27 @@
     type="button"
     title="Back"
     disabled={!browser.active?.canGoBack}
-    onclick={() => window.kvist.goBack()}>&lt;</button
+    onclick={() => browse.goBack()}>&lt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Forward"
     disabled={!browser.active?.canGoForward}
-    onclick={() => window.kvist.goForward()}>&gt;</button
+    onclick={() => browse.goForward()}>&gt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Reload"
-    onclick={() => window.kvist.reload()}>r</button
+    onclick={() => browse.reload()}>r</button
   >
 
   <span class="kv-omnibox__prompt">:</span>
   <input
     class="kv-omnibox__input"
     bind:this={input}
+    {@attach focusable}
     bind:value={draft}
     spellcheck="false"
     autocomplete="off"
@@ -169,7 +186,7 @@
     title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
     aria-label="Bookmark this page"
     aria-pressed={browser.active?.bookmarked ?? false}
-    onclick={() => window.kvist.runCommand("bookmark.toggle")}>*</button
+    onclick={() => browse.runCommand("bookmark.toggle")}>*</button
   >
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
@@ -183,6 +200,6 @@
     class="kv-omnibox__button"
     type="button"
     title="DevTools"
-    onclick={() => window.kvist.toggleDevTools()}>d</button
+    onclick={() => browse.toggleDevTools()}>d</button
   >
 </form>

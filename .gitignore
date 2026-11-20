@@ -8,4 +8,5 @@ release/
 # ai stuff
 .claude/
 .pi/
+plans/
 **/.DS_Store

@@ -1,0 +1,47 @@
+import { expect, test } from "vite-plus/test";
+import { DEFAULT_SETTINGS } from "../../../shared/config";
+import { Msg as MessagesMsg } from "../messages/messages.program";
+import { Cmd, init, Msg, update } from "./config.program";
+
+const config = { css: "", settings: DEFAULT_SETTINGS };
+
+test("a loaded config is applied, and only published once it has been", () => {
+  const loaded = update(Msg.cases.ConfigLoaded.make({ config, problems: [] }), init);
+
+  expect(loaded.model.current).toBeNull();
+  expect(loaded.cmds).toEqual([Cmd.cases.ApplyConfig.make({ config })]);
+  expect(update(Msg.cases.ConfigApplied.make({ config }), loaded.model).model.current).toEqual(
+    config,
+  );
+});
+
+test("the first problem is shown with a count, and the rest go to the log", () => {
+  const problems = [
+    { field: "homepage", reason: "not a string" },
+    { field: "config.toml", reason: "Expected a value at line 1, column 5" },
+  ];
+
+  const { msgs, cmds } = update(Msg.cases.ConfigLoaded.make({ config, problems }), init);
+
+  expect(msgs).toEqual([
+    MessagesMsg.cases.MessageShown.make({
+      message: { text: "config.toml: homepage: not a string (+1 more)", level: "error" },
+    }),
+  ]);
+  expect(cmds[0]).toEqual(
+    Cmd.cases.LogProblems.make({ lines: ["config.toml: Expected a value at line 1, column 5"] }),
+  );
+});
+
+test("a style problem names the file, not its whole path", () => {
+  const { msgs } = update(
+    Msg.cases.StylesApplied.make({
+      problems: [{ id: "/home/u/.config/kvist/styles/a.css", reason: "bad" }],
+    }),
+    init,
+  );
+
+  expect(msgs).toEqual([
+    MessagesMsg.cases.MessageShown.make({ message: { text: "a.css: bad", level: "error" } }),
+  ]);
+});

@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import type { Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
 import { placeCompletion } from "./completion-bounds";
 
 const content = { width: 1000, height: 800 };

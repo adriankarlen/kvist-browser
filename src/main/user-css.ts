@@ -94,6 +94,7 @@ interface SplitSource {
  */
 function splitMetadata(source: string, problems: UserCssProblem[]): SplitSource | null {
   const start = source.indexOf(METADATA_START);
+
   if (start === -1) return null;
 
   // Back to the comment's own opener: `start` is inside a block comment, so
@@ -102,12 +103,15 @@ function splitMetadata(source: string, problems: UserCssProblem[]): SplitSource 
   const leading = source.slice(0, commentStart === -1 ? start : commentStart);
 
   const end = source.indexOf(METADATA_END, start + METADATA_START.length);
+
   if (end === -1) {
     problems.push({ reason: `no ${METADATA_END} closing the metadata block` });
+
     return { leading, meta: source.slice(start + METADATA_START.length), body: "" };
   }
 
   const afterEnd = source.indexOf("*/", end);
+
   return {
     leading,
     meta: source.slice(start + METADATA_START.length, end),
@@ -134,10 +138,12 @@ function parseMetadata(meta: string, problems: UserCssProblem[]): ParsedMetadata
 
   for (const line of meta.split("\n")) {
     const match = /^\s*@(\S+)\s*(.*)$/.exec(line);
+
     if (!match) continue;
 
     const [, key = "", rawValue = ""] = match;
     const value = rawValue.trim();
+
     if (value === "") continue;
 
     if (key === "preprocessor") {
@@ -145,16 +151,19 @@ function parseMetadata(meta: string, problems: UserCssProblem[]): ParsedMetadata
       const declared = PREPROCESSORS.includes(value as Preprocessor)
         ? (value as Preprocessor)
         : undefined;
+
       if (declared === undefined) {
         problems.push({ reason: `unknown @preprocessor "${value}"` });
       } else {
         preprocessor = declared;
       }
+
       continue;
     }
 
     // SAFETY: membership in METADATA_KEYS is the parse — the key is exactly one of them.
     const field = key as keyof UserCssMetadata;
+
     if (METADATA_KEYS.has(field)) metadata[field] = value;
   }
 
@@ -168,6 +177,7 @@ function parseMetadata(meta: string, problems: UserCssProblem[]): ParsedMetadata
  */
 function decodeHexEscape(match: string): string {
   const codePoint = parseInt(match.slice(1), 16);
+
   try {
     return String.fromCodePoint(codePoint);
   } catch {
@@ -184,6 +194,7 @@ function decodeHexEscape(match: string): string {
  */
 function unquote(value: string): string {
   const first = value[0];
+
   if ((first === '"' || first === "'") && value.length >= 2 && value.at(-1) === first) {
     return value
       .slice(1, -1)
@@ -191,6 +202,7 @@ function unquote(value: string): string {
       .replace(/\\\r\n|\\\r|\\\n/g, "")
       .replace(/\\([\s\S])/g, "$1");
   }
+
   return value;
 }
 
@@ -207,11 +219,13 @@ function splitMatchers(prelude: string): string[] {
 
   for (let index = 0; index < prelude.length; index++) {
     const char = prelude[index]!;
+
     if (quote !== null) {
       if (char === "\\") index++;
       else if (char === quote) quote = null;
       continue;
     }
+
     if (char === '"' || char === "'") quote = char;
     else if (char === "(") depth++;
     else if (char === ")") depth--;
@@ -222,7 +236,12 @@ function splitMatchers(prelude: string): string[] {
   }
 
   parts.push(prelude.slice(start));
-  return parts.map((part) => part.trim()).filter((part) => part !== "");
+
+  return parts.flatMap((part) => {
+    const trimmed = part.trim();
+
+    return trimmed === "" ? [] : [trimmed];
+  });
 }
 
 /**
@@ -232,22 +251,28 @@ function splitMatchers(prelude: string): string[] {
  */
 function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null {
   const match = /^([a-z-]+)\s*\(([\s\S]*)\)$/i.exec(part);
+
   if (!match) {
     problems.push({ reason: `not a matching function: "${part}"` });
+
     return null;
   }
 
   const [, name = "", rawValue = ""] = match;
   const type = name.toLowerCase();
+
   // SAFETY: membership in MATCHER_TYPES is the parse — the type is exactly that set.
   if (!MATCHER_TYPES.includes(type as Matcher["type"])) {
     problems.push({ reason: `unsupported matching function ${type}()` });
+
     return null;
   }
 
   const value = unquote(rawValue.trim());
+
   if (value === "") {
     problems.push({ reason: `empty ${type}() matcher` });
+
     // url-prefix("") is a valid "match every URL" selector: an empty prefix is
     // a prefix of every string. All other matcher types have no sensible
     // interpretation for an empty value, so they are dropped.
@@ -266,6 +291,7 @@ function parseMatcher(part: string, problems: UserCssProblem[]): Matcher | null 
 function skipComment(source: string, index: number): number {
   if (source[index] !== "/" || source[index + 1] !== "*") return -1;
   const end = source.indexOf("*/", index + 2);
+
   return end === -1 ? source.length : end + 2;
 }
 
@@ -279,16 +305,20 @@ function findOpenBrace(source: string, from: number): number {
 
   for (let index = from; index < source.length; index++) {
     const char = source[index]!;
+
     if (quote !== null) {
       if (char === "\\") index++;
       else if (char === quote) quote = null;
       continue;
     }
+
     const afterComment = skipComment(source, index);
+
     if (afterComment !== -1) {
       index = afterComment - 1;
       continue;
     }
+
     if (char === '"' || char === "'") quote = char;
     else if (char === "{") return index;
   }
@@ -307,20 +337,25 @@ function findBlockEnd(source: string, open: number): number {
 
   for (let index = open; index < source.length; index++) {
     const char = source[index]!;
+
     if (quote !== null) {
       if (char === "\\") index++;
       else if (char === quote) quote = null;
       continue;
     }
+
     const afterComment = skipComment(source, index);
+
     if (afterComment !== -1) {
       index = afterComment - 1;
       continue;
     }
+
     if (char === '"' || char === "'") quote = char;
     else if (char === "{") depth++;
     else if (char === "}") {
       depth--;
+
       if (depth === 0) return index;
     }
   }
@@ -342,12 +377,14 @@ function parseBlocks(body: string, problems: UserCssProblem[]): UserCssBlock[] {
 
   DOCUMENT_RULE.lastIndex = 0;
   let found: RegExpExecArray | null;
+
   while ((found = DOCUMENT_RULE.exec(body)) !== null) {
     const ruleStart = found.index;
     // Whatever sat between the last block and this one applies everywhere.
     // Taken before the block is read, so valid CSS ahead of a malformed rule
     // survives it.
     const between = body.slice(cursor, ruleStart).trim();
+
     if (between !== "") blocks.push({ matchers: null, css: between });
 
     // A rule we cannot read ends the file as far as we are concerned. The
@@ -355,18 +392,23 @@ function parseBlocks(body: string, problems: UserCssProblem[]): UserCssBlock[] {
     // meant to be scoped, and emitting it would inject it into every page and,
     // unterminated, swallow every style joined after it.
     const open = findOpenBrace(body, DOCUMENT_RULE.lastIndex);
+
     if (open === -1) {
       problems.push({ reason: "an @-moz-document rule has no block" });
+
       return blocks;
     }
 
     const close = findBlockEnd(body, open);
+
     if (close === -1) {
       problems.push({ reason: "an @-moz-document block is never closed" });
+
       return blocks;
     }
 
     const prelude = body.slice(DOCUMENT_RULE.lastIndex, open);
+
     const matchers = splitMatchers(prelude)
       .map((part) => parseMatcher(part, problems))
       .filter((matcher) => matcher !== null);
@@ -378,6 +420,7 @@ function parseBlocks(body: string, problems: UserCssProblem[]): UserCssBlock[] {
   }
 
   const trailing = body.slice(cursor).trim();
+
   if (trailing !== "") blocks.push({ matchers: null, css: trailing });
 
   return blocks;
@@ -397,6 +440,7 @@ export function parseUserCss(source: string): ParsedUserCss {
 
   if (split === null) {
     const css = source.trim();
+
     return {
       metadata: {},
       preprocessor: "default",
@@ -410,6 +454,7 @@ export function parseUserCss(source: string): ParsedUserCss {
   // CSS above the metadata comment is unwrapped, so it applies everywhere —
   // the same rule as CSS between blocks, and it comes first in the file.
   const leading = split.leading.trim();
+
   if (leading !== "") blocks.unshift({ matchers: null, css: leading });
 
   return { metadata, preprocessor, blocks, problems };
@@ -434,6 +479,7 @@ function matchesDomain(domain: string, host: string): boolean {
   // hosts to lowercase already, but a matcher value from a CSS file may not be.
   const d = domain.toLowerCase();
   const h = host.toLowerCase();
+
   return h === d || h.endsWith(`.${d}`);
 }
 

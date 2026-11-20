@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./CommandLine.css";
-  import { completionOverlay, vim } from "./stores.svelte";
+  import { completionOverlay, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -9,11 +9,12 @@
   const anchor = createAnchor();
 
   // selectFirst: false — a bare Enter runs what was typed, not the first match.
-  const completion = createCompletion((query) => window.kvist.commandCompletions(query), {
+  const completion = createCompletion((query) => browse.commandCompletions(query), {
     selectFirst: false,
   });
 
   const overlay = completionOverlay.claim(accept);
+
   $effect(() => () => overlay.release());
 
   // Opening is driven by main switching mode, so focus follows the mode rather
@@ -29,10 +30,13 @@
   // HTML cannot overlap a tab. Snapshotted: a `$state` proxy cannot cross IPC.
   $effect(() => {
     const box = anchor.current;
+
     if (box === null || !completion.open) {
       overlay.hide();
+
       return;
     }
+
     overlay.show({
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
@@ -56,12 +60,15 @@
 
   function onkeydown(event: KeyboardEvent): void {
     if (handleCompletionKey(completion, event, accept)) return;
+
     // Tab only ever completes here; moving focus off the line would strand
     // command mode with nothing to type into.
     if (event.key === "Tab") {
       event.preventDefault();
+
       return;
     }
+
     if (event.key !== "Escape") return;
     event.preventDefault();
     vim.toNormal();
@@ -69,7 +76,7 @@
 
   function submit(event: SubmitEvent): void {
     event.preventDefault();
-    window.kvist.runCommand(line);
+    browse.runCommand(line);
   }
 </script>
 

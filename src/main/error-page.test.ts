@@ -11,6 +11,7 @@ test("a formatted URL round-trips through errorPageTarget", () => {
     description: "net::ERR_NAME_NOT_RESOLVED",
     url: "https://a.b/c?x=1&y=2",
   };
+
   expect(errorPageTarget(formatErrorPageUrl(info))).toEqual(info);
 });
 

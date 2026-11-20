@@ -5,12 +5,16 @@
  * clicks.
  */
 
-import { ipcRenderer } from "electron";
-import { type ContextMenuState, fromPage, senders } from "../shared/ipc";
-
-const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
+import type { ContextMenuState } from "../shared/schema/context-menu";
 
 let host: HTMLElement | undefined;
+
+/** Who hears the menu close, with the picked id or null. Set once by the page. */
+let closed: (id: string | null) => void = () => {};
+
+export function onClose(listener: (id: string | null) => void): void {
+  closed = listener;
+}
 
 function removeListeners(): void {
   window.removeEventListener("mousedown", onOutside, true);
@@ -23,7 +27,7 @@ function close(id: string | null): void {
   host.remove();
   host = undefined;
   removeListeners();
-  pageToMain.contextMenuPick(id);
+  closed(id);
 }
 
 function onOutside(event: MouseEvent): void {
@@ -39,9 +43,11 @@ function onAway(): void {
 
 function row(item: ContextMenuState["items"][number], pick: (id: string) => void): HTMLElement {
   const element = document.createElement("li");
+
   if (item.type === "separator") {
     element.className = "kv-menu__separator";
     element.setAttribute("role", "separator");
+
     return element;
   }
 
@@ -64,6 +70,7 @@ function row(item: ContextMenuState["items"][number], pick: (id: string) => void
     if (!event.isTrusted || !item.enabled) return;
     pick(item.id);
   });
+
   return element;
 }
 
@@ -82,6 +89,7 @@ export function show(state: ContextMenuState): void {
   const list = document.createElement("ul");
   list.className = "kv-menu";
   list.setAttribute("role", "menu");
+
   for (const item of state.items) {
     list.appendChild(row(item, (id) => close(id)));
   }

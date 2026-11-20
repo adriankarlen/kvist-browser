@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
+import { readText } from "./platform";
 import { DEFAULT_SETTINGS, type NewtabLink, type Settings } from "../shared/config";
 
 /** Config-driven data for the newtab page, served as config.json. */
@@ -9,6 +9,7 @@ export interface NewtabConfig {
   /** IANA name or "UTC±n"; undefined follows the system timezone. */
   timezone: string | undefined;
 }
+
 // Served to the local pages ahead of the user's config.css, so the pages
 // share the chrome's reset and tokens rather than duplicating them. The
 // @layer wrapper is fine there: user CSS is appended unlayered, and
@@ -29,9 +30,11 @@ const MIME_TYPES = new Map([
  * reset and themed like the chrome.
  */
 const PAGES = ["newtab", "error"] as const;
+
 type LocalPage = (typeof PAGES)[number];
 
 let currentCss = "";
+
 let currentConfig: NewtabConfig = {
   links: DEFAULT_SETTINGS.newtabLinks,
   timezone: undefined,
@@ -78,6 +81,7 @@ function isLocalPage(hostname: string): hostname is LocalPage {
 export function registerKvistProtocol(): void {
   protocol.handle("kvist", async (request) => {
     const url = new URL(request.url);
+
     if (!isLocalPage(url.hostname)) {
       return new Response("Not found", { status: 404 });
     }
@@ -93,13 +97,15 @@ export function registerKvistProtocol(): void {
 
     const root = pageDir(url.hostname);
     const file = normalize(join(root, pathname));
+
     if (!file.startsWith(root + sep)) {
       return new Response("Not found", { status: 404 });
     }
 
     let body: string;
+
     try {
-      body = await readFile(file, "utf8");
+      body = await readText(file);
     } catch {
       return new Response("Not found", { status: 404 });
     }

@@ -8,6 +8,7 @@ export async function initLinks() {
   const linksGrid = document.getElementById("links-grid");
 
   let links;
+
   try {
     links = (await (await fetch("config.json")).json()).links;
   } catch {

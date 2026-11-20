@@ -1,8 +1,7 @@
-import type { OverlayApi } from "../shared/ipc";
-
 declare global {
   interface Window {
-    kvistOverlay: OverlayApi;
+    /** Asks main for this document's RPC port; it arrives as a window message. */
+    kvist: { connect: () => void };
   }
 }
 

@@ -10,8 +10,11 @@ export const DEFAULT_SEARCH_URL = "https://duckduckgo.com/?q={q}";
 /** Turns omnibox or :open input into something loadURL will accept. */
 export function resolveUrl(input: string, searchUrl: string = DEFAULT_SEARCH_URL): string {
   const query = input.trim();
+
   if (HAS_SCHEME.test(query)) return query;
+
   if (LOOKS_LIKE_HOST.test(query)) return `https://${query}`;
+
   return searchUrl.replace("{q}", encodeURIComponent(query));
 }
 
@@ -25,11 +28,13 @@ const PERSISTABLE = new Set(["http:", "https:", "kvist:", "file:"]);
  */
 export function httpOrigin(url: string): string | null {
   let origin: string;
+
   try {
     origin = new URL(url).origin;
   } catch {
     return null;
   }
+
   return origin.startsWith("http://") || origin.startsWith("https://") ? origin : null;
 }
 
@@ -41,13 +46,17 @@ export function httpOrigin(url: string): string | null {
  */
 export function originOf(url: string): string | null {
   let parsed: URL;
+
   try {
     parsed = new URL(url);
   } catch {
     return null;
   }
+
   if (!PERSISTABLE.has(parsed.protocol)) return null;
+
   // Non-special schemes have no `URL#origin`; fall back to scheme + host.
   if (parsed.origin === "null") return `${parsed.protocol}//${parsed.host}`;
+
   return parsed.origin;
 }

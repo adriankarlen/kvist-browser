@@ -1,8 +1,9 @@
 import type { WebContents } from "electron";
-import type { Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { OverlaySenders } from "./links";
 
 /** Everything the completion overlay uses from Chromium. */
-export type OverlayContents = Pick<WebContents, "once" | "send" | "isDestroyed">;
+export type OverlayContents = Pick<WebContents, "once" | "isDestroyed">;
 
 export interface OverlayHost {
   webContents: OverlayContents;
@@ -16,5 +17,7 @@ export interface OverlayHost {
  */
 export interface OverlayLease {
   host: OverlayHost;
+  /** What main says to this view's document. */
+  link: OverlaySenders;
   release(): void;
 }

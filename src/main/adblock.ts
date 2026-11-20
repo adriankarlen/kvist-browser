@@ -1,9 +1,9 @@
-import { readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ElectronBlocker } from "@ghostery/adblocker-electron";
 import { app, session, type WebContents } from "electron";
 import { parse } from "tldts-experimental";
 import type { Settings } from "../shared/config";
+import { logError, modifiedAt, readBytes, writeBytes } from "./platform";
 import { ReplaceableStylesheet, type StylesheetTarget } from "./stylesheet";
 
 let blocker: ElectronBlocker | undefined;
@@ -25,7 +25,7 @@ const logFailure =
   (what: string) =>
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejection reasons are unknown; they are only logged
   (error: unknown): void =>
-    console.error(what, error);
+    logError(what, error);
 
 /**
  * The tab's URL-scoped cosmetic-filter sheet. `$generichide` and friends
@@ -64,6 +64,7 @@ function injectCosmetics(
   const parsed = parse(url);
   // `msg` is absent on the first call and present for DOM-driven updates.
   const isFirstRun = msg === undefined;
+
   const { active, styles, scripts } = blocker.getCosmeticsFilters({
     domain: parsed.domain ?? "",
     hostname: parsed.hostname ?? "",
@@ -90,6 +91,7 @@ function injectCosmetics(
   }
 
   if (!active) return;
+
   for (const script of scripts) runScriptlet(sender, script);
 }
 
@@ -98,6 +100,7 @@ export function refreshCosmeticStyles(sender: StylesheetTarget, url: string): vo
   if (!blocker || !enabled || sender.isDestroyed()) return;
 
   const parsed = parse(url);
+
   const { active, styles } = blocker.getCosmeticsFilters({
     domain: parsed.domain ?? "",
     hostname: parsed.hostname ?? "",
@@ -114,9 +117,11 @@ export function refreshCosmeticStyles(sender: StylesheetTarget, url: string): vo
 
 /** Rejects a cached engine past its shelf life, so `fromCached` refetches. */
 async function readIfFresh(path: string): Promise<Buffer> {
-  const { mtimeMs } = await stat(path);
-  if (Date.now() - mtimeMs > MAX_ENGINE_AGE) throw new Error("cached engine is stale");
-  return readFile(path);
+  if (Date.now() - (await modifiedAt(path)) > MAX_ENGINE_AGE) {
+    throw new Error("cached engine is stale");
+  }
+
+  return readBytes(path);
 }
 
 /**
@@ -124,11 +129,8 @@ async function readIfFresh(path: string): Promise<Buffer> {
  * hangs, and this runs before the first window opens, so a dead connection
  * would stall the whole app rather than fall through to the cache.
  */
-const fetchWithTimeout: typeof fetch = (input, init) => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
-};
+const fetchWithTimeout: typeof fetch = (input, init) =>
+  fetch(input, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT) });
 
 /**
  * The engine is a few MB of parsed filter lists cached as a binary blob.
@@ -140,15 +142,17 @@ async function engine(): Promise<ElectronBlocker> {
   if (blocker) return blocker;
 
   const path = join(app.getPath("userData"), "adblocker-engine.bin");
+
   const build = (read: (path: string) => Promise<Buffer>): Promise<ElectronBlocker> =>
-    ElectronBlocker.fromPrebuiltAdsAndTracking(fetchWithTimeout, { path, read, write: writeFile });
+    ElectronBlocker.fromPrebuiltAdsAndTracking(fetchWithTimeout, { path, read, write: writeBytes });
 
   let instance: ElectronBlocker;
+
   try {
     instance = await build(readIfFresh);
   } catch {
     // Refetching failed, most likely offline. Stale lists beat none at all.
-    instance = await build(readFile);
+    instance = await build(readBytes);
   }
 
   // `BlockingContext` dispatches through this property on every injection, so
@@ -162,6 +166,7 @@ async function engine(): Promise<ElectronBlocker> {
   };
 
   blocker = instance;
+
   return instance;
 }
 
@@ -175,14 +180,16 @@ export async function applySettings(config: {
   settings: Pick<Settings, "adblock">;
 }): Promise<void> {
   const next = config.settings.adblock;
+
   if (next === enabled) return;
 
   try {
     const instance = await engine();
+
     if (next) instance.enableBlockingInSession(session.defaultSession);
     else instance.disableBlockingInSession(session.defaultSession);
     enabled = next;
   } catch (error) {
-    console.error("kvist: could not load the ad blocker:", error);
+    logError("could not load the ad blocker", error);
   }
 }

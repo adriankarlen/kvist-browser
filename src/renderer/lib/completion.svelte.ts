@@ -3,7 +3,7 @@
  * The caller supplies the source and owns accepting; this module owns the
  * list, the selection, and the keys that drive both.
  */
-import type { CompletionCandidate } from "../../shared/ipc";
+import type { CompletionCandidate } from "../../shared/schema/completion";
 
 export type Candidate = CompletionCandidate;
 
@@ -48,6 +48,7 @@ export function createCompletion(source: CompletionSource, options: CompletionOp
     async update(query: string): Promise<void> {
       const token = ++latest;
       let candidates: Candidate[];
+
       try {
         candidates = await source(query);
       } catch {
@@ -59,8 +60,10 @@ export function createCompletion(source: CompletionSource, options: CompletionOp
           state.candidates = [];
           state.index = -1;
         }
+
         return;
       }
+
       if (token !== latest) return;
       state.candidates = candidates;
       state.index = candidates.length > 0 && selectFirst ? 0 : -1;
@@ -101,27 +104,35 @@ export function handleCompletionKey(
     case "ArrowDown":
       event.preventDefault();
       completion.next();
+
       return true;
     case "ArrowUp":
       event.preventDefault();
       completion.prev();
+
       return true;
     case "Tab":
       event.preventDefault();
+
       if (event.shiftKey) completion.prev();
       else completion.next();
+
       return true;
     case "Enter": {
       const candidate = completion.active;
+
       if (!candidate) return false;
       event.preventDefault();
       completion.close();
       onAccept(candidate);
+
       return true;
     }
+
     case "Escape":
       event.preventDefault();
       completion.close();
+
       return true;
     default:
       return false;

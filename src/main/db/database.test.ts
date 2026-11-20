@@ -1,132 +1,71 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-import { Database, defaultMigrationsFolder } from "./database";
+import { NodeServices } from "@effect/platform-node";
+import { describe, expect, it } from "@effect/vitest";
+import { Effect, FileSystem, Path } from "effect";
+import { SqlClient } from "effect/sql";
+import { databaseLayer, prepareDatabaseFile, testDatabase } from "./database";
 
-let dir: string;
-let migDir: string;
+const tables = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient;
 
-beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "kvist-db-"));
-  migDir = join(dir, "migrations");
-  mkdirSync(migDir, { recursive: true });
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  const rows = yield* sql<{ readonly name: string }>`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name
+  `;
+
+  return rows.map((row) => row.name);
 });
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  rmSync(dir, { recursive: true, force: true });
-});
-
-/** Writes a migration in the v7 folder layout that the runtime migrator reads. */
-function writeMigration(name: string, sql: string): void {
-  const folder = join(migDir, name);
-  mkdirSync(folder, { recursive: true });
-  writeFileSync(join(folder, "migration.sql"), sql);
-  writeFileSync(
-    join(folder, "snapshot.json"),
-    JSON.stringify({ version: "7", dialect: "sqlite", entries: [] }),
+describe("database", () => {
+  it.effect("migrations create every table", () =>
+    Effect.gen(function* () {
+      expect(yield* tables).toEqual(
+        expect.arrayContaining(["bookmarks", "effect_sql_migrations", "history", "session"]),
+      );
+    }).pipe(Effect.provide(testDatabase)),
   );
-}
 
-const widgets = sqliteTable("widgets", {
-  id: integer("id").primaryKey(),
-  name: text("name").notNull(),
-});
+  it.effect("a file database survives a re-open, migrations run once, and WAL is on", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped();
+      const file = yield* prepareDatabaseFile(path.join(dir, "nested"));
 
-test("defaultMigrationsFolder resolves to an existing directory", () => {
-  // The default folder is what production uses when `Database.open` is
-  // called with no second argument; an ENOENT there leaves the user
-  // staring at a window that never opens. This is the assertion that
-  // would have caught the `../../migrations/` regression.
-  const folder = defaultMigrationsFolder();
-  expect(() => mkdirSync(folder, { recursive: true })).not.toThrow();
-});
+      const open = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
+        Effect.provide(effect, databaseLayer(file));
 
-test("Database.open with the default migrations folder does not throw", () => {
-  // The source migrations folder is empty (KVI-24 is foundations only),
-  // so the migrator is a no-op and the test passes when the default
-  // path resolves correctly.
-  const dbFile = join(dir, "default.db");
-  const db = Database.open(dbFile);
-  expect(db.drizzle).toBeDefined();
-  db.close();
-});
+      yield* open(
+        Effect.flatMap(
+          Effect.service(SqlClient.SqlClient),
+          (sql) => sql`INSERT INTO history (url, title, visited_at) VALUES ('https://a/', 'a', 1)`,
+        ),
+      );
 
-test("an empty migrations folder is a no-op, just creates the bookkeeping table", () => {
-  const dbFile = join(dir, "test.db");
-  const db = Database.open(dbFile, migDir);
+      const reopened = yield* open(
+        Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          const [mode] = yield* sql<{ readonly journalMode: string }>`PRAGMA journal_mode`;
 
-  // `__drizzle_migrations` is the migrator's bookkeeping; the app
-  // schema is empty for KVI-24 by design.
-  const names = db.drizzle.all<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+          return { rows: yield* sql`SELECT url FROM history`, mode: mode?.journalMode };
+        }),
+      );
+
+      expect(reopened).toEqual({ rows: [{ url: "https://a/" }], mode: "wal" });
+      expect(file.endsWith("nested/kvist.sqlite")).toBe(true);
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
-  expect(names.map((row) => row.name)).toEqual(["__drizzle_migrations"]);
-  db.close();
-});
 
-test("a missing migrations folder is a no-op, not a thrown error", () => {
-  // Mirrors the packaged app: electron-builder drops `.gitkeep`, so a
-  // migrations folder with no real SQL files in it never makes it into
-  // the asar. `Database.open` should skip the migrator, not throw.
-  const missing = join(dir, "does-not-exist");
-  const dbFile = join(dir, "missing-folder.db");
-  const db = Database.open(dbFile, missing);
+  it.effect("the Drizzle-era database is deleted rather than migrated", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const dir = yield* fs.makeTempDirectoryScoped();
 
-  // The migrator never ran, so its bookkeeping table doesn't exist
-  // either — unlike the empty-folder case above.
-  const names = db.drizzle.all<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+      for (const legacy of ["kvist.db", "kvist.db-wal", "kvist.db-shm"]) {
+        yield* fs.writeFileString(path.join(dir, legacy), "old");
+      }
+
+      yield* prepareDatabaseFile(dir);
+      expect(yield* fs.readDirectory(dir)).toEqual([]);
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
-  expect(names.map((row) => row.name)).toEqual([]);
-  db.close();
-});
-
-test("a real migration creates the table and is idempotent across re-opens", () => {
-  writeMigration(
-    "20260101000000_init",
-    "CREATE TABLE widgets (id INTEGER PRIMARY KEY, name TEXT NOT NULL);",
-  );
-  const dbFile = join(dir, "test.db");
-
-  const first = Database.open(dbFile, migDir);
-  first.drizzle.insert(widgets).values({ id: 1, name: "spinner" }).run();
-  expect(first.drizzle.select().from(widgets).all()).toEqual([{ id: 1, name: "spinner" }]);
-  first.close();
-
-  // The bookkeeping table records the migration, so re-opening is a
-  // no-op for the SQL but the data we wrote is still on disk.
-  const second = Database.open(dbFile, migDir);
-  expect(second.drizzle.select().from(widgets).all()).toEqual([{ id: 1, name: "spinner" }]);
-  second.close();
-});
-
-test("WAL journal mode is on", () => {
-  const db = Database.open(join(dir, "test.db"), migDir);
-  const rows = db.drizzle.all<{ journal_mode: string }>("PRAGMA journal_mode");
-  expect(rows[0]?.journal_mode).toBe("wal");
-  db.close();
-});
-
-test("foreign keys enforcement is on", () => {
-  const db = Database.open(join(dir, "test.db"), migDir);
-  const rows = db.drizzle.all<{ foreign_keys: number }>("PRAGMA foreign_keys");
-  expect(rows[0]?.foreign_keys).toBe(1);
-  db.close();
-});
-
-test("the parent directory is created on first open", () => {
-  const nested = join(dir, "a", "b", "c", "test.db");
-  const db = Database.open(nested, migDir);
-  expect(() => db.close()).not.toThrow();
-});
-
-test("close is idempotent", () => {
-  const db = Database.open(join(dir, "test.db"), migDir);
-  db.close();
-  // Idempotent so a teardown double-fire (test afterEach + will-quit) does not blow up.
-  expect(() => db.close()).not.toThrow();
 });

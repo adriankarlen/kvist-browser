@@ -1,13 +1,6 @@
-import { parse } from "smol-toml";
-import {
-  DEFAULT_SETTINGS,
-  type NewtabLink,
-  type Problem,
-  type Settings,
-  type TabOrientation,
-} from "../shared/config";
-
-const ORIENTATIONS: readonly TabOrientation[] = ["horizontal", "vertical"];
+import { Result, Schema } from "effect";
+import { Toml } from "effect/encoding";
+import { DEFAULT_SETTINGS, type NewtabLink, type Problem, type Settings } from "../shared/config";
 
 /**
  * What one parse produced: the settings to use, and everything wrong with the
@@ -19,65 +12,33 @@ export interface ParsedSettings {
   problems: Problem[];
 }
 
-function isString(value: unknown): value is string {
-  return typeof value === "string";
-}
-
-function isBoolean(value: unknown): value is boolean {
-  return typeof value === "boolean";
-}
+type Table = Readonly<Record<string, unknown>>;
 
 /** Anything claiming to be a TOML table: a plain, non-list object. */
-function isTable(value: unknown): value is Record<string, unknown> {
+function isTable(value: unknown): value is Table {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
- * The rule every read* function below follows: an absent value is not a
- * problem, it is the default. Only a value the user actually wrote and we
+ * One field, decoded on its own so a bad value costs only itself. An absent
+ * value is the default, not a problem: only something the user wrote and we
  * could not use is worth telling them about.
  */
-function readString<T extends string | undefined>(
+function read<A, F>(
   value: unknown,
   field: string,
-  fallback: T,
+  schema: Schema.Codec<A, unknown>,
+  reason: string,
+  fallback: F,
   problems: Problem[],
-): string | T {
+): A | F {
   if (value === undefined) return fallback;
-  if (isString(value)) return value;
-  problems.push({ field, reason: "not a string" });
-  return fallback;
-}
+  const decoded = Schema.decodeUnknownResult(schema)(value);
 
-function readBoolean(
-  value: unknown,
-  field: string,
-  fallback: boolean,
-  problems: Problem[],
-): boolean {
-  if (value === undefined) return fallback;
-  if (isBoolean(value)) return value;
-  problems.push({ field, reason: "not true or false" });
-  return fallback;
-}
+  if (Result.isSuccess(decoded)) return decoded.success;
+  problems.push({ field, reason });
 
-function readOption<T extends string>(
-  value: unknown,
-  field: string,
-  allowed: readonly T[],
-  fallback: T,
-  problems: Problem[],
-): T {
-  if (value === undefined) return fallback;
-  // SAFETY: membership in `allowed` is the parse — T is exactly that set of strings.
-  const hit = allowed.includes(value as T) ? (value as T) : undefined;
-  if (hit !== undefined) return hit;
-  problems.push({ field, reason: `not ${allowed.map((option) => `"${option}"`).join(" or ")}` });
   return fallback;
-}
-
-function asTable(value: unknown): Record<string, unknown> {
-  return isTable(value) ? value : {};
 }
 
 /**
@@ -85,64 +46,91 @@ function asTable(value: unknown): Record<string, unknown> {
  * to read, so it is reported once rather than as every child of it quietly
  * defaulting.
  */
-function section(value: unknown, field: string, problems: Problem[]): Record<string, unknown> {
+function section(value: unknown, field: string, problems: Problem[]): Table {
   if (value === undefined) return {};
+
   if (isTable(value)) return value;
   problems.push({ field, reason: "not a table" });
+
   return {};
 }
 
+const Link = Schema.Struct({ name: Schema.String, url: Schema.String });
+
 /**
- * The newtab.links array from TOML: each entry must be a table with "name"
- * and "url" string fields.
+ * All-or-nothing: one malformed entry falls back to the defaults rather than
+ * silently dropping a link the user can still see in their file.
  */
-function parseLinks(value: unknown, problems: Problem[]): NewtabLink[] {
-  if (value === undefined) return DEFAULT_SETTINGS.newtabLinks;
+function parseLinks(value: unknown, problems: Problem[]): ReadonlyArray<NewtabLink> {
+  const fallback = DEFAULT_SETTINGS.newtabLinks;
+
+  if (value === undefined) return fallback;
+
   if (!Array.isArray(value)) {
     problems.push({ field: "newtab.links", reason: "not a list of { name, url } tables" });
-    return DEFAULT_SETTINGS.newtabLinks;
+
+    return fallback;
   }
 
-  const links = value.flatMap((entry) => {
-    const { name, url } = asTable(entry);
-    return isString(name) && isString(url) ? [{ name, url }] : [];
-  });
-  // All-or-nothing: one malformed entry falls back to the defaults rather than
-  // silently dropping a link the user can still see in their file.
-  if (links.length !== value.length) {
-    problems.push({ field: "newtab.links", reason: "an entry is missing a name or a url" });
-    return DEFAULT_SETTINGS.newtabLinks;
-  }
-  return links;
+  const links = read(
+    value,
+    "newtab.links",
+    Schema.Array(Link),
+    "an entry is missing a name or a url",
+    undefined,
+    problems,
+  );
+
+  return links === undefined ? fallback : links.map(({ name, url }) => ({ name, url }));
 }
 
 // Intl only accepts IANA names; "UTC±n" is handled by the clock itself.
 const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
-function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
-  const named = readString(value, "newtab.timezone", undefined, problems);
-  if (named === undefined) return undefined;
+function isTimezone(name: string): boolean {
+  if (UTC_RX.test(name)) return true;
 
-  const timezone = named.trim();
-  if (UTC_RX.test(timezone)) return timezone;
   try {
-    new Intl.DateTimeFormat("en", { timeZone: timezone });
-    return timezone;
+    new Intl.DateTimeFormat("en", { timeZone: name });
+
+    return true;
   } catch {
-    problems.push({ field: "newtab.timezone", reason: `not a timezone: "${timezone}"` });
-    return undefined;
+    return false;
   }
 }
 
-/**
- * A search URL template is only useful with somewhere to put the query, so
- * one without `{q}` is reported and the default stands.
- */
+function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
+  const named = read(value, "newtab.timezone", Schema.String, "not a string", undefined, problems);
+
+  if (named === undefined) return undefined;
+  const timezone = named.trim();
+
+  if (isTimezone(timezone)) return timezone;
+  problems.push({ field: "newtab.timezone", reason: `not a timezone: "${timezone}"` });
+
+  return undefined;
+}
+
+const SearchTemplate = Schema.String.check(
+  Schema.makeFilter((template: string) => template.includes("{q}")),
+);
+
+/** A search URL template is only useful with somewhere to put the query. */
 function parseSearchUrl(value: unknown, problems: Problem[]): string {
-  const template = readString(value, "search", DEFAULT_SETTINGS.searchUrl, problems);
-  if (template.includes("{q}")) return template;
-  problems.push({ field: "search", reason: 'no "{q}" placeholder' });
-  return DEFAULT_SETTINGS.searchUrl;
+  if (value !== undefined && !Schema.is(Schema.String)(value)) {
+    problems.push({ field: "search", reason: "not a string" });
+
+    return DEFAULT_SETTINGS.searchUrl;
+  }
+
+  return read(
+    value,
+    "search",
+    SearchTemplate,
+    'no "{q}" placeholder',
+    DEFAULT_SETTINGS.searchUrl,
+    problems,
+  );
 }
 
 /**
@@ -156,43 +144,63 @@ export function parseSettings(
 ): ParsedSettings {
   if (source.trim() === "") return { settings: DEFAULT_SETTINGS, problems: [] };
 
-  let parsed: unknown;
-  try {
-    parsed = parse(source);
-  } catch (error) {
-    // A save mid-edit shouldn't throw away the user's whole layout, so the last
-    // settings that parsed stand rather than reverting to the defaults.
-    const reason = error instanceof Error ? error.message : String(error);
-    return { settings: previous, problems: [{ field: "config.toml", reason }] };
+  const parsed = Toml.parse(source);
+
+  // A save mid-edit shouldn't throw away the user's whole layout, so the last
+  // settings that parsed stand rather than reverting to the defaults.
+  if (Result.isFailure(parsed)) {
+    return {
+      settings: previous,
+      problems: [{ field: "config.toml", reason: parsed.failure.message }],
+    };
   }
 
   const problems: Problem[] = [];
-  const root = asTable(parsed);
+  const root = parsed.success;
   const tabs = section(root.tabs, "tabs", problems);
   const newtab = section(root.newtab, "newtab", problems);
   const downloads = section(root.downloads, "downloads", problems);
+  const string = Schema.String;
+  const boolean = Schema.Boolean;
 
   const settings: Settings = {
-    homepage: readString(root.homepage, "homepage", DEFAULT_SETTINGS.homepage, problems),
+    homepage: read(
+      root.homepage,
+      "homepage",
+      string,
+      "not a string",
+      DEFAULT_SETTINGS.homepage,
+      problems,
+    ),
     searchUrl: parseSearchUrl(root.search, problems),
     newtabLinks: parseLinks(newtab.links, problems),
     newtabTimezone: parseTimezone(newtab.timezone, problems),
-    adblock: readBoolean(root.adblock, "adblock", DEFAULT_SETTINGS.adblock, problems),
-    tabOrientation: readOption(
+    adblock: read(
+      root.adblock,
+      "adblock",
+      boolean,
+      "not true or false",
+      DEFAULT_SETTINGS.adblock,
+      problems,
+    ),
+    tabOrientation: read(
       tabs.orientation,
       "tabs.orientation",
-      ORIENTATIONS,
+      Schema.Literals(["horizontal", "vertical"]),
+      'not "horizontal" or "vertical"',
       DEFAULT_SETTINGS.tabOrientation,
       problems,
     ),
-    tabFocusPage: readBoolean(
+    tabFocusPage: read(
       tabs["focus-page"],
       "tabs.focus-page",
+      boolean,
+      "not true or false",
       DEFAULT_SETTINGS.tabFocusPage,
       problems,
     ),
     // Undefined falls back to the XDG download directory; `downloads.ts` resolves it.
-    downloadDir: readString(downloads.dir, "downloads.dir", undefined, problems),
+    downloadDir: read(downloads.dir, "downloads.dir", string, "not a string", undefined, problems),
   };
 
   return { settings, problems };

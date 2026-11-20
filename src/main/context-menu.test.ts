@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import type { ContextMenuParams } from "electron";
-import type { ContextMenuItem } from "../shared/ipc";
+import type { ContextMenuItem } from "../shared/schema/context-menu";
 import { buildContextMenuItems } from "./context-menu";
 
 // Only the fields the builder reads; the rest of the params are Chromium's
@@ -31,6 +31,7 @@ const ids = (items: ContextMenuItem[]): string[] =>
 
 const enabled = (items: ContextMenuItem[], id: string): boolean | undefined => {
   const entry = items.find((candidate) => candidate.type === "item" && candidate.id === id);
+
   return entry !== undefined && entry.type === "item" ? entry.enabled : undefined;
 };
 
@@ -67,6 +68,7 @@ test("an image gets copy-image-address", () => {
     { ...base, mediaType: "image", srcURL: "https://example.com/a.png" },
     nav,
   );
+
   expect(ids(items)).toContain("image.copy");
 });
 
@@ -80,6 +82,7 @@ test("a linked image gets both link and image items in one section", () => {
     },
     nav,
   );
+
   expect(ids(items).slice(0, 3)).toEqual(["link.open-in-new-tab", "link.copy", "image.copy"]);
 });
 
@@ -103,6 +106,7 @@ test("an editable field gets editing actions instead of navigation", () => {
     },
     nav,
   );
+
   expect(ids(items)).toEqual([
     "edit.cut",
     "edit.copy",
@@ -125,6 +129,7 @@ test("separators only ever sit between sections", () => {
     const list = ids(buildContextMenuItems(params, nav));
     expect(list[0]).not.toBe("separator");
     expect(list[list.length - 1]).not.toBe("separator");
+
     for (let index = 1; index < list.length; index += 1) {
       if (list[index] === "separator") expect(list[index - 1]).not.toBe("separator");
     }

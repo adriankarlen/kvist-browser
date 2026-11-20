@@ -1,14 +1,11 @@
 import { ipcRenderer } from "electron";
-import { fromPage, listeners, senders, toPage } from "../shared/ipc";
+import { Effect, Scope, Stream } from "effect";
+import { openClient } from "../shared/rpc/client";
+import { PageIntent, PageRpcs } from "../shared/rpc/page";
+import { make, nextTurn, type Interpret } from "../shared/tea/store";
 import * as hints from "./hints";
 import * as menu from "./menu";
-
-const pageToMain = senders(fromPage, (channel, payload) => ipcRenderer.send(channel, payload));
-const fromMain = listeners(toPage, (channel, listener) => {
-  const handler = (_event: unknown, payload: unknown): void => listener(payload);
-  ipcRenderer.on(channel, handler);
-  return () => void ipcRenderer.off(channel, handler);
-});
+import { Cmd, Msg, program } from "./page.program";
 
 /**
  * Runs in every tab, exposing nothing over contextBridge — a page must
@@ -17,8 +14,6 @@ const fromMain = listeners(toPage, (channel, listener) => {
  * link hints.
  */
 
-// Blocklisted rather than allowlisted: anything that is not one of these takes
-// text, including the date and time inputs that keep getting added.
 const UNTYPABLE = new Set([
   "button",
   "checkbox",
@@ -40,6 +35,7 @@ function isEditable(node: Element | null): boolean {
   // SAFETY: the preload runs in its own world, so instanceof cannot be trusted;
   // the probed properties are optional and read with `=== true`.
   const element = node as HTMLElement & { disabled?: boolean; readOnly?: boolean; type?: string };
+
   if (element.disabled === true || element.readOnly === true) return false;
 
   switch (element.tagName) {
@@ -54,80 +50,100 @@ function isEditable(node: Element | null): boolean {
 
 // null rather than false, so the first report always reaches main: a fresh
 // preload after navigation has to clear whatever the previous page left set.
-let last: boolean | null = null;
+/**
+ * The tab's RPC port, kept in the preload's isolated world. It is never
+ * forwarded to the page: the page's own scripts must not reach main.
+ */
+const client = new Promise<MessagePort>((resolve) => {
+  ipcRenderer.once("kvist:port", (event) => {
+    const [received] = event.ports;
 
-function report(): void {
-  const editable = isEditable(document.activeElement);
-  if (editable === last) return;
-  last = editable;
-  pageToMain.pageEditable(editable);
+    if (received !== undefined) resolve(received);
+  });
+  ipcRenderer.send("kvist:connect");
+}).then((port) => openClient(PageRpcs, port));
+
+const LINE = 60;
+
+const scrollBy_ = (x: number, y: number) => Effect.sync(() => scrollBy(x, y));
+
+const interpret: Interpret<Msg, Cmd, never, never> = (cmd, dispatch) =>
+  Cmd.match(cmd, {
+    BlurFocused: () =>
+      Effect.sync(() => {
+        // SAFETY: activeElement is an Element; blur() exists on any focusable (HTMLElement).
+        (document.activeElement as HTMLElement | null)?.blur();
+        reportFocus();
+      }),
+    Scroll: ({ command }) => {
+      switch (command) {
+        case "down":
+          return scrollBy_(0, LINE);
+        case "up":
+          return scrollBy_(0, -LINE);
+        case "half-down":
+          return scrollBy_(0, innerHeight / 2);
+        case "half-up":
+          return scrollBy_(0, -innerHeight / 2);
+        case "top":
+          return Effect.sync(() => scrollTo(0, 0));
+        case "bottom":
+          return Effect.sync(() => scrollTo(0, document.body.scrollHeight));
+      }
+    },
+    RenderHints: () =>
+      Effect.sync(() => dispatch(Msg.cases.HintsRendered.make({ labels: hints.render() }))),
+    DimHints: ({ typed }) => Effect.sync(() => hints.dim(typed)),
+    ActivateHint: ({ label }) =>
+      Effect.flatMap(
+        Effect.sync(() => hints.activateLabel(label)),
+        (point) =>
+          point === undefined
+            ? Effect.void
+            : sendToMain(PageIntent.cases.HintClicked.make({ point })),
+      ),
+    HideHints: () => Effect.sync(() => void hints.hide()),
+    ShowMenu: ({ menu: state }) => Effect.sync(() => menu.show(state)),
+    HideMenu: () => Effect.sync(() => menu.hide()),
+    SendToMain: ({ intent }) => sendToMain(intent),
+    ReadFocusSoon: () => nextTurn.pipe(Effect.andThen(Effect.sync(reportFocus))),
+  });
+
+function sendToMain(intent: PageIntent): Effect.Effect<void> {
+  return Effect.promise(() => client).pipe(
+    Effect.flatMap((rpc) => rpc.Dispatch(intent)),
+    Effect.ignore,
+  );
+}
+
+const store = Effect.runSync(
+  make(program, interpret).pipe(Scope.provide(Effect.runSync(Scope.make()))),
+);
+
+void client.then((rpc) =>
+  Effect.runFork(
+    Stream.runForEach(rpc.Subscribe(), (event) => Effect.sync(() => store.dispatch(event))),
+  ),
+);
+
+menu.onClose((id) => store.dispatch(Msg.cases.MenuClosed.make({ id })));
+
+function reportFocus(): void {
+  store.dispatch(Msg.cases.FocusChanged.make({ editable: isEditable(document.activeElement) }));
 }
 
 // focusout fires before the next element takes focus, so let focus settle
 // before reading it or every tab between two fields looks like a blur.
-document.addEventListener("focusin", report, true);
-document.addEventListener("focusout", () => setTimeout(report, 0), true);
+document.addEventListener("focusin", reportFocus, true);
 
-fromMain.onPageBlur(() => {
-  // SAFETY: activeElement is an Element; blur() exists on any focusable (HTMLElement).
-  (document.activeElement as HTMLElement | null)?.blur();
-  report();
-});
+document.addEventListener("focusout", () => store.dispatch(Msg.cases.FocusLeft.make({})), true);
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", report, { once: true });
+  document.addEventListener("DOMContentLoaded", reportFocus, { once: true });
 } else {
-  report();
+  reportFocus();
 }
-
-const LINE = 60;
-
-fromMain.onPageScroll((command) => {
-  switch (command) {
-    case "down":
-      scrollBy(0, LINE);
-      break;
-    case "up":
-      scrollBy(0, -LINE);
-      break;
-    case "half-down":
-      scrollBy(0, innerHeight / 2);
-      break;
-    case "half-up":
-      scrollBy(0, -innerHeight / 2);
-      break;
-    case "top":
-      scrollTo(0, 0);
-      break;
-    case "bottom":
-      scrollTo(0, document.body.scrollHeight);
-      break;
-  }
-});
-
-fromMain.onHintsShow(() => {
-  if (!hints.show()) pageToMain.hintsDone();
-});
-
-fromMain.onHintsKey((input) => {
-  const { done, click } = hints.key(input);
-  if (click) pageToMain.hintsClick(click);
-  if (done) pageToMain.hintsDone();
-});
-
-fromMain.onHintsHide(() => hints.hide());
-
-fromMain.onContextMenu((state) => {
-  if (state === null) menu.hide();
-  else menu.show(state);
-});
 
 // Hints are positioned against the document, so anything that moves the page
 // under them leaves them pointing at the wrong things.
-document.addEventListener(
-  "scroll",
-  () => {
-    if (hints.hide()) pageToMain.hintsDone();
-  },
-  true,
-);
+document.addEventListener("scroll", () => store.dispatch(Msg.cases.PageScrolled.make({})), true);

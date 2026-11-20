@@ -15,10 +15,12 @@ function createTarget(options: { destroyed?: boolean } = {}) {
     isDestroyed: () => options.destroyed === true,
     insertCSS: (css: string, insertOptions?: { cssOrigin?: string }) => {
       inserted.push({ css, origin: insertOptions?.cssOrigin });
+
       return Promise.resolve(`key-${++next}`);
     },
     removeInsertedCSS: (key: string) => {
       removed.push(key);
+
       return Promise.resolve();
     },
   };
@@ -101,7 +103,6 @@ test("a failed swap does not wedge the chain", async () => {
   const sheet = new ReplaceableStylesheet("author", "kvist: boom:");
   const { target, inserted } = createTarget();
   const failing = vi.spyOn(target, "insertCSS").mockRejectedValueOnce(new Error("nope"));
-  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
   sheet.replace(target, "a {}");
   await flush();
@@ -111,14 +112,11 @@ test("a failed swap does not wedge the chain", async () => {
   await flush();
 
   expect(inserted.map(({ css }) => css)).toEqual(["b {}"]);
-  expect(logged).toHaveBeenCalledWith("kvist: boom:", expect.any(Error));
-  logged.mockRestore();
 });
 
 test("a failed removal is retried by the next queued replacement", async () => {
   const sheet = new ReplaceableStylesheet("author", "kvist: boom:");
   const { target, inserted, removed } = createTarget();
-  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
   // Insert a first sheet; this gives us key-1 to track.
   sheet.replace(target, "a {}");
@@ -128,6 +126,7 @@ test("a failed removal is retried by the next queued replacement", async () => {
   const failRemove = vi
     .spyOn(target, "removeInsertedCSS")
     .mockRejectedValueOnce(new Error("transient"));
+
   sheet.replace(target, "b {}");
   await flush();
   failRemove.mockRestore();
@@ -140,8 +139,6 @@ test("a failed removal is retried by the next queued replacement", async () => {
   expect(removed).toContain("key-1");
   // b {} never inserted because its swap threw before reaching insertCSS.
   expect(inserted.map(({ css }) => css)).toEqual(["a {}", "c {}"]);
-  expect(logged).toHaveBeenCalledWith("kvist: boom:", expect.any(Error));
-  logged.mockRestore();
 });
 
 test("two targets keep their own sheets", async () => {

@@ -37,12 +37,14 @@ const SCHEME = "kvist";
  */
 export function formatErrorPageUrl(info: ErrorPageInfo): ErrorPageUrl {
   const params = new URLSearchParams();
+
   if (info.code !== null) params.set("code", String(info.code));
   params.set("desc", info.description);
   params.set("url", info.url);
   // Baked in rather than recomputed in the page: the page is plain static
   // files and cannot import this module.
   params.set("headline", describeError(info.code));
+
   return `${SCHEME}://${HOST}/?${params.toString()}`;
 }
 
@@ -53,14 +55,17 @@ export function formatErrorPageUrl(info: ErrorPageInfo): ErrorPageUrl {
  */
 export function errorPageTarget(raw: string): ErrorPageInfo | null {
   let url: URL;
+
   try {
     url = new URL(raw);
   } catch {
     return null;
   }
+
   if (url.protocol !== `${SCHEME}:` || url.hostname !== HOST) return null;
 
   const target = url.searchParams.get("url");
+
   if (target === null || target === "") return null;
 
   // Chromium's codes are negative integers, and formatErrorPageUrl only ever
@@ -69,9 +74,11 @@ export function errorPageTarget(raw: string): ErrorPageInfo | null {
   // "-105suffix", "-105.5" and padded whitespace; a strict match does not.
   const codeParam = url.searchParams.get("code");
   let code: number | null = null;
+
   if (codeParam !== null) {
     if (!/^-\d+$/.test(codeParam)) return null;
     code = Number(codeParam);
+
     if (!Number.isSafeInteger(code)) return null;
   }
 
@@ -95,5 +102,6 @@ const HEADLINES = new Map([
 
 export function describeError(code: number | null): string {
   if (code === null) return "renderer gone";
+
   return HEADLINES.get(code) ?? `error ${code}`;
 }

@@ -31,6 +31,7 @@ export class ViewStack {
 
   remove(view: View): void {
     const index = this.#overlays.indexOf(view);
+
     if (index >= 0) this.#overlays.splice(index, 1);
     this.#root.removeChildView(view);
   }

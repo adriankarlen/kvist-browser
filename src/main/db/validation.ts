@@ -1,82 +1,85 @@
-import { type, type Type } from "arktype";
+import { Result, Schema, SchemaIssue } from "effect";
 import type { Problem } from "../../shared/config";
 
 /**
- * Runtime validation of typed boundaries. `parse()` adapts ArkType's shape
- * into `{value, problem}`, where `problem` is the config layer's `Problem`.
- * `parseAll()` returns every failure, for callers that can show more than
- * one message.
+ * Schema failures in the config layer's `Problem` shape, so
+ * `reportProblems` reads a failure from any boundary. `parseAll` keeps
+ * every failure for callers that can show more than one.
  */
 export type ParseResult<T> =
   | { value: T; problem: undefined }
   | { value: undefined; problem: Problem };
 
 /** A non-empty string — empty is a config mistake, not a missing value. */
-export const nonEmptyString = type("string > 0");
+export const nonEmptyString = Schema.NonEmptyString;
+
+function isUrl(value: string): boolean {
+  return URL.canParse(value);
+}
 
 /** A URL string parseable by `new URL`. The shape, not the reachability. */
-export const urlString = type("string.url");
+export const urlString = Schema.String.check(
+  Schema.makeFilter((value: string) => isUrl(value) || "not a url"),
+);
 
 /** Milliseconds since the Unix epoch. */
-export const epochMillis = type("number.integer >= 0");
+export const epochMillis = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
-const ArkErrors = type.errors;
+const format = SchemaIssue.makeFormatterStandardSchemaV1();
 
-/**
- * Validates `value` against the ArkType; `field` is the dotted path of the
- * first failure, the config convention, so `reportProblems` reads it from
- * any boundary. `unknown` on purpose — this is the boundary; the lint
- * override and SAFETY comment say the same.
- */
-export function parse<T>(validator: Type<T>, value: unknown): ParseResult<T> {
-  const result = validator(value);
-  if (result instanceof ArkErrors) {
-    const first = result[0];
-    if (first === undefined) {
-      // ArkType can in principle produce an empty errors array; the result
-      // still failed, so fall back to a generic message rather than
-      // treating that as success.
-      return {
-        value: undefined,
-        problem: { field: "<root>", reason: "did not match the expected shape" },
-      };
-    }
-    return {
-      value: undefined,
-      problem: { field: fieldOf(first.path), reason: first.problem },
-    };
-  }
-  // SAFETY: the success branch of a Type<T> is the value parsed to T; the
-  // `finalizeDistillation` wrapper is an internal ArkType detail, not a
-  // representation choice the caller can opt out of.
-  return { value: result as T, problem: undefined };
+type Decoder<T> = Schema.Codec<T, unknown>;
+
+function problemsOf(issue: SchemaIssue.Issue): Problem[] {
+  const problems = format(issue).issues.map((entry): Problem => ({
+    field: fieldOf(entry.path ?? []),
+    reason: entry.message,
+  }));
+
+  return problems.length > 0
+    ? problems
+    : [{ field: "<root>", reason: "did not match the expected shape" }];
 }
 
-/**
- * Like `parse`, but returns every failure instead of the first. The
- * `unknown` parameter and SAFETY cast follow the same boundary rationale.
- */
+/** Decodes `value`; `field` is the dotted path of the first failure. */
+export function parse<T>(schema: Decoder<T>, value: unknown): ParseResult<T> {
+  const result = Schema.decodeUnknownResult(schema)(value);
+
+  if (Result.isSuccess(result)) return { value: result.success, problem: undefined };
+
+  return { value: undefined, problem: problemsOf(result.failure.issue)[0]! };
+}
+
+/** Like `parse`, but returns every failure instead of the first. */
 export function parseAll<T>(
-  validator: Type<T>,
+  schema: Decoder<T>,
   value: unknown,
 ): { value: T; problems: Problem[] } | { problems: Problem[] } {
-  const result = validator(value);
-  if (result instanceof ArkErrors) {
-    return { problems: result.map((p) => ({ field: fieldOf(p.path), reason: p.problem })) };
-  }
-  // SAFETY: same as `parse()`.
-  return { value: result as T, problems: [] };
+  const result = Schema.decodeUnknownResult(schema)(value, { errors: "all" });
+
+  if (Result.isSuccess(result)) return { value: result.success, problems: [] };
+
+  return { problems: problemsOf(result.failure.issue) };
+}
+
+type PathSegment = PropertyKey | { readonly key: PropertyKey };
+
+function isKeyed(segment: PathSegment): segment is { readonly key: PropertyKey } {
+  return typeof segment === "object";
 }
 
 /**
- * A JSON path: dot-separated for objects, bracket indices for arrays.
- * Empty (top-level failure) becomes `"<root>"` so the `Problem` always
- * has a non-empty `field`.
+ * A JSON path: dot-separated for objects, bracket indices for arrays. A
+ * top-level failure is `"<root>"`, so a `Problem` always names a field.
  */
-function fieldOf(path: ReadonlyArray<PropertyKey>): string {
+function fieldOf(path: ReadonlyArray<PathSegment>): string {
   if (path.length === 0) return "<root>";
+
   return path
-    .map((segment) => (Number.isInteger(segment) ? `[${String(segment)}]` : String(segment)))
+    .map((segment) => {
+      const key = isKeyed(segment) ? segment.key : segment;
+
+      return Number.isInteger(key) ? `[${String(key)}]` : String(key);
+    })
     .join(".")
     .replace(/\.(\[)/g, "$1");
 }

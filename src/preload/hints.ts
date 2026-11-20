@@ -4,9 +4,8 @@
  * here keeps a keystroke from costing a round trip.
  */
 
-import type { Point } from "../shared/ipc";
-
-const HINT_ALPHABET = "asdfghjkl";
+import type { Point } from "../shared/schema/browser";
+import { HINT_ALPHABET } from "./page.program";
 
 const CLICKABLE = [
   "a[href]",
@@ -32,7 +31,6 @@ interface Hint {
 
 let container: HTMLElement | undefined;
 let hints: Hint[] = [];
-let typed = "";
 
 /**
  * Labels are drawn from a fixed alphabet and all share a length, so no label
@@ -41,38 +39,50 @@ let typed = "";
 function labels(count: number): string[] {
   const alphabet = HINT_ALPHABET.split("");
   let width = 1;
+
   while (alphabet.length ** width < count) width += 1;
 
   const out: string[] = [];
+
   for (let index = 0; index < count; index += 1) {
     let label = "";
     let remaining = index;
+
     for (let position = 0; position < width; position += 1) {
       label = alphabet[remaining % alphabet.length]! + label;
       remaining = Math.floor(remaining / alphabet.length);
     }
+
     out.push(label);
   }
+
   return out;
 }
 
 function isVisible(element: Element, rect: DOMRect): boolean {
   if (rect.width === 0 || rect.height === 0) return false;
+
   if (rect.bottom < 0 || rect.top > innerHeight) return false;
+
   if (rect.right < 0 || rect.left > innerWidth) return false;
 
   const style = getComputedStyle(element);
+
   return style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0";
 }
 
 function targets(): HTMLElement[] {
   const out: HTMLElement[] = [];
+
   for (const element of document.querySelectorAll<HTMLElement>(CLICKABLE)) {
     if (element.getAttribute("tabindex") === "-1") continue;
+
     // SAFETY: the preload runs in its own world; `disabled` is probed optionally with `=== true`.
     if ((element as HTMLElement & { disabled?: boolean }).disabled === true) continue;
+
     if (isVisible(element, element.getBoundingClientRect())) out.push(element);
   }
+
   return out;
 }
 
@@ -93,6 +103,7 @@ function marker(label: string, rect: DOMRect): HTMLElement {
     "border: 1px solid #191724",
     "z-index: 2147483647",
   ].join(";");
+
   return element;
 }
 
@@ -102,15 +113,16 @@ export function hide(): boolean {
   container?.remove();
   container = undefined;
   hints = [];
-  typed = "";
+
   return wasShowing;
 }
 
 /** True when there was anything to hint; main leaves hint mode if not. */
-export function show(): boolean {
+function show(): boolean {
   hide();
 
   const elements = targets();
+
   if (elements.length === 0) return false;
 
   container = document.createElement("div");
@@ -120,10 +132,12 @@ export function show(): boolean {
     const label = labels(elements.length)[index]!;
     const element_ = marker(label, element.getBoundingClientRect());
     container!.appendChild(element_);
+
     return { label, element, marker: element_ };
   });
 
   document.documentElement.appendChild(container);
+
   return true;
 }
 
@@ -137,57 +151,50 @@ function activate(element: HTMLElement): Point | undefined {
   // Focusing rather than clicking a field, so hinting into a search box lands
   // the caret instead of toggling something.
   const tag = element.tagName;
+
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || element.isContentEditable) {
     element.focus();
+
     return undefined;
   }
 
   const rect = element.getBoundingClientRect();
+
   const point = {
     x: Math.round(Math.min(Math.max(rect.left + rect.width / 2, 0), innerWidth - 1)),
     y: Math.round(Math.min(Math.max(rect.top + rect.height / 2, 0), innerHeight - 1)),
   };
 
   const hit = document.elementFromPoint(point.x, point.y);
+
   if (hit === element || (hit !== null && element.contains(hit))) return point;
 
   element.focus({ preventScroll: true });
   element.click();
+
   return undefined;
 }
 
-export interface HintResult {
-  /** Hinting is over, either because something matched or nothing can. */
-  done: boolean;
-  click?: Point;
+/** Puts a marker on every target; the labels, in order, or none when there is nothing to hint. */
+export function render(): ReadonlyArray<string> {
+  return show() ? hints.map((hint) => hint.label) : [];
 }
 
-export function key(input: string): HintResult {
-  if (input === "Backspace") {
-    typed = typed.slice(0, -1);
-  } else if (HINT_ALPHABET.includes(input)) {
-    typed += input;
-  } else {
-    return { done: false };
-  }
-
-  const matches = hints.filter((hint) => hint.label.startsWith(typed));
-  if (matches.length === 0) {
-    hide();
-    return { done: true };
-  }
-
-  // Labels are fixed width, so a single match on a full-length prefix is the one.
-  const only = matches[0]!;
-  if (matches.length === 1 && only.label === typed) {
-    const { element } = only;
-    // Before activating, so the markers cannot intercept the click.
-    hide();
-    return { done: true, click: activate(element) };
-  }
-
+/** Dims every marker that no longer matches what has been typed. */
+export function dim(typed: string): void {
   for (const hint of hints) {
     hint.marker.style.opacity = hint.label.startsWith(typed) ? "1" : "0.25";
   }
-  return { done: false };
+}
+
+/**
+ * Hides the markers, then activates the labelled element: where main
+ * should click, or nothing when the page handled it here.
+ */
+export function activateLabel(label: string): Point | undefined {
+  const element = hints.find((hint) => hint.label === label)?.element;
+
+  hide();
+
+  return element === undefined ? undefined : activate(element);
 }

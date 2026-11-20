@@ -1,12 +1,6 @@
-import { cpSync } from "node:fs";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
 import electron from "vite-plugin-electron/simple";
-
-/** Copies a directory tree to the build output. */
-function copyDir(from: string, to: string): void {
-  cpSync(from, to, { recursive: true });
-}
 
 /**
  * Each preload is built on its own: the plugin bundles a preload to a single
@@ -65,8 +59,20 @@ export default defineConfig({
       ".windsurf/**",
       "tools/oxlint/anti-slop/**",
     ],
-    jsPlugins: [{ name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" }],
+    jsPlugins: [
+      { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
+      { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/effect/index.ts" },
+    ],
     rules: {
+      "oxc/no-accumulating-spread": "error",
+      "anti-slop/no-array-filter-map": "error",
+      "anti-slop/no-reduce-accumulator-copy": "error",
+      "anti-slop/require-readable-spacing": "error",
+      "anti-slop-effect/no-manual-effect-error-tag": "error",
+      "anti-slop-effect/no-manual-tag-comparison": "error",
+      "anti-slop-effect/no-manual-tagged-construction": "error",
+      "anti-slop-effect/no-service-constructor-imports": "error",
+      "anti-slop-effect/prefer-effect-match": "error",
       "anti-slop/no-chained-type-assertions": "error",
       "anti-slop/no-conditional-empty-object-spread": "error",
       "anti-slop/no-known-value-widening": "error",
@@ -86,12 +92,10 @@ export default defineConfig({
     },
     overrides: [
       {
-        // The typed IPC seam: a channel table erases to `unknown` exactly here,
-        // at the transport boundary, so both sides stay typed from one table.
-        files: ["src/shared/ipc.ts", "src/main/ipc.ts", "src/preload/**"],
+        // The RPC transport: a port carries protocol messages that are
+        // `unknown` until the RPC layer decodes them with the group's schemas.
+        files: ["src/shared/rpc/**"],
         rules: {
-          "anti-slop/no-chained-type-assertions": "off",
-          "anti-slop/no-known-value-widening": "off",
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unknown-returns": "off",
         },
@@ -99,14 +103,14 @@ export default defineConfig({
       {
         // The config.toml parser is the boundary decoder these rules ask for;
         // its inputs are `unknown` and its intermediate tables open by nature.
-        files: ["src/main/settings.ts", "src/main/index.ts", "src/main/zoom.ts"],
+        files: ["src/main/settings.ts"],
         rules: {
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unsafe-dictionary-type": "off",
         },
       },
       {
-        // The validation utility is the typed boundary for ArkType: callers
+        // The validation utility is the typed boundary for Schema: callers
         // hand it `unknown` precisely so it can decode, and the field-path
         // builder has to look at runtime segment shapes.
         files: ["src/main/db/validation.ts"],
@@ -116,12 +120,80 @@ export default defineConfig({
         },
       },
       {
-        // The omnibox query is the typed boundary for what an IPC query hands
-        // main: `handleQueries` erases it to `unknown` at the transport seam,
-        // and this is where it gets decoded back into a domain value.
-        files: ["src/main/omnibox.ts"],
+        // A program decides; it never does. No runtime, no platform, no
+        // services: only the pure modules of Effect. See docs/architecture.md.
+        files: ["src/**/*.program.ts"],
         rules: {
-          "anti-slop/no-unknown-parameters": "off",
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                {
+                  name: "effect",
+                  importNames: [
+                    "Effect",
+                    "Stream",
+                    "Layer",
+                    "Fiber",
+                    "ManagedRuntime",
+                    "Queue",
+                    "PubSub",
+                    "Context",
+                  ],
+                  message: "A program is pure: return Cmds and let an interpreter run them.",
+                },
+                { name: "electron", message: "A program never touches Electron." },
+                { name: "svelte", message: "A program never touches the view." },
+              ],
+              patterns: [
+                { group: ["node:*"], message: "A program never touches the platform." },
+                { group: ["**/services/**"], message: "Programs never yield services." },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // Time and logging go through Effect, so tests control them and one
+        // logger sees everything. The kernel is where Effect meets the loop.
+        files: ["src/**/*.ts"],
+        excludeFiles: ["src/shared/tea/**", "**/*.test.ts"],
+        rules: {
+          "no-restricted-globals": [
+            "error",
+            { name: "setTimeout", message: "Use Effect.sleep, Schedule or a keyed Cmd." },
+            { name: "setInterval", message: "Use Schedule or Stream." },
+            { name: "console", message: "Use Effect.log*." },
+          ],
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                { name: "node:fs", message: "Use FileSystem from effect." },
+                { name: "node:fs/promises", message: "Use FileSystem from effect." },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // `will-download` must pick the save path before it returns, so the
+        // reservation check there is a synchronous file system call.
+        files: ["src/main/services/downloads-gate.ts"],
+        rules: { "no-restricted-imports": "off" },
+      },
+      {
+        // Components read the model and dispatch; the client is the store's.
+        files: ["src/renderer/**/*.svelte", "src/overlay/**/*.svelte"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                { group: ["**/rpc/**"], message: "Dispatch a Msg; components never call RPC." },
+              ],
+            },
+          ],
         },
       },
       {
@@ -157,43 +229,14 @@ export default defineConfig({
       main: {
         entry: "src/main/index.ts",
         vite: {
-          plugins: [
-            // Lives inside the main sub-build because vite-plugin-electron
-            // does not propagate root plugins to sub-builds — a root-level
-            // copy hook would run for the renderer only, and `pnpm dev`
-            // would never see the migrations. In dev the runtime resolves
-            // to the source tree directly, so build mode is the only
-            // context this matters in.
-            {
-              name: "kvist-db-migrations",
-              apply: "build",
-              enforce: "post",
-              closeBundle: {
-                order: "pre",
-                handler() {
-                  return copyDir("src/main/db/migrations", "dist/main/migrations");
-                },
-              },
-            },
-          ],
           build: {
             outDir: "dist/main",
             // The adblocker has a `require.resolve` that breaks once it
-            // leaves its package directory. `arktype` and `drizzle-orm/*`
-            // are externalized as a unit: a copy embedded here and a
-            // peer-dep-resolved copy in `drizzle-arktype` would be
-            // different module instances, and `parse()`'s
-            // `instanceof ArkErrors` check would silently return
-            // rejected data as success. Node's built-in `node:sqlite`
-            // is auto-externalized.
+            // leaves its package directory. Effect is externalized as a
+            // unit: a bundled copy and the one `@effect/*` resolves would
+            // hold two service registries, and services would not be found.
             rolldownOptions: {
-              external: [
-                "@ghostery/adblocker-electron",
-                "arktype",
-                /^drizzle-orm\//,
-                "drizzle-orm",
-                "drizzle-arktype",
-              ],
+              external: ["@ghostery/adblocker-electron", "effect", /^effect\//, /^@effect\//],
             },
           },
         },

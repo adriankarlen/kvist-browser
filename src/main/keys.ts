@@ -1,5 +1,5 @@
 import type { PageContents } from "./page-host";
-import type { KeyInput, KeySource } from "./vim";
+import type { KeyInput, KeySource } from "./features/vim/vim.program";
 
 /**
  * Routes a webContents' keys to the mode machine before its document sees
@@ -14,10 +14,12 @@ export function interceptKeys(
 ): void {
   contents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
+
     const consumed = onKey(
       { key: input.key, control: input.control, alt: input.alt, meta: input.meta },
       source,
     );
+
     if (consumed) event.preventDefault();
   });
 }

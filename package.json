@@ -12,25 +12,23 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "check": "vp check",
+    "check": "effect-tsgo vp check",
     "test": "vp test",
     "package": "vp build && electron-builder --publish never",
-    "db:generate": "drizzle-kit generate",
-    "db:check": "drizzle-kit check",
     "postinstall": "install-electron"
   },
   "dependencies": {
+    "@effect/platform-node": "4.1.4",
+    "@effect/sql-sqlite-node": "4.1.4",
     "@ghostery/adblocker-electron": "^2.18.2",
-    "arktype": "^2.2.3",
-    "drizzle-arktype": "^0.1.3",
-    "drizzle-orm": "1.0.0-rc.5-ab785fc",
-    "smol-toml": "^1.8.0",
+    "effect": "4.1.4",
     "tldts-experimental": "^7.4.13"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.73.2",
+    "@effect/vitest": "4.1.4",
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@types/node": "^24.13.6",
-    "drizzle-kit": "1.0.0-rc.5-ab785fc",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
     "svelte": "^5.57.1",
@@ -50,9 +48,6 @@
     "files": [
       "dist/**/*",
       "images/kvist-logo.png"
-    ],
-    "asarUnpack": [
-      "dist/main/migrations/**/*"
     ],
     "directories": {
       "output": "release"

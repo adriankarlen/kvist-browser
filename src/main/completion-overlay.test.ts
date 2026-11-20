@@ -1,6 +1,6 @@
-import type { WebContents } from "electron";
 import { expect, test, vi } from "vite-plus/test";
-import type { CompletionOverlayState, Rect } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { CompletionOverlayState } from "../shared/schema/completion";
 import { CompletionOverlay } from "./completion-overlay";
 import type { OverlayLease } from "./overlay-host";
 
@@ -24,25 +24,32 @@ function createLease() {
   const sent: { channel: string; payload: unknown }[] = [];
   /** Everything that happened, in order, so a test can assert on sequence. */
   const log: string[] = [];
+
+  const record =
+    (channel: string) =>
+    (payload: unknown): void => {
+      sent.push({ channel, payload });
+      log.push(`send ${channel}`);
+    };
+
   let destroyed = false;
 
   const emit = (event: string) => {
     for (const listener of listeners.get(event)?.splice(0) ?? []) listener();
   };
+
   const destroy = () => {
     destroyed = true;
     emit("destroyed");
   };
+
   const webContents = {
     once: (event: string, listener: () => void) => {
       const eventListeners = listeners.get(event) ?? [];
       eventListeners.push(listener);
       listeners.set(event, eventListeners);
+
       return webContents;
-    },
-    send: (channel: string, payload: unknown) => {
-      sent.push({ channel, payload });
-      log.push(`send ${channel}`);
     },
     isDestroyed: () => destroyed,
   };
@@ -56,6 +63,11 @@ function createLease() {
       setBounds: vi.fn((bounds: Rect) => void log.push(`bounds ${bounds.width}x${bounds.height}`)),
     },
     release: vi.fn(destroy),
+    link: {
+      completionState: record("kvist:completion-state"),
+      completionInset: record("kvist:completion-inset"),
+      completionCss: record("kvist:completion-css"),
+    },
   };
 
   return {
@@ -69,7 +81,7 @@ function createLease() {
     visible: () => lease.host.setVisible.mock.calls.at(-1)?.[0],
     bounds: () => lease.host.setBounds.mock.calls.at(-1)?.[0],
     payloads: (channel: string) =>
-      sent.filter((message) => message.channel === channel).map((message) => message.payload),
+      sent.flatMap((message) => (message.channel === channel ? [message.payload] : [])),
   };
 }
 
@@ -77,12 +89,14 @@ function setup(css = "") {
   const view = createLease();
   const open = vi.fn(() => view.lease);
   const restoreFocus = vi.fn();
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
     () => css,
     restoreFocus,
   );
+
   return { overlay, view, open, restoreFocus };
 }
 
@@ -118,6 +132,7 @@ test("a rebuilt view steals focus again, and it is handed back again", async () 
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
   const restoreFocus = vi.fn();
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
@@ -179,8 +194,10 @@ test.each(["before", "after"])(
     const { overlay, view } = setup();
 
     overlay.show(state("a"));
+
     if (timing === "before") overlay.setHeight(0);
     view.finishLoad();
+
     if (timing === "after") overlay.setHeight(0);
 
     expect(view.visible()).toBe(true);
@@ -311,6 +328,7 @@ test("the user's stylesheet reaches the overlay as soon as it can take it", () =
 test("a retheme after the overlay is up is pushed to it", () => {
   let css = "";
   const view = createLease();
+
   const overlay = new CompletionOverlay(
     () => view.lease,
     () => content,
@@ -334,23 +352,6 @@ test("a retheme before the overlay exists is dropped rather than queued", () => 
   expect(open).not.toHaveBeenCalled();
 });
 
-test("only the overlay's own webContents may talk back", () => {
-  const { overlay, view } = setup();
-  overlay.show(state("a"));
-
-  // SAFETY: identity is all `owns` compares; this is the sender the fake lease handed over.
-  expect(overlay.owns(view.lease.host.webContents as unknown as WebContents)).toBe(true);
-  // SAFETY: identity is all `owns` compares; a bare object is a different sender.
-  expect(overlay.owns({} as WebContents)).toBe(false);
-});
-
-test("nothing owns the overlay's channels before it exists", () => {
-  const { overlay } = setup();
-
-  // SAFETY: identity is all `owns` compares; a bare object is a different sender.
-  expect(overlay.owns({} as WebContents)).toBe(false);
-});
-
 test("releasing hands the view back and forgets the list it was showing", () => {
   const { overlay, view, open } = setup();
 
@@ -360,8 +361,6 @@ test("releasing hands the view back and forgets the list it was showing", () => 
   overlay.release();
 
   expect(view.lease.release).toHaveBeenCalledTimes(1);
-  // SAFETY: identity is all `owns` compares; a released overlay owns nothing.
-  expect(overlay.owns(view.lease.host.webContents as unknown as WebContents)).toBe(false);
 
   overlay.show(state("b"));
   expect(open).toHaveBeenCalledTimes(2);
@@ -392,6 +391,7 @@ test("a crashed renderer is released and replaced on the next show", () => {
   const first = createLease();
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+
   const overlay = new CompletionOverlay(
     open,
     () => content,
@@ -414,6 +414,7 @@ test("a destroyed renderer releases its view and is replaced on the next show", 
   const first = createLease();
   const second = createLease();
   const open = vi.fn().mockReturnValueOnce(first.lease).mockReturnValueOnce(second.lease);
+
   const overlay = new CompletionOverlay(
     open,
     () => content,

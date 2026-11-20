@@ -1,31 +1,9 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import CompletionMenu from "./CompletionMenu.svelte";
-  import { injectUserCss } from "../shared/inject-css";
-  import type {
-    CompletionCandidate,
-    CompletionInset,
-    CompletionOverlayState,
-  } from "../shared/ipc";
-
-  // Raw, not deep: the list is replaced wholesale on every push, and a
-  // `$state` proxy cannot cross IPC — structured clone rejects it, so a
-  // clicked row would never reach the chrome.
-  let state = $state.raw<CompletionOverlayState | null>(null);
-  /**
-   * Where main wants the list drawn inside the view it sized. The view's
-   * bounds are whole pixels and the omnibox is not, so the last fraction of
-   * the alignment is done here, where CSS can still address it.
-   */
-  let inset = $state.raw<CompletionInset | null>(null);
-
-  window.kvistOverlay.onCompletionState((next) => {
-    state = next;
-  });
-  window.kvistOverlay.onCompletionInset((next) => {
-    inset = next;
-  });
-  window.kvistOverlay.onCompletionCss((css) => injectUserCss(css));
+  import type { CompletionCandidate } from "../shared/schema/completion";
+  import { Msg } from "./overlay.program";
+  import { overlay } from "./store.svelte";
 
   /**
    * Report the unrounded height so main need not model row styles.
@@ -33,16 +11,21 @@
    */
   const reportHeight: Attachment<HTMLElement> = (node) => {
     const report = (): void =>
-      window.kvistOverlay.completionHeight(node.getBoundingClientRect().height);
+      overlay.dispatch(Msg.cases.ListMeasured.make({ height: node.getBoundingClientRect().height }));
+
     const observer = new ResizeObserver(report);
     observer.observe(node);
     report();
+
     return () => observer.disconnect();
   };
 
   function accept(candidate: CompletionCandidate): void {
-    window.kvistOverlay.completionPick(candidate);
+    overlay.dispatch(Msg.cases.RowClicked.make({ candidate }));
   }
+
+  const state = $derived(overlay.model.state);
+  const inset = $derived(overlay.model.inset);
 </script>
 
 <div

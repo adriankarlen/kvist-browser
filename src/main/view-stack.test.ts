@@ -8,17 +8,21 @@ import { type StackRoot, ViewStack } from "./view-stack";
  */
 function createRoot() {
   const children: View[] = [];
+
   const root: StackRoot = {
     addChildView(view) {
       const existing = children.indexOf(view);
+
       if (existing >= 0) children.splice(existing, 1);
       children.push(view);
     },
     removeChildView(view) {
       const index = children.indexOf(view);
+
       if (index >= 0) children.splice(index, 1);
     },
   };
+
   return { root, children };
 }
 

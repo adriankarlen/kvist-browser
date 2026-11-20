@@ -2,7 +2,7 @@
   import type { Attachment } from "svelte/attachments";
   import "./CompletionMenu.css";
   import { kindBadge, kindBadgeStyle } from "./badge";
-  import type { CompletionCandidate } from "../shared/ipc";
+  import type { CompletionCandidate } from "../shared/schema/completion";
 
   let {
     candidates,

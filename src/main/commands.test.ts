@@ -1,13 +1,11 @@
 import type { BrowserWindow } from "electron";
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { wire } from "../shared/ipc";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
-import { createActions, type ZoomStoreAccess } from "./actions";
+import { createActions } from "./actions";
+import type { ZoomStoreAccess } from "./zoom";
 import { completeCommand, createCommands } from "./commands";
-import type { Downloads } from "./downloads";
-import type { Messages } from "./messages";
-import type { Prompts } from "./prompts";
-import type { TabManager } from "./tab-manager";
+import type { Messenger as Messages } from "./messenger";
+import type { TabsAccess } from "./actions";
 
 // A spy left in place would silence the next test's console; a failed
 // assertion must not be able to leave one behind.
@@ -51,41 +49,42 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     showsErrorPage: false,
     setZoomLevel: vi.fn<(level: number) => number>(() => 0),
   };
+
   const tabs = {
     active,
     create: vi.fn<(url?: string) => void>(),
     closeActive: vi.fn(),
     step: vi.fn<(offset: number) => void>(),
   };
+
   const downloads = {
     cancelNth: vi.fn<(row?: number) => void>(),
     clear: vi.fn(),
   };
+
   const prompts = {
     answerHead: vi.fn<(allow: boolean) => void>(),
   };
+
   const zoom = {
     get: vi.fn<(origin: string) => number>(() => 0),
     set: vi.fn<(origin: string, level: number) => void>(),
     release: vi.fn(),
   };
-  const saved = new Set<string>();
+
   const bookmarks = {
-    has: vi.fn((url: string) => saved.has(url)),
-    add: vi.fn((input: { url: string; title: string }) => {
-      saved.add(input.url);
-      return true;
-    }),
-    removeUrl: vi.fn((url: string) => (saved.delete(url) ? 1 : 0)),
+    toggle: vi.fn<(url: string, title: string) => void>(),
   };
+
   const sent: { channel: string; payload?: unknown }[] = [];
+
   const win = {
     isDestroyed: () => false,
     webContents: {
-      send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
       focus: vi.fn(),
     },
   };
+
   const quit = vi.fn();
   const messages = { warn: vi.fn<(text: string) => void>(), say: vi.fn<(text: string) => void>() };
   const clipboard = createClipboardStub();
@@ -94,12 +93,16 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
-    tabs as unknown as TabManager,
-    downloads as unknown as Downloads,
-    prompts as unknown as Prompts<{ id: number }>,
+    tabs as unknown as TabsAccess,
+    downloads,
+    prompts,
     zoom as unknown as ZoomStoreAccess,
     bookmarks,
     win as unknown as BrowserWindow,
+    {
+      focusOmnibox: () => void sent.push({ channel: "focusOmnibox" }),
+      downloadsToggle: () => void sent.push({ channel: "downloadsToggle" }),
+    },
     messages as unknown as Messages,
     clipboard,
     opener,
@@ -107,6 +110,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     quit,
     getSearchUrl,
   );
+
   return {
     commands: createCommands(actions),
     tabs,
@@ -133,6 +137,7 @@ test("an unknown command is reported rather than thrown", () => {
 
 test("what every object inherits is not a command", () => {
   const { commands } = createStubs();
+
   for (const inherited of ["toString", "valueOf", "constructor", "hasOwnProperty", "__proto__"]) {
     expect(commands.execute(inherited)).toBe(false);
   }
@@ -152,6 +157,7 @@ test("every command reaches the thing it names", () => {
     bookmarks,
     quit,
   } = createStubs();
+
   // One entry per command in the table, so a mapping that points at the wrong
   // action is caught rather than merely dispatching.
   const expected: [string, () => boolean][] = [
@@ -178,9 +184,9 @@ test("every command reaches the thing it names", () => {
     ["focus.page", () => active.focus.mock.calls.length === 1],
     // Ahead of focus.omnibox below, which is the only other caller of it.
     ["focus.chrome", () => win.webContents.focus.mock.calls.length === 1],
-    ["focus.omnibox", () => sent.some(({ channel }) => channel === wire("focusOmnibox"))],
+    ["focus.omnibox", () => sent.some(({ channel }) => channel === "focusOmnibox")],
     ["insert.leave", () => active.blur.mock.calls.length === 1],
-    ["downloads.toggle", () => sent.some(({ channel }) => channel === wire("downloadsToggle"))],
+    ["downloads.toggle", () => sent.some(({ channel }) => channel === "downloadsToggle")],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
     ["downloads.cancel", () => downloads.cancelNth.mock.calls.length === 1],
     ["prompt.allow", () => prompts.answerHead.mock.calls.some(([a]) => a === true)],
@@ -196,7 +202,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
     ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
-    ["bookmark.toggle", () => bookmarks.add.mock.calls.length === 1],
+    ["bookmark.toggle", () => bookmarks.toggle.mock.calls.length === 1],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -262,6 +268,7 @@ test("tab.next and tab.prev step either way", () => {
 
 test("each scroll command names its own movement", () => {
   const { commands, active } = createStubs();
+
   for (const name of [
     "scroll.down",
     "scroll.up",
@@ -272,6 +279,7 @@ test("each scroll command names its own movement", () => {
   ]) {
     commands.execute(name);
   }
+
   expect(active.scroll.mock.calls.flat()).toEqual([
     "down",
     "up",
@@ -326,13 +334,13 @@ test("focusing the omnibox moves window focus first, then asks the chrome", () =
   commands.execute("focus.omnibox");
 
   expect(win.webContents.focus).toHaveBeenCalled();
-  expect(sent).toEqual([{ channel: wire("focusOmnibox"), payload: undefined }]);
+  expect(sent).toEqual([{ channel: "focusOmnibox" }]);
 });
 
 test("the downloads panel is asked to toggle, since the flag is the chrome's", () => {
   const { commands, sent } = createStubs();
   commands.execute("downloads");
-  expect(sent).toEqual([{ channel: wire("downloadsToggle"), payload: undefined }]);
+  expect(sent).toEqual([{ channel: "downloadsToggle" }]);
 });
 
 test("yank copies the active tab's URL and announces it", () => {
@@ -666,48 +674,12 @@ test("a file that fails to open is warned about without holding up the rest", as
   expect(messages.warn).toHaveBeenCalledTimes(1);
 });
 
-test("bookmark.toggle bookmarks the active page under its title", () => {
-  const { commands, bookmarks, messages } = createStubs();
+test("bookmark.toggle hands the active page's URL and title to the store", () => {
+  const { commands, bookmarks } = createStubs();
 
   commands.execute("bookmark.toggle");
 
-  expect(bookmarks.add).toHaveBeenCalledWith({ url: "https://active.example", title: "Active" });
-  expect(messages.say).toHaveBeenCalledWith("bookmarked Active");
-});
-
-test("bookmark.toggle falls back to the URL when the page has no title", () => {
-  const { commands, active, bookmarks } = createStubs();
-  Object.defineProperty(active, "snapshot", {
-    value: () => ({ url: "https://active.example", title: "  " }),
-    configurable: true,
-  });
-
-  commands.execute("bookmark.toggle");
-
-  expect(bookmarks.add).toHaveBeenCalledWith({
-    url: "https://active.example",
-    title: "https://active.example",
-  });
-});
-
-test("bookmark.toggle on a bookmarked page removes every bookmark for it", () => {
-  const { commands, bookmarks, messages } = createStubs();
-  commands.execute("bookmark.toggle");
-
-  commands.execute("bookmark.toggle");
-
-  expect(bookmarks.add).toHaveBeenCalledTimes(1);
-  expect(bookmarks.removeUrl).toHaveBeenCalledWith("https://active.example");
-  expect(messages.say).toHaveBeenLastCalledWith("removed bookmark https://active.example");
-});
-
-test("bookmark.toggle warns when the store refuses the URL", () => {
-  const { commands, bookmarks, messages } = createStubs();
-  bookmarks.add.mockReturnValue(false);
-
-  commands.execute("bookmark.toggle");
-
-  expect(messages.warn).toHaveBeenCalledWith("cannot bookmark https://active.example");
+  expect(bookmarks.toggle).toHaveBeenCalledWith("https://active.example", "Active");
 });
 
 test("bookmark.toggle warns when there is no page to bookmark", () => {
@@ -720,7 +692,7 @@ test("bookmark.toggle warns when there is no page to bookmark", () => {
   Object.defineProperty(stubs.tabs, "active", { value: undefined, configurable: true });
   stubs.commands.execute("bookmark.toggle");
 
-  expect(stubs.bookmarks.has).not.toHaveBeenCalled();
+  expect(stubs.bookmarks.toggle).not.toHaveBeenCalled();
   expect(stubs.messages.warn.mock.calls).toEqual([
     ["no page to bookmark"],
     ["no page to bookmark"],
@@ -732,7 +704,7 @@ test(":bookmark is an alias for bookmark.toggle", () => {
 
   commands.execute("bookmark");
 
-  expect(bookmarks.add).toHaveBeenCalledTimes(1);
+  expect(bookmarks.toggle).toHaveBeenCalledTimes(1);
 });
 
 test("completion offers aliases first, then commands, by prefix", () => {
@@ -787,6 +759,7 @@ test("every completed name runs", () => {
   const { commands } = createStubs();
   const offered = "abcdefghijklmnopqrstuvwxyz0".split("").flatMap((c) => completeCommand(c));
   expect(offered.length).toBeGreaterThan(0);
+
   for (const { value } of offered) {
     expect(commands.execute(value), value).toBe(true);
   }

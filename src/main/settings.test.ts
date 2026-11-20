@@ -4,6 +4,7 @@ import { parseSettings } from "./settings";
 
 const settingsOf = (source: string, previous?: Settings): Settings =>
   parseSettings(source, previous).settings;
+
 const problemsOf = (source: string): string[] =>
   parseSettings(source).problems.map(({ field }) => field);
 
@@ -87,6 +88,7 @@ test("links are all-or-nothing, so a half-written entry keeps the defaults", () 
     [[newtab.links]]
     name = "half"
   `;
+
   expect(settingsOf(half).newtabLinks).toEqual(DEFAULT_SETTINGS.newtabLinks);
   expect(problemsOf(half)).toEqual(["newtab.links"]);
 });

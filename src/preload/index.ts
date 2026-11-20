@@ -1,27 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
-import {
-  type KvistApi,
-  invokers,
-  listeners,
-  senders,
-  toChrome,
-  toMain,
-  toMainQueries,
-} from "../shared/ipc";
+import { contextBridge } from "electron";
+import { forwardPort } from "./forward-port";
 
-/**
- * `window.kvist`, built from the channel tables rather than written out: every
- * method here is the same four lines, and the only thing that varies is the
- * channel.
- */
-const api: KvistApi = {
-  ...senders(toMain, (channel, payload) => ipcRenderer.send(channel, payload)),
-  ...listeners(toChrome, (channel, listener) => {
-    const handler = (_event: unknown, payload: unknown): void => listener(payload);
-    ipcRenderer.on(channel, handler);
-    return () => void ipcRenderer.off(channel, handler);
-  }),
-  ...invokers(toMainQueries, (channel, request) => ipcRenderer.invoke(channel, request)),
-};
-
-contextBridge.exposeInMainWorld("kvist", api);
+contextBridge.exposeInMainWorld("kvist", forwardPort());

@@ -1,17 +1,25 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
+    "install-anti-slop": {
+      "source": "dmmulroy/anti-slop",
+      "commit": "13909c9e07590f5a85d93c62712259fe14a883f7",
+      "sourceType": "github",
+      "skillPath": "skills/install-anti-slop/SKILL.md",
+      "computedHash": "72309811a88f92e56b6041960b7bd6f187deea251486982fd457378460b38d8a",
+      "installMode": "copy"
+    },
     "svelte-code-writer": {
       "source": "sveltejs/ai-tools",
       "sourceType": "github",
       "skillPath": "plugins/claude/svelte/skills/svelte-code-writer/SKILL.md",
-      "computedHash": "6f78193a79906175595ce8e4ca8d726da350eb99035a9544b6553620df5673a1"
+      "computedHash": "663cabf66d45cbacc551bf682910dcadf21ac2c77da8bf58629aa7952007cead"
     },
     "svelte-core-bestpractices": {
       "source": "sveltejs/ai-tools",
       "sourceType": "github",
       "skillPath": "plugins/claude/svelte/skills/svelte-core-bestpractices/SKILL.md",
-      "computedHash": "98b4ee346ac45e13740c9f3353b604d5c6e844c96cdc8867052fa961cbdb525d"
+      "computedHash": "ac48809146a3307c906b8172df4be0a3df21eccf35582414e9c41b410d3c4db4"
     }
   }
 }

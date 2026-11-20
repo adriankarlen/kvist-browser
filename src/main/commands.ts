@@ -1,4 +1,4 @@
-import type { CompletionCandidate } from "../shared/ipc";
+import type { CompletionCandidate } from "../shared/schema/completion";
 import type { Action, Actions } from "./actions";
 
 interface CommandSpec {
@@ -112,8 +112,10 @@ export function createCommands(actions: Actions): Commands {
   return {
     execute(nameOrAlias, arg) {
       const run = commands.get(nameOrAlias) ?? commands.get(aliases.get(nameOrAlias) ?? "");
+
       if (!run) return false;
       run(arg);
+
       return true;
     },
   };
@@ -129,25 +131,22 @@ function withArg(name: string, arg: string | undefined): string {
  */
 export function completeCommand(line: string): CompletionCandidate[] {
   const word = line.trimStart();
+
   if (word === "" || /\s/.test(word)) return [];
   const prefix = word.toLowerCase();
   const matches = (name: string): boolean => name.toLowerCase().startsWith(prefix);
 
-  const fromAliases = [...aliases]
-    .filter(([alias]) => matches(alias))
-    .map(([alias, name]): CompletionCandidate => ({
-      label: alias,
-      value: alias,
-      kind: "alias",
-      hint: withArg(name, specs.get(name)?.arg),
-    }));
-  const fromCommands = [...specs]
-    .filter(([name, spec]) => !spec.keybindOnly && matches(name))
-    .map(([name, spec]): CompletionCandidate => ({
-      label: name,
-      value: name,
-      kind: "command",
-      hint: spec.arg,
-    }));
+  const fromAliases = [...aliases].flatMap(([alias, name]): CompletionCandidate[] =>
+    matches(alias)
+      ? [{ label: alias, value: alias, kind: "alias", hint: withArg(name, specs.get(name)?.arg) }]
+      : [],
+  );
+
+  const fromCommands = [...specs].flatMap(([name, spec]): CompletionCandidate[] =>
+    !spec.keybindOnly && matches(name)
+      ? [{ label: name, value: name, kind: "command", hint: spec.arg }]
+      : [],
+  );
+
   return [...fromAliases, ...fromCommands];
 }

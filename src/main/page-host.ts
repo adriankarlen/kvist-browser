@@ -14,7 +14,9 @@ export type PageContents = Pick<
   // second window inherits a question about a page that is gone.
   | "once"
   | "removeListener"
-  | "send"
+  // `postMessage` hands the page its RPC port; `off` stops watching it.
+  | "postMessage"
+  | "off"
   | "loadURL"
   | "getURL"
   | "reload"

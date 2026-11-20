@@ -7,6 +7,7 @@
 
 /** Default cap on a single search/list call — enough for a panel, small enough to scan. */
 export const DEFAULT_LIMIT = 50;
+
 /** The hard ceiling — a runaway limit would scan the whole table. */
 export const MAX_LIMIT = 500;
 
@@ -17,6 +18,7 @@ export const MAX_LIMIT = 500;
  */
 export function clampLimit(limit: number): number {
   if (!Number.isInteger(limit) || limit < 1) return DEFAULT_LIMIT;
+
   return Math.min(limit, MAX_LIMIT);
 }
 

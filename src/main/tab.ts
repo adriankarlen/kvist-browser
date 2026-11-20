@@ -1,24 +1,22 @@
 import type { ContextMenuParams } from "electron";
-import {
-  type ContextMenuState,
-  type FindResult,
-  type Point,
-  type Rect,
-  type ScrollCommand,
-  senders,
-  type Senders,
-  type TabId,
-  type TabState,
-  toPage,
-} from "../shared/ipc";
+import type {
+  FindResult,
+  Point,
+  Rect,
+  ScrollCommand,
+  TabId,
+  TabState,
+} from "../shared/schema/browser";
+import type { ContextMenuState } from "../shared/schema/context-menu";
+import type { PageSenders } from "./links";
 import { httpOrigin, originOf } from "../shared/url";
 import { buildContextMenuItems } from "./context-menu";
 import { ERR_ABORTED, errorPageTarget, formatErrorPageUrl } from "./error-page";
 import { externalProtocolTarget, looksLikeHostPort } from "./external";
 import { interceptKeys } from "./keys";
 import type { PageContents, PageHost } from "./page-host";
-import type { KeyInput, KeySource } from "./vim";
-import type { ZoomStore } from "./zoom";
+import type { KeyInput, KeySource } from "./features/vim/vim.program";
+import type { ZoomStoreAccess } from "./zoom";
 
 /**
  * What a Tab reports upward. A Tab never names the collection it belongs to:
@@ -63,6 +61,8 @@ export interface TabCallbacks {
    * means nothing asked (a typed URL has no page).
    */
   externalRequest(url: string, scheme: string, origin: string | null, selfInitiated: boolean): void;
+  /** Serves this tab's page its RPC surface; what main says to the page goes through the result. */
+  connect(page: PageContents): PageSenders;
 }
 
 /**
@@ -71,6 +71,18 @@ export interface TabCallbacks {
  * hangs the process, so a dead Tab answers every verb with nothing rather
  * than defending each call site.
  */
+/** A closed tab's page is gone, so nothing more is said to it. */
+function unlessClosed(link: PageSenders, closed: () => boolean): PageSenders {
+  return {
+    pageBlur: () => closed() || link.pageBlur(),
+    pageScroll: (command) => closed() || link.pageScroll(command),
+    hintsShow: () => closed() || link.hintsShow(),
+    hintsKey: (key) => closed() || link.hintsKey(key),
+    hintsHide: () => closed() || link.hintsHide(),
+    contextMenu: (menu) => closed() || link.contextMenu(menu),
+  };
+}
+
 export class Tab {
   readonly id: TabId;
   #host: PageHost;
@@ -81,9 +93,9 @@ export class Tab {
    */
   #page: PageContents;
   /** The page's half of the channel tables, bound to this tab's webContents. */
-  #toPage: Senders<typeof toPage>;
+  #toPage: PageSenders;
   #on: TabCallbacks;
-  #zoom: ZoomStore;
+  #zoom: ZoomStoreAccess;
   #closed = false;
 
   #title: string;
@@ -108,14 +120,18 @@ export class Tab {
    */
   #zoomLevel = 0;
 
-  constructor(id: TabId, host: PageHost, callbacks: TabCallbacks, zoom: ZoomStore, url: string) {
+  constructor(
+    id: TabId,
+    host: PageHost,
+    callbacks: TabCallbacks,
+    zoom: ZoomStoreAccess,
+    url: string,
+  ) {
     this.id = id;
     this.#host = host;
     this.#page = host.webContents;
-    this.#toPage = senders(toPage, (channel, payload) => {
-      if (!this.#closed) this.#page.send(channel, payload);
-    });
     this.#on = callbacks;
+    this.#toPage = unlessClosed(callbacks.connect(this.#page), () => this.#closed);
     this.#zoom = zoom;
     this.#title = url;
     this.#url = url;
@@ -159,10 +175,12 @@ export class Tab {
       zoomLevel: this.#zoomLevel,
       bookmarked: this.#url !== "" && this.#on.isBookmarked(this.#url),
     };
+
     // Read live rather than tracked: history depth changes without an event.
     // A closed page has no history left to ask.
     if (this.#closed) return { ...strip, canGoBack: false, canGoForward: false };
     const { navigationHistory } = this.#page;
+
     return {
       ...strip,
       canGoBack: navigationHistory.canGoBack(),
@@ -189,6 +207,7 @@ export class Tab {
     this.#page.setZoomLevel(level);
     this.#zoomLevel = this.#page.getZoomLevel();
     this.#on.changed();
+
     return this.#zoomLevel;
   }
 
@@ -273,10 +292,13 @@ export class Tab {
     // page's own href is never this ambiguous, so only the typed path needs
     // the guard.
     const scheme = externalProtocolTarget(url);
+
     if (scheme !== null && !looksLikeHostPort(url)) {
       this.#on.externalRequest(url, scheme, null, true);
+
       return;
     }
+
     void this.#page.loadURL(url);
   }
 
@@ -295,6 +317,7 @@ export class Tab {
   toggleDevTools(): void {
     if (this.#closed) return;
     const webContents = this.#page;
+
     if (webContents.isDevToolsOpened()) webContents.closeDevTools();
     else webContents.openDevTools({ mode: "bottom" });
   }
@@ -310,9 +333,11 @@ export class Tab {
    */
   find(query: string): void {
     if (this.#closed) return;
+
     // findInPage rejects an empty string, and an emptied prompt means "stop".
     if (query === "") {
       this.stopFind();
+
       return;
     }
 
@@ -346,9 +371,11 @@ export class Tab {
   pickContextMenu(id: string | null): void {
     const params = this.#menu;
     this.#menu = null;
+
     if (params === null || id === null || this.#closed) return;
 
     const webContents = this.#page;
+
     const actions = new Map<string, () => void>([
       ["nav.back", () => webContents.navigationHistory.goBack()],
       ["nav.forward", () => webContents.navigationHistory.goForward()],
@@ -367,6 +394,7 @@ export class Tab {
       ["selection.copy", () => webContents.copy()],
       ["inspect", () => webContents.inspectElement(params.x, params.y)],
     ]);
+
     actions.get(id)?.();
   }
 
@@ -401,8 +429,11 @@ export class Tab {
     loading?: boolean;
   }): void {
     if (patch.title !== undefined) this.#title = patch.title;
+
     if (patch.url !== undefined) this.#url = patch.url;
+
     if (patch.favicon !== undefined) this.#favicon = patch.favicon;
+
     if (patch.loading !== undefined) this.#loading = patch.loading;
     this.#on.changed();
   }
@@ -447,6 +478,7 @@ export class Tab {
         if (!this.#closed)
           this.#on.openRequest(details.url, details.disposition === "background-tab", origin);
       });
+
       return { action: "deny" };
     });
 
@@ -456,6 +488,7 @@ export class Tab {
     webContents.on("destroyed", () => {
       const wasClosed = this.#closed;
       this.markDead();
+
       if (!wasClosed) setImmediate(() => this.#on.died());
     });
 
@@ -487,8 +520,10 @@ export class Tab {
       // Aborted loads are ordinary navigation, and a sub-frame's failure is
       // the page's own problem — neither is the tab's to explain.
       if (code === ERR_ABORTED || !isMainFrame) return;
+
       // An error page failing must not stack another error page on top.
       if (errorPageTarget(url) !== null) return;
+
       // did-fail-load and did-fail-provisional-load can both fire for one
       // failure; only the first may render the page.
       if (this.#failedUrl === url) return;
@@ -496,6 +531,7 @@ export class Tab {
       this.#failedUrl = url;
       void webContents.loadURL(formatErrorPageUrl({ code, description, url }));
     };
+
     webContents.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
       failLoad(code, description, url, isMainFrame);
     });
@@ -515,6 +551,7 @@ export class Tab {
     // loading the error page revives it in a new process.
     webContents.on("render-process-gone", (_event, details) => {
       if (details.reason === "clean-exit") return;
+
       // A crashed error page must not stack another error page on top, same
       // as in failLoad above.
       if (errorPageTarget(webContents.getURL()) !== null) return;
@@ -537,10 +574,12 @@ export class Tab {
       const current = webContents.getURL();
       this.#update({ url: errorPageTarget(current)?.url ?? current });
     };
+
     webContents.on("did-navigate", () => {
       // The menu's document is gone, and with it the menu; only the stash
       // needs forgetting. No hide is sent — the new page never showed one.
       this.#menu = null;
+
       // The matches belonged to a document that is gone. Chromium keeps the
       // session and re-runs it against the new one, so the search has to be
       // ended rather than merely forgotten.
@@ -548,6 +587,7 @@ export class Tab {
         this.#endFind();
         this.#report(null);
       }
+
       trackUrl();
       this.#applyOriginZoom();
       // The URL Chromium actually committed, not the one the strip shows: an
@@ -558,6 +598,7 @@ export class Tab {
     });
     webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       trackUrl();
+
       if (isMainFrame) this.#on.inPageNavigation(webContents, url);
     });
 
@@ -578,10 +619,13 @@ export class Tab {
       if (this.#closed) return;
       const level = webContents.getZoomLevel();
       this.#zoomLevel = level;
+
       if (this.#failedUrl === null) {
         const origin = originOf(webContents.getURL());
+
         if (origin !== null) this.#zoom.set(origin, level);
       }
+
       this.#on.changed();
     });
 
@@ -593,6 +637,7 @@ export class Tab {
     webContents.on("will-navigate", (details) => {
       if (!details.isMainFrame) return;
       const scheme = externalProtocolTarget(details.url);
+
       if (scheme !== null) {
         details.preventDefault();
         this.#on.externalRequest(details.url, scheme, httpOrigin(webContents.getURL()), false);
@@ -609,6 +654,7 @@ export class Tab {
     if (this.#closed) return;
     this.#menu = params;
     const { navigationHistory } = this.#page;
+
     const state: ContextMenuState = {
       x: params.x,
       y: params.y,
@@ -618,6 +664,7 @@ export class Tab {
       }),
       css: this.#on.menuCss(),
     };
+
     this.#toPage.contextMenu(state);
   }
 
@@ -630,8 +677,10 @@ export class Tab {
   #applyOriginZoom(): void {
     if (this.#closed) return;
     const origin = originOf(this.#page.getURL());
+
     if (origin === null) return;
     const saved = this.#zoom.get(origin);
+
     if (saved === this.#zoomLevel) return;
     this.#page.setZoomLevel(saved);
     // setZoomLevel can clamp; mirror what Chromium actually accepted.

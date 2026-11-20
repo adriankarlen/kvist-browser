@@ -68,6 +68,7 @@ describe("consecutive line comments", () => {
       lineComment("beta", 6),
       lineComment("gamma", 7),
     ]);
+
     expect(runs).toHaveLength(1);
     expect(runs[0]?.value).toBe("alpha\nbeta\ngamma");
     expect(runs[0]?.line).toBe(5);
@@ -85,6 +86,7 @@ describe("consecutive line comments", () => {
       lineComment(words(35), 2),
       lineComment(words(35), 5),
     ]);
+
     expect(result.overLimit).toHaveLength(0);
   });
 });
@@ -95,6 +97,7 @@ describe("comment shapes", () => {
       blockComment(` long text\n * ${words(42)}\n `, 2, 4),
       blockComment(`\n * @param alpha ${words(40)}\n `, 10, 12),
     ]);
+
     expect(result.overLimit).toHaveLength(2);
   });
 
@@ -207,6 +210,7 @@ describe("svelte documents", () => {
       `/* style comment with ${words(45)} */`,
       "</style>",
     ].join("\n");
+
     const found = svelteComments(source);
     expect(found).toHaveLength(2);
     expect(found.map((comment) => comment.line)).toEqual([6, 9]);
@@ -226,6 +230,7 @@ describe("svelte documents", () => {
       "",
       `<!-- template comment with ${words(45)} -->`,
     ].join("\n");
+
     const found = svelteComments(source);
     expect(found).toHaveLength(1);
     expect(found[0]?.line).toBe(11);

@@ -5,9 +5,12 @@ const DEBOUNCE_MS = 300;
 // parse that yields anything but a string is legacy data, returned as-is.
 function load() {
   const raw = localStorage.getItem(SCRATCHPAD_KEY);
+
   if (raw === null) return "";
+
   try {
     const parsed = JSON.parse(raw);
+
     // oxlint-disable-next-line anti-slop/no-runtime-typeof -- JSON.parse yields untyped data; a non-string is legacy bare-text data
     return typeof parsed === "string" ? parsed : raw;
   } catch {
@@ -20,10 +23,12 @@ export function initScratchpad() {
   area.value = load();
 
   let timer;
+
   const flush = () => {
     clearTimeout(timer);
     localStorage.setItem(SCRATCHPAD_KEY, JSON.stringify(area.value));
   };
+
   area.addEventListener("input", () => {
     clearTimeout(timer);
     timer = setTimeout(flush, DEBOUNCE_MS);

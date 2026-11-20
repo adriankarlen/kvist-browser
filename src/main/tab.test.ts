@@ -1,10 +1,21 @@
 import { EventEmitter } from "node:events";
 import { expect, test, vi } from "vite-plus/test";
-import { type FindResult, wire } from "../shared/ipc";
+import type { FindResult } from "../shared/schema/browser";
+import type { PageSenders } from "./links";
 import { errorPageTarget, formatErrorPageUrl } from "./error-page";
 import type { PageHost } from "./page-host";
 import { Tab, type TabCallbacks } from "./tab";
-import { ZoomStore } from "./zoom";
+import { clamp, type ZoomStoreAccess } from "./zoom";
+
+/** Per-origin zoom in memory, standing in for the zoom repository. */
+function memoryZoom(): ZoomStoreAccess {
+  const levels = new Map<string, number>();
+
+  return {
+    get: (origin) => levels.get(origin) ?? 0,
+    set: (origin, level) => void levels.set(origin, clamp(level)),
+  };
+}
 
 /**
  * The in-memory adapter at the `PageHost` seam. Records what a Tab asked
@@ -15,6 +26,7 @@ function createHost() {
   const loaded: string[] = [];
   const sent: { channel: string; payload?: unknown }[] = [];
   const finds: { query: string; options?: unknown }[] = [];
+
   const state = {
     url: "",
     canGoBack: false,
@@ -22,6 +34,7 @@ function createHost() {
     requestId: 0,
     webContentsReads: 0,
   };
+
   const calls = { stopFind: 0, focus: 0, crash: 0, close: 0 };
   let zoomLevel = 0;
   const zoomHistory: number[] = [];
@@ -32,10 +45,12 @@ function createHost() {
     once: (event: string, listener: (...args: unknown[]) => void) => events.once(event, listener),
     removeListener: (event: string, listener: (...args: unknown[]) => void) =>
       events.removeListener(event, listener),
-    send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
+    postMessage: () => {},
+    off: () => {},
     loadURL: (url: string) => {
       loaded.push(url);
       state.url = url;
+
       return Promise.resolve();
     },
     getURL: () => state.url,
@@ -48,6 +63,7 @@ function createHost() {
     },
     findInPage: (query: string, options?: unknown) => {
       finds.push({ query, options });
+
       return ++state.requestId;
     },
     stopFindInPage: () => void calls.stopFind++,
@@ -72,6 +88,7 @@ function createHost() {
     removeInsertedCSS: () => Promise.resolve(),
     setZoomLevel: (level: number) => {
       zoomHistory.push(level);
+
       // Mock Chromium's clamp at the edges.
       if (level < -2.8) zoomLevel = -2.8;
       else if (level > 5.7) zoomLevel = 5.7;
@@ -90,6 +107,7 @@ function createHost() {
   const host = {
     get webContents() {
       state.webContentsReads++;
+
       return webContents;
     },
     setVisible: () => {},
@@ -112,8 +130,26 @@ function createHost() {
   };
 }
 
-function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
+/** What the tab said to its page, as the calls it made. */
+function recordSends(sent: { channel: string; payload?: unknown }[]): PageSenders {
+  const record =
+    (channel: string) =>
+    (payload?: unknown): void =>
+      void sent.push(payload === undefined ? { channel } : { channel, payload });
+
+  return {
+    pageBlur: record("pageBlur"),
+    pageScroll: record("pageScroll"),
+    hintsShow: record("hintsShow"),
+    hintsKey: record("hintsKey"),
+    hintsHide: record("hintsHide"),
+    contextMenu: record("contextMenu"),
+  };
+}
+
+function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStoreAccess) {
   const host = createHost();
+
   const callbacks: TabCallbacks = {
     changed: vi.fn(),
     died: vi.fn(),
@@ -128,10 +164,12 @@ function createTab(overrides: Partial<TabCallbacks> = {}, zoom?: ZoomStore) {
     isBookmarked: () => false,
     externalRequest: vi.fn(),
     fullscreenChange: vi.fn(),
+    connect: () => recordSends(host.sent),
     ...overrides,
   };
+
   return {
-    tab: new Tab(1, host.host, callbacks, zoom ?? new ZoomStore(), "https://a.example"),
+    tab: new Tab(1, host.host, callbacks, zoom ?? memoryZoom(), "https://a.example"),
     host,
     callbacks,
   };
@@ -198,6 +236,7 @@ test("one failure reported twice renders one error page", () => {
 
 test("a retry of the same URL renders the error page again", () => {
   const { host } = createTab();
+
   const fail = (): void => {
     host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);
   };
@@ -229,6 +268,7 @@ test("loading the error page does not clear the dedupe", () => {
 
 test("an error page that fails does not stack another on top", () => {
   const { host } = createTab();
+
   const errorUrl = formatErrorPageUrl({
     code: -105,
     description: "boom",
@@ -415,7 +455,7 @@ test("the context menu carries the styling of the moment", () => {
   host.emit("context-menu", EVENT, menuParams({ x: 10, y: 20, linkURL: "https://link.example" }));
 
   const menu = host.sent.at(-1)!;
-  expect(menu.channel).toBe(wire("contextMenu"));
+  expect(menu.channel).toBe("contextMenu");
   expect(menu.payload).toMatchObject({ x: 10, y: 20, css: ".kv-menu { color: red }" });
 
   tab.pickContextMenu("link.copy");
@@ -432,7 +472,7 @@ test("a pick after the menu is gone does nothing", () => {
   tab.pickContextMenu("link.copy");
   expect(copyText).not.toHaveBeenCalled();
   // The document is gone, so no hide is sent to it either.
-  expect(host.sent.filter(({ channel }) => channel === wire("contextMenu"))).toHaveLength(1);
+  expect(host.sent.filter(({ channel }) => channel === "contextMenu")).toHaveLength(1);
 });
 
 test("opening a link in a new tab attributes it to this tab's own current page", () => {
@@ -519,6 +559,7 @@ test("an error page is reported as the wrapper it is, not the site that failed",
 test("a link click with a scheme the desktop owns is handed off, with its scheme and the page's origin", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
   host.state.url = "https://example.com/signin";
 
@@ -527,6 +568,7 @@ test("a link click with a scheme the desktop owns is handed off, with its scheme
     isMainFrame: true,
     preventDefault: vi.fn(),
   };
+
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).toHaveBeenCalled();
@@ -543,6 +585,7 @@ test("a link click with a scheme the desktop owns is handed off, with its scheme
 test("a non-http(s) page asking is not attributed to an origin, but is still a page asking", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
   host.state.url = "kvist://newtab/";
 
@@ -561,6 +604,7 @@ test("a non-http(s) page asking is not attributed to an origin, but is still a p
 test("a link click with a scheme this browser loads itself navigates as usual", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
 
   const details = {
@@ -568,6 +612,7 @@ test("a link click with a scheme this browser loads itself navigates as usual", 
     isMainFrame: true,
     preventDefault: vi.fn(),
   };
+
   host.emit("will-navigate", details);
 
   expect(details.preventDefault).not.toHaveBeenCalled();
@@ -577,6 +622,7 @@ test("a link click with a scheme this browser loads itself navigates as usual", 
 test("a sub-frame navigation is not handed off, even for a scheme the desktop owns", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { host } = createTab({ externalRequest });
 
   host.emit("will-navigate", {
@@ -591,6 +637,7 @@ test("a sub-frame navigation is not handed off, even for a scheme the desktop ow
 test("navigate() hands off a scheme the desktop owns instead of loading it, with no origin", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("mailto:foo@bar.com");
@@ -607,6 +654,7 @@ test("navigate() does not treat a typed host:port as a scheme to hand off", () =
   // dev server address in the omnibox would offer to hand itself to the OS.
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("localhost:3000");
@@ -621,6 +669,7 @@ test("navigate() still hands off tel: with a short, digits-only number", () => {
   // and must still reach the external-protocol prompt.
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("tel:123");
@@ -632,6 +681,7 @@ test("navigate() still hands off tel: with a short, digits-only number", () => {
 test("navigate() still loads a regular URL", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab, host } = createTab({ externalRequest });
 
   tab.navigate("https://example.com/page");
@@ -643,6 +693,7 @@ test("navigate() still loads a regular URL", () => {
 test("a closed tab never reports an external handoff", () => {
   const externalRequest =
     vi.fn<(url: string, scheme: string, origin: string | null, selfInitiated: boolean) => void>();
+
   const { tab } = createTab({ externalRequest });
 
   tab.close();
@@ -672,7 +723,7 @@ test("setZoomLevel on a closed tab is a no-op", () => {
 });
 
 test("a main-frame navigation re-applies the saved zoom for the new origin", async () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   zoom.set("https://example.com", 1.5);
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://example.com";
@@ -700,7 +751,7 @@ test("a navigation to an unzoomable origin does not call setZoomLevel", async ()
 });
 
 test("zoom-changed reflects in the snapshot and is persisted", async () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://example.com";
 
@@ -716,7 +767,7 @@ test("zoom-changed reflects in the snapshot and is persisted", async () => {
 });
 
 test("zoom-changed on an unzoomable origin is not persisted", () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "about:blank";
 
@@ -744,7 +795,7 @@ test("an error page is reported as such until a real navigation starts", () => {
 });
 
 test("a Ctrl+wheel zoom on an error page is mirrored but never persisted", () => {
-  const zoom = new ZoomStore();
+  const zoom = memoryZoom();
   const { tab, host } = createTab({}, zoom);
   host.state.url = "https://gone.example";
   host.emit("did-fail-load", EVENT, -105, "ERR_NAME_NOT_RESOLVED", "https://gone.example", true);

@@ -1,9 +1,11 @@
-import type { WebContents } from "electron";
-import { type CompletionOverlayState, type Rect, senders, toOverlay } from "../shared/ipc";
+import type { Rect } from "../shared/schema/browser";
+import type { CompletionOverlayState } from "../shared/schema/completion";
+import type { OverlaySenders } from "./links";
 import { type ContentSize, placeCompletion } from "./completion-bounds";
 import type { OverlayLease } from "./overlay-host";
 
 const HIDDEN: Rect = { x: 0, y: 0, width: 0, height: 0 };
+
 const EMPTY: CompletionOverlayState = {
   candidates: [],
   index: -1,
@@ -42,14 +44,10 @@ export class CompletionOverlay {
     this.#restoreFocus = restoreFocus;
   }
 
-  /** The overlay's own webContents, for the sender check on `fromOverlay`. */
-  owns(sender: WebContents): boolean {
-    return this.#lease !== null && sender === this.#lease.host.webContents;
-  }
-
   show(state: CompletionOverlayState): void {
     this.#state = state;
     const lease = this.#lease ?? this.#start();
+
     if (!this.#loaded) return;
     // Placed before the rows are sent, not after: a hidden view's rendering
     // lifecycle is stalled, so a list that arrived while it was down would
@@ -60,11 +58,13 @@ export class CompletionOverlay {
 
   hide(): void {
     this.#state = null;
+
     // Emptied as well as concealed, so re-opening cannot show the previous
     // query's rows for the frame before the new ones arrive.
     if (this.#lease !== null && this.#loaded) {
       this.#send(this.#lease).completionState(EMPTY);
     }
+
     this.#conceal();
   }
 
@@ -100,11 +100,9 @@ export class CompletionOverlay {
   #start(): OverlayLease {
     const lease = this.#open();
     this.#lease = lease;
-    // A newly mounted view takes keyboard focus. Restore it next turn;
-    // Chromium ignores restoration during the focus event.
-    lease.host.webContents.once("focus", () => {
-      setTimeout(this.#restoreFocus, 0);
-    });
+    // A newly mounted view takes keyboard focus; the owner hands it back
+    // on a later turn, because Chromium ignores a restore during the event.
+    lease.host.webContents.once("focus", () => this.#restoreFocus());
     // Registered before the load can finish: `loadURL` is asynchronous, so
     // this cannot miss the event it is waiting for.
     lease.host.webContents.once("did-finish-load", () => {
@@ -112,25 +110,27 @@ export class CompletionOverlay {
       this.#loaded = true;
       const send = this.#send(lease);
       send.completionCss(this.#css());
+
       if (this.#state === null) return;
       this.#place();
       send.completionState(this.#state);
     });
+
     const retire = (): void => {
       if (this.#lease !== lease) return;
       this.#lease = null;
       this.#loaded = false;
       lease.release();
     };
+
     lease.host.webContents.once("render-process-gone", retire);
     lease.host.webContents.once("destroyed", retire);
+
     return lease;
   }
 
-  #send(lease: OverlayLease) {
-    return senders(toOverlay, (channel, payload) => {
-      if (!lease.host.webContents.isDestroyed()) lease.host.webContents.send(channel, payload);
-    });
+  #send(lease: OverlayLease): OverlaySenders {
+    return lease.link;
   }
 
   /**
@@ -139,19 +139,25 @@ export class CompletionOverlay {
    */
   #place(): void {
     if (this.#lease === null) return;
+
     if (this.#state === null) {
       this.#conceal();
+
       return;
     }
+
     const height = this.#height ?? Number.POSITIVE_INFINITY;
+
     const placed = placeCompletion(
       this.#state.anchor,
       height,
       this.#state.grow,
       this.#contentSize(),
     );
+
     this.#lease.host.setBounds(placed.bounds);
     this.#lease.host.setVisible(placed.bounds.height > 0);
+
     if (this.#loaded) this.#send(this.#lease).completionInset(placed.inset);
   }
 }

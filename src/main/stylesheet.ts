@@ -1,4 +1,5 @@
 import type { WebContents } from "electron";
+import { logError } from "./platform";
 
 /**
  * What replacing a stylesheet needs from a page, and nothing more: a tab
@@ -15,7 +16,7 @@ const logFailure =
   (what: string) =>
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejection reasons are unknown; they are only logged
   (error: unknown): void =>
-    console.error(what, error);
+    logError(what, error);
 
 /**
  * One sheet per page: insert removes the last. Swaps serialize per target
@@ -47,6 +48,7 @@ export class ReplaceableStylesheet {
       if (target.isDestroyed()) return;
 
       const previous = this.#keys.get(target);
+
       if (previous !== undefined) {
         // Delete only after removal succeeds: a transient failure leaves the
         // sheet in the DOM, and keeping the key lets the next queued swap retry
@@ -54,6 +56,7 @@ export class ReplaceableStylesheet {
         await target.removeInsertedCSS(previous);
         this.#keys.delete(target);
       }
+
       if (css.length === 0 || target.isDestroyed()) return;
 
       this.#keys.set(target, await target.insertCSS(css, { cssOrigin: this.#origin }));
@@ -65,6 +68,7 @@ export class ReplaceableStylesheet {
     const queued = (this.#chains.get(target) ?? Promise.resolve())
       .then(swap, swap)
       .catch(logFailure(this.#what));
+
     this.#chains.set(target, queued);
   }
 }
