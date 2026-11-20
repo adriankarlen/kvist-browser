@@ -158,3 +158,10 @@ export function interpretAll<Msg, Cmd extends Tagged, E, R>(
 
   return (cmd, dispatch) => owners.get(cmd._tag)?.interpret(cmd, dispatch) ?? Effect.void;
 }
+
+/**
+ * Waits for a later turn of the event loop. `Effect.sleep(0)` only yields to
+ * Effect's scheduler, which can still land inside the event being handled;
+ * focus handoffs need a real timer.
+ */
+export const nextTurn: Effect.Effect<void> = Effect.sleep("1 millis");

@@ -2,7 +2,7 @@ import { ipcRenderer } from "electron";
 import { Effect, Scope, Stream } from "effect";
 import { openClient } from "../shared/rpc/client";
 import { PageIntent, PageRpcs } from "../shared/rpc/page";
-import { make, type Interpret } from "../shared/tea/store";
+import { make, nextTurn, type Interpret } from "../shared/tea/store";
 import * as hints from "./hints";
 import * as menu from "./menu";
 import { Cmd, Msg, program } from "./page.program";
@@ -106,7 +106,7 @@ const interpret: Interpret<Msg, Cmd, never, never> = (cmd, dispatch) =>
     ShowMenu: ({ menu: state }) => Effect.sync(() => menu.show(state)),
     HideMenu: () => Effect.sync(() => menu.hide()),
     SendToMain: ({ intent }) => sendToMain(intent),
-    ReadFocusSoon: () => Effect.sleep(0).pipe(Effect.andThen(Effect.sync(reportFocus))),
+    ReadFocusSoon: () => nextTurn.pipe(Effect.andThen(Effect.sync(reportFocus))),
   });
 
 function sendToMain(intent: PageIntent): Effect.Effect<void> {

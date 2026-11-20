@@ -59,6 +59,7 @@ import { chromeLink, overlayLink, type OverlaySenders, pageLink } from "../links
 import { serve } from "../services/surface";
 
 import { mainStore, runtime, useSync } from "./runtime";
+import { nextTurn } from "../../shared/tea/store";
 
 export const library = (msg: LibraryMsg): void => mainStore().dispatch(msg);
 
@@ -285,7 +286,7 @@ export function createWindow(saved: SessionState | null): void {
     () => currentConfig().css,
     () => {
       runtime.runFork(
-        Effect.sleep(0).pipe(
+        nextTurn.pipe(
           Effect.andThen(
             Effect.sync(() => {
               if (!win.isDestroyed()) win.webContents.focus();
