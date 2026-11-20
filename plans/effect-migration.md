@@ -413,7 +413,7 @@ Order chosen so each step has few dependents:
 
 ### Phase 4: renderers on TEA
 
-- [ ] Chrome: `src/renderer/lib/*.svelte.ts` → `src/renderer/features/*` programs. Components move to `model` + `dispatch`. Use the Svelte MCP autofixer on every touched component.
+- [x] Chrome: `src/renderer/lib/*.svelte.ts` → `src/renderer/features/*` programs. Components move to `model` + `dispatch`. Use the Svelte MCP autofixer on every touched component.
 - [ ] Overlay: `src/overlay/`
 - [ ] Page preload: `src/preload/page.ts`, `hints.ts`, `menu.ts` get the full loop, like everywhere else. Hint mode (labels, typed prefix) and the context menu become the page program's model. DOM rendering of hint labels stays inline-styled, as now.
 

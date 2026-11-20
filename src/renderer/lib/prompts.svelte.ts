@@ -1,7 +1,4 @@
-import type { ChromeBridge } from "./bridge";
-import type { PromptState, PromptWire } from "../../shared/schema/prompts";
-
-export type Prompts = ReturnType<typeof createPrompts>;
+import type { PromptState } from "../../shared/schema/prompts";
 
 /** The two button labels per prompt kind. The wording changes; the shape does not. */
 export interface ButtonLabels {
@@ -88,34 +85,4 @@ function describePermission(prompt: Extract<PromptState, { kind: "permission" }>
     case "clipboard-read":
       return "read your clipboard";
   }
-}
-
-/**
- * The prompt main waits on, or null. Nothing is decided here: main owns
- * the queue, and y/n keys bypass this store. App.svelte click-outside
- * dismissal routes through `answer` too, so clearing the prompt means an
- * answer with the current id.
- */
-export function createPrompts(bridge: Pick<ChromeBridge, "onPrompt" | "answerPrompt">) {
-  const state = $state<{ current: PromptWire | null }>({ current: null });
-
-  bridge.onPrompt((prompt) => {
-    state.current = prompt;
-  });
-
-  return {
-    get current(): PromptWire | null {
-      return state.current;
-    },
-    /**
-     * Clicking a button, or a click outside the prompt. The id goes with it
-     * so an answer rendered from a stale snapshot cannot settle a newer
-     * question by mistake.
-     */
-    answer(allow: boolean): void {
-      const prompt = state.current;
-
-      if (prompt) bridge.answerPrompt({ id: prompt.id, allow });
-    },
-  };
 }

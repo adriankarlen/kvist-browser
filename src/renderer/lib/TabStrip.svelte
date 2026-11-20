@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./TabStrip.css";
-  import { browser, bridge } from "./stores.svelte";
+  import { browser, browse } from "./stores.svelte";
   import type { TabOrientation } from "../../shared/config";
 
   let { orientation }: { orientation: TabOrientation } = $props();
@@ -14,7 +14,7 @@
 >
   {#each browser.tabs as tab (tab.id)}
     <div class="kv-tab" class:is-active={tab.id === browser.activeId}>
-      <button class="kv-tab__label" onclick={() => bridge.activateTab(tab.id)}>
+      <button class="kv-tab__label" onclick={() => browse.activateTab(tab.id)}>
         {#if tab.loading || !tab.favicon}
           <span class="kv-tab__marker">{tab.loading ? "*" : ">"}</span>
         {:else}
@@ -25,14 +25,14 @@
       <button
         class="kv-tab__close"
         title="Close tab"
-        onclick={() => bridge.closeTab(tab.id)}
+        onclick={() => browse.closeTab(tab.id)}
       >
         x
       </button>
     </div>
   {/each}
 
-  <button class="kv-tabstrip__new" title="New tab" onclick={() => bridge.createTab()}>
+  <button class="kv-tabstrip__new" title="New tab" onclick={() => browse.createTab()}>
     +
   </button>
   <div class="kv-tabstrip__drag"></div>

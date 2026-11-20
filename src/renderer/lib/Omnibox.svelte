@@ -1,7 +1,9 @@
 <script lang="ts">
+  import type { Attachment } from "svelte/attachments";
+  import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, ui, vim, bridge } from "./stores.svelte";
+  import { browser, completionOverlay, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -22,7 +24,7 @@
   // resolveUrl instead of accepting whatever suggestion ranked first.
   const completion = createCompletion(
     async (query) => {
-    const rows = await bridge.omniboxSuggestions(query);
+    const rows = await browse.omniboxSuggestions(query);
 
     return rows.map(
       (row): Candidate => ({
@@ -101,14 +103,14 @@
     event.preventDefault();
 
     if (draft.trim() === "") return;
-    bridge.navigate(resolveUrl(draft, ui.searchUrl));
+    browse.navigate(resolveUrl(draft, ui.searchUrl));
     input?.blur();
   }
 
   // A suggestion is already a concrete destination, not typed search text —
   // accepting one skips resolveUrl and navigates straight to its URL.
   function acceptSuggestion(candidate: Candidate): void {
-    bridge.navigate(candidate.value);
+    browse.navigate(candidate.value);
     input?.blur();
   }
 
@@ -125,7 +127,7 @@
   function onfocus(): void {
     focused = true;
     input?.select();
-    bridge.setMode("insert");
+    browse.setMode("insert");
   }
 
   function onblur(): void {
@@ -137,7 +139,8 @@
     if (document.hasFocus()) vim.toNormal();
   }
 
-  bridge.onFocusOmnibox(() => input?.focus());
+  // Main asks for focus with a Cmd; the omnibox only has to be findable.
+  const focusable: Attachment<HTMLInputElement> = (node) => registerElement("omnibox", node);
 </script>
 
 <form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>
@@ -147,26 +150,27 @@
     type="button"
     title="Back"
     disabled={!browser.active?.canGoBack}
-    onclick={() => bridge.goBack()}>&lt;</button
+    onclick={() => browse.goBack()}>&lt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Forward"
     disabled={!browser.active?.canGoForward}
-    onclick={() => bridge.goForward()}>&gt;</button
+    onclick={() => browse.goForward()}>&gt;</button
   >
   <button
     class="kv-omnibox__button"
     type="button"
     title="Reload"
-    onclick={() => bridge.reload()}>r</button
+    onclick={() => browse.reload()}>r</button
   >
 
   <span class="kv-omnibox__prompt">:</span>
   <input
     class="kv-omnibox__input"
     bind:this={input}
+    {@attach focusable}
     bind:value={draft}
     spellcheck="false"
     autocomplete="off"
@@ -182,7 +186,7 @@
     title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
     aria-label="Bookmark this page"
     aria-pressed={browser.active?.bookmarked ?? false}
-    onclick={() => bridge.runCommand("bookmark.toggle")}>*</button
+    onclick={() => browse.runCommand("bookmark.toggle")}>*</button
   >
   <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
@@ -196,6 +200,6 @@
     class="kv-omnibox__button"
     type="button"
     title="DevTools"
-    onclick={() => bridge.toggleDevTools()}>d</button
+    onclick={() => browse.toggleDevTools()}>d</button
   >
 </form>

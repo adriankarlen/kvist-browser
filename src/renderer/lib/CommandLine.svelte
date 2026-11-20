@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./CommandLine.css";
-  import { completionOverlay, vim, bridge } from "./stores.svelte";
+  import { completionOverlay, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
@@ -9,7 +9,7 @@
   const anchor = createAnchor();
 
   // selectFirst: false — a bare Enter runs what was typed, not the first match.
-  const completion = createCompletion((query) => bridge.commandCompletions(query), {
+  const completion = createCompletion((query) => browse.commandCompletions(query), {
     selectFirst: false,
   });
 
@@ -76,7 +76,7 @@
 
   function submit(event: SubmitEvent): void {
     event.preventDefault();
-    bridge.runCommand(line);
+    browse.runCommand(line);
   }
 </script>
 
