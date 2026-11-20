@@ -1,5 +1,7 @@
-import { Context, Effect, Layer, Stream } from "effect";
+import { Context, type Duration, Effect, Layer, Stream } from "effect";
 import { interpretAll, interpretersFor, make, type Store } from "../../shared/tea/store";
+import * as Downloads from "../features/downloads/downloads.program";
+import * as DownloadsFx from "../features/downloads/downloads.effects";
 import * as Messages from "../features/messages/messages.program";
 import * as MessagesFx from "../features/messages/messages.effects";
 import * as Prompts from "../features/prompts/prompts.program";
@@ -8,12 +10,24 @@ import * as Vim from "../features/vim/vim.program";
 import * as VimFx from "../features/vim/vim.effects";
 import type { Desktop } from "../services/desktop";
 import type { LegacyWindow } from "../services/legacy-window";
+import type { LiveDownloads } from "../services/live-downloads";
 import type { Requesters } from "../services/requesters";
 import { type Cmd, type Model, type Msg, program } from "./program";
 
-const interpreter = interpretersFor<Msg, Cmd, never, Requesters | Desktop | LegacyWindow>();
+const interpreter = interpretersFor<
+  Msg,
+  Cmd,
+  never,
+  Requesters | Desktop | LegacyWindow | LiveDownloads
+>();
 
-const interpret = interpretAll<Msg, Cmd, never, Requesters | Desktop | LegacyWindow>([
+const interpret = interpretAll<
+  Msg,
+  Cmd,
+  never,
+  Requesters | Desktop | LegacyWindow | LiveDownloads
+>([
+  interpreter(Downloads.Cmd, DownloadsFx.interpret),
   interpreter(Messages.Cmd, MessagesFx.interpret),
   interpreter(Prompts.Cmd, PromptsFx.interpret),
   interpreter(Vim.Cmd, VimFx.interpret),
@@ -36,6 +50,25 @@ export const project = <A>(
     store.changes.pipe(
       Stream.map(select),
       Stream.changes,
+      Stream.runForEach((value) => Effect.sync(() => publish(value))),
+    ),
+  );
+
+/**
+ * Like `project`, at most once per `every`, always ending on the latest
+ * value: a transfer reports far more often than anyone can read.
+ */
+export const projectThrottled = <A>(
+  select: (model: Model) => A,
+  publish: (value: A) => void,
+  every: Duration.Input,
+): Effect.Effect<void, never, MainStore> =>
+  Effect.flatMap(Effect.service(MainStore), (store) =>
+    store.changes.pipe(
+      Stream.map(select),
+      Stream.changes,
+      Stream.throttle({ cost: () => 1, units: 1, duration: every }),
+      Stream.mapArray((values) => [values[values.length - 1]!] as const),
       Stream.runForEach((value) => Effect.sync(() => publish(value))),
     ),
   );

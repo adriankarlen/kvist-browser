@@ -4,7 +4,6 @@ import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
 import { completeCommand, createCommands } from "./commands";
-import type { Downloads } from "./downloads";
 import type { Messenger as Messages } from "./messenger";
 import type { TabManager } from "./tab-manager";
 
@@ -103,7 +102,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
     tabs as unknown as TabManager,
-    downloads as unknown as Downloads,
+    downloads,
     prompts,
     zoom as unknown as ZoomStoreAccess,
     bookmarks,

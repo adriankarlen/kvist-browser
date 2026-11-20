@@ -9,6 +9,8 @@ export interface WindowHooks {
   restoreSession: (allow: boolean) => void;
   /** Runs a command by name; an unknown one is reported in the echo area. */
   runCommand: (name: string, arg: string | undefined) => void;
+  /** A download started from this tab, which may have opened it just for that. */
+  tabDownloaded: (contents: Electron.WebContents) => void;
 }
 
 export class LegacyWindow extends Context.Service<

@@ -7,7 +7,7 @@ import {
   registerKvistProtocol,
   registerKvistScheme,
 } from "./local-pages";
-import { createActions } from "./actions";
+import { createActions, type DownloadsAccess } from "./actions";
 import { databaseLayer, prepareDatabaseFile } from "./db/database";
 import { systemClipboard } from "./clipboard";
 import { omniboxSuggestions } from "./omnibox";
@@ -17,8 +17,10 @@ import { SessionRepo, type SessionState } from "./services/session-repo";
 import type { TabId } from "../shared/schema/browser";
 import { completeCommand, createCommands } from "./commands";
 import { ConfigFiles, describeProblem, type LoadedConfig } from "./services/config-files";
-import { Downloads } from "./downloads";
-import { MainStore, project } from "./app/store";
+import { Msg as DownloadsMsg } from "./features/downloads/downloads.program";
+import { DownloadsGate } from "./services/downloads-gate";
+import { LiveDownloads } from "./services/live-downloads";
+import { MainStore, project, projectThrottled } from "./app/store";
 import { say, warn } from "./features/messages/messages.program";
 import type { Messenger } from "./messenger";
 import { applyXdgPaths, dataDir } from "./paths";
@@ -65,12 +67,16 @@ const runtime = ManagedRuntime.make(
   Layer.mergeAll(
     ConfigFiles.layer,
     StyleFiles.layer,
-    PromptsGate.layer.pipe(Layer.provideMerge(MainStore.layer)),
+    Layer.mergeAll(PromptsGate.layer, DownloadsGate.layer).pipe(
+      Layer.provideMerge(MainStore.layer),
+    ),
     Layer.mergeAll(HistoryRepo.layer, BookmarksRepo.layer, SessionRepo.layer, ZoomRepo.layer).pipe(
       Layer.provide(Layer.unwrap(Effect.map(prepareDatabaseFile(dataDir), databaseLayer))),
     ),
   ).pipe(
-    Layer.provideMerge(Layer.mergeAll(Requesters.layer, Desktop.layer, LegacyWindow.layer)),
+    Layer.provideMerge(
+      Layer.mergeAll(Requesters.layer, Desktop.layer, LegacyWindow.layer, LiveDownloads.layer),
+    ),
     Layer.provideMerge(AppLayer),
   ),
 );
@@ -141,11 +147,11 @@ const messages: Messenger = {
   warn: (text) => mainStore().dispatch(warn(text)),
 };
 
-/**
- * Session-scoped, so it is attached once and outlives every window; a window
- * only subscribes. Must be in place before the first tab can start a transfer.
- */
-const downloads = new Downloads((text) => messages.warn(text));
+/** The download rows live in the store; these are the verbs the commands use. */
+const downloads: DownloadsAccess = {
+  clear: () => mainStore().dispatch(DownloadsMsg.cases.DownloadsCleared.make({})),
+  cancelNth: (n) => mainStore().dispatch(DownloadsMsg.cases.DownloadCancelNthRequested.make({ n })),
+};
 
 /** Answers whatever prompt is up, for the `y`/`n` keybinds. */
 const prompts = {
@@ -229,7 +235,9 @@ function applyConfig(config: UserConfig): Promise<void> {
     .then(async () => {
       await applyAdblockSettings(config);
       applyLocalPageSettings(config);
-      downloads.applySettings(config);
+      useSync(DownloadsGate, (gate) =>
+        Effect.sync(() => gate.configure(config.settings.downloadDir)),
+      );
       // Published only once everything process-wide has taken it, so a window
       // opened mid-apply cannot configure itself from a config the local pages
       // and the blocker have not seen yet.
@@ -361,7 +369,14 @@ function createWindow(
     completion.applyCss();
   };
 
-  downloads.observe((list) => chrome.downloads(list));
+  // Throttled: a transfer reports far more often than the panel can show.
+  const downloadsFiber = runtime.runFork(
+    projectThrottled(
+      (model) => model.downloads.items,
+      (list) => chrome.downloads(list),
+      "100 millis",
+    ),
+  );
 
   const messageFiber = runtime.runFork(
     project(
@@ -371,7 +386,6 @@ function createWindow(
   );
 
   const releaseMessages = () => messageFiber.interruptUnsafe();
-  downloads.observeTabDownload((contents) => tabs.closeIfUncommitted(contents));
 
   const actions = createActions(
     tabs,
@@ -396,6 +410,7 @@ function createWindow(
   /** How the store's Cmds reach this window's code until it moves onto the store. */
   const windowHooks: WindowHooks = {
     restoreSession: () => {},
+    tabDownloaded: (contents) => tabs.closeIfUncommitted(contents),
     runCommand: (name, arg) => {
       if (!commands.execute(name, arg)) messages.warn(`unknown command ${name}`);
     },
@@ -428,6 +443,7 @@ function createWindow(
 
   const releasePermissions = () => {
     promptFiber.interruptUnsafe();
+    downloadsFiber.interruptUnsafe();
     modeFiber.interruptUnsafe();
   };
 
@@ -565,9 +581,6 @@ function createWindow(
   win.webContents.once("did-finish-load", () => {
     windows.add(applyToWindow);
     applyToWindow(current);
-    // A transfer can outlive the window it started in, so the chrome is told
-    // what is already going rather than only what starts from now on.
-    chrome.downloads(downloads.list);
 
     // The observer already wired `chrome.prompt` to the queue head on
     // subscribe, and a question asked during page load (none today, but
@@ -689,7 +702,8 @@ function createWindow(
                 FindStopped: () => tabs.active?.stopFind(),
                 ModeRequested: ({ mode }) =>
                   vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode })),
-                DownloadCancelRequested: ({ id }) => downloads.cancel(id),
+                DownloadCancelRequested: ({ id }) =>
+                  mainStore().dispatch(DownloadsMsg.cases.DownloadCancelRequested.make({ id })),
                 PromptAnswered: ({ id, allow }) =>
                   mainStore().dispatch(PromptsMsg.cases.PromptAnswered.make({ id, allow })),
                 // The chrome owns the override; main mirrors it so the close
@@ -751,7 +765,6 @@ if (!gotTheLock) {
   });
 
   void app.whenReady().then(async () => {
-    downloads.attach(session.defaultSession);
     // A bad migration or a corrupt database is a real failure: log and quit
     // rather than leave the user staring at a window that never appears.
     const built = await runtime.runPromiseExit(Effect.void);
@@ -764,6 +777,7 @@ if (!gotTheLock) {
     }
 
     useSync(PromptsGate, (gate) => Effect.sync(() => gate.attach(session.defaultSession)));
+    useSync(DownloadsGate, (gate) => Effect.sync(() => gate.attach(session.defaultSession)));
 
     // The first load is the startup config; every later one is a save.
     const configLoaded = Promise.withResolvers<void>();

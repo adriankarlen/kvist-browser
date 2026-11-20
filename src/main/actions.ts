@@ -1,7 +1,13 @@
 import type { BrowserWindow } from "electron";
 import type { ChromeSenders } from "./links";
 import { originOf, resolveUrl } from "../shared/url";
-import type { Downloads } from "./downloads";
+
+/** What the action layer asks of the downloads: the rows live in the store. */
+export interface DownloadsAccess {
+  clear(): void;
+  cancelNth(row?: number): void;
+}
+
 import type { Messenger as Messages } from "./messenger";
 import type { TabManager } from "./tab-manager";
 import { clamp, STEP, type ZoomStoreAccess } from "./zoom";
@@ -157,7 +163,7 @@ export interface Actions {
 
 export function createActions(
   tabs: TabManager,
-  downloads: Downloads,
+  downloads: DownloadsAccess,
   prompts: PromptAnswerer,
   zoom: ZoomStoreAccess,
   bookmarks: BookmarkAccess,
@@ -302,11 +308,7 @@ export function createActions(
     downloads: {
       // The panel's pinned flag is the chrome's, so this can only ask.
       toggle: () => chrome.downloadsToggle(),
-      // The panel may not even be up, so clearing is otherwise invisible.
-      clear: () => {
-        const cleared = downloads.clear();
-        messages.say(cleared === 1 ? "cleared 1 download" : `cleared ${cleared} downloads`);
-      },
+      clear: () => downloads.clear(),
       cancel: (arg) => {
         if (arg === undefined) {
           downloads.cancelNth();
