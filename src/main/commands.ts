@@ -17,6 +17,7 @@ interface CommandSpec {
 const COMMANDS = {
   "tab.new": { run: (a) => a.tabs.create, arg: "[url]" },
   "tab.close": { run: (a) => a.tabs.close },
+  "tab.reopen": { run: (a) => a.tabs.reopen },
   "tab.next": { run: (a) => a.tabs.next },
   "tab.prev": { run: (a) => a.tabs.prev },
 
@@ -81,6 +82,7 @@ const ALIASES = {
   quit: "tab.close",
   qa: "app.quit",
   tabnew: "tab.new",
+  undo: "tab.reopen",
   r: "nav.reload",
   reload: "nav.reload",
   o: "nav.open",

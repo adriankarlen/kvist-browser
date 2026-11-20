@@ -4,7 +4,16 @@ import type { BrowserState } from "../../../shared/schema/browser";
 import { DEFAULT_SETTINGS } from "../../../shared/config";
 import { next, type Next } from "../../../shared/tea/program";
 import { externalProtocolTarget, looksLikeHostPort } from "../../external";
+import { type Msg as MessagesMsg, warn } from "../messages/messages.program";
 import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
+
+/** A tab the user closed, kept so it can be reopened where it was. */
+export interface ClosedTab {
+  readonly url: string;
+  readonly index: number;
+}
+
+export const CLOSED_TABS_KEPT = 25;
 
 /**
  * The collection: which tabs exist, their order, which is active, and where
@@ -26,6 +35,8 @@ export interface Model {
   readonly homepage: string;
   /** Hand the keyboard back to the page after a tab action. */
   readonly focusPage: boolean;
+  /** Newest last. */
+  readonly closed: ReadonlyArray<ClosedTab>;
 }
 
 const NOWHERE: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -43,6 +54,7 @@ export const init: Model = {
   fullscreenId: null,
   homepage: DEFAULT_SETTINGS.homepage,
   focusPage: DEFAULT_SETTINGS.tabFocusPage,
+  closed: [],
 };
 
 export const Msg = Schema.TaggedUnion({
@@ -59,8 +71,11 @@ export const Msg = Schema.TaggedUnion({
     opener: Schema.NullOr(TabId),
   },
   TabCloseRequested: { id: TabId },
+  /** Closed for the user, not by them, so it is not offered for reopening. */
+  TabDiscarded: { id: TabId },
   /** The page closed itself or its view is gone; there is nothing left to destroy. */
   TabDied: { id: TabId },
+  TabReopenRequested: {},
   TabActivated: { id: TabId },
   TabStepped: { offset: Schema.Int },
   TabChanged: { id: TabId, state: TabState },
@@ -101,7 +116,7 @@ export const Cmd = Schema.TaggedUnion({
 
 export type Cmd = typeof Cmd.Type;
 
-type Result = Next<Model, Msg | VimMsg, Cmd>;
+type Result = Next<Model, Msg | MessagesMsg | VimMsg, Cmd>;
 
 const C = Cmd.cases;
 
@@ -126,7 +141,7 @@ function activate(model: Model, id: TabId): Result {
   }
 
   cmds.push(C.SyncTabZoom.make({ id }));
-  const msgs: Array<Msg | VimMsg> = [];
+  const msgs: Array<Msg | MessagesMsg | VimMsg> = [];
 
   if (model.focusPage) {
     cmds.push(C.FocusTab.make({ id }));
@@ -160,7 +175,29 @@ function forget(model: Model, id: TabId, cmds: ReadonlyArray<Cmd>): Result {
   return next(handover.model, [...cmds, ...handover.cmds], handover.msgs);
 }
 
-function open(model: Model, msg: Extract<Msg, { _tag: "TabOpenRequested" }>): Result {
+function remember(model: Model, id: TabId): Model {
+  const url = model.snapshots.get(id)?.url ?? "";
+
+  if (url === "") return model;
+  const entry: ClosedTab = { url, index: model.order.indexOf(id) };
+
+  return { ...model, closed: [...model.closed, entry].slice(-CLOSED_TABS_KEPT) };
+}
+
+function close(model: Model, id: TabId, reopenable: boolean): Result {
+  if (!model.snapshots.has(id)) return next(model);
+  const leaving = model.fullscreenId === id;
+  const remembered = reopenable ? remember(model, id) : model;
+  const closed = leaving ? { ...remembered, fullscreenId: null } : remembered;
+
+  return forget(closed, id, [
+    ...(leaving ? [C.SetWindowFullscreen.make({ fullscreen: false })] : []),
+    C.DestroyTabView.make({ id }),
+  ]);
+}
+
+/** `at` places the tab at that index in the strip, and wins over `msg.after`. */
+function open(model: Model, msg: Extract<Msg, { _tag: "TabOpenRequested" }>, at?: number): Result {
   const url = msg.url ?? model.homepage;
   const scheme = externalProtocolTarget(url);
   const selfInitiated = msg.opener === null;
@@ -179,12 +216,9 @@ function open(model: Model, msg: Extract<Msg, { _tag: "TabOpenRequested" }>): Re
   }
 
   const id = model.nextId;
-  const index = msg.after === undefined ? -1 : model.order.indexOf(msg.after);
-
-  const order =
-    index === -1
-      ? [...model.order, id]
-      : [...model.order.slice(0, index + 1), id, ...model.order.slice(index + 1)];
+  const afterIndex = msg.after === undefined ? -1 : model.order.indexOf(msg.after);
+  const index = at ?? (afterIndex === -1 ? model.order.length : afterIndex + 1);
+  const order = [...model.order.slice(0, index), id, ...model.order.slice(index)];
 
   const placeholder: TabState = {
     id,
@@ -239,15 +273,23 @@ function fullscreen(model: Model, id: TabId, entering: boolean): Result {
 export function update(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
     TabOpenRequested: (request) => open(model, request),
-    TabCloseRequested: ({ id }) => {
-      if (!model.snapshots.has(id)) return next(model);
-      const leaving = model.fullscreenId === id;
-      const closed = leaving ? { ...model, fullscreenId: null } : model;
+    TabCloseRequested: ({ id }) => close(model, id, true),
+    TabDiscarded: ({ id }) => close(model, id, false),
+    TabReopenRequested: () => {
+      const last = model.closed.at(-1);
 
-      return forget(closed, id, [
-        ...(leaving ? [C.SetWindowFullscreen.make({ fullscreen: false })] : []),
-        C.DestroyTabView.make({ id }),
-      ]);
+      if (last === undefined) return next(model, [], [warn("no closed tab to reopen")]);
+      const popped = { ...model, closed: model.closed.slice(0, -1) };
+
+      const request = Msg.cases.TabOpenRequested.make({
+        url: last.url,
+        after: undefined,
+        background: false,
+        origin: null,
+        opener: null,
+      });
+
+      return open(popped, request, Math.min(last.index, popped.order.length));
     },
     TabDied: ({ id }) => forget(model, id, []),
     TabActivated: ({ id }) => activate(model, id),

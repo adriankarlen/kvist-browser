@@ -100,7 +100,7 @@ export class TabViews {
     const tab = this.tabFor(contents);
 
     if (tab !== undefined && !tab.committed)
-      this.#hooks.dispatch(Msg.cases.TabCloseRequested.make({ id: tab.id }));
+      this.#hooks.dispatch(Msg.cases.TabDiscarded.make({ id: tab.id }));
   }
 
   /** A page reporting focus on or off something typable. */

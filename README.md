@@ -114,6 +114,7 @@ prompt mode, where it denies the permission question instead.
 | ---- | ----------------------------------- |
 | `t`  | New tab                             |
 | `x`  | Close active tab                    |
+| `X`  | Reopen the last closed tab          |
 | `gt` | Next tab                            |
 | `gT` | Previous tab                        |
 | `H`  | Back                                |
@@ -142,6 +143,7 @@ prompt mode, where it denies the permission question instead.
 | `:tabnew <url>`           | Open a new tab; homepage if no URL is given |
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
+| `:undo`                   | Reopen the last closed tab                  |
 | `:downloads`              | Keep the downloads panel open, or let it go |
 | `:bookmark`               | Bookmark the page, or remove its bookmarks  |
 | `:downloads.clear`        | Forget the downloads that have finished     |

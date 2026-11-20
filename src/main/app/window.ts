@@ -219,6 +219,7 @@ export function createWindow(saved: SessionState | null): void {
 
       if (id !== null) mainStore().dispatch(TabsMsg.cases.TabCloseRequested.make({ id }));
     },
+    reopen: () => mainStore().dispatch(TabsMsg.cases.TabReopenRequested.make({})),
     step: (offset) => mainStore().dispatch(TabsMsg.cases.TabStepped.make({ offset })),
   };
 

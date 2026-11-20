@@ -17,6 +17,8 @@ export interface TabsAccess {
   readonly active: Tab | undefined;
   create(url?: string): void;
   closeActive(): void;
+  /** Reopens the tab the user closed most recently. */
+  reopen(): void;
   step(offset: number): void;
 }
 
@@ -77,6 +79,7 @@ export interface Actions {
     /** A URL or search terms; the homepage when there is nothing to open. */
     create: Action;
     close: Action;
+    reopen: Action;
     next: Action;
     prev: Action;
   };
@@ -266,6 +269,7 @@ export function createActions(
         tabs.create(arg ? resolveUrl(arg, getSearchUrl()) : undefined);
       },
       close: () => tabs.closeActive(),
+      reopen: () => tabs.reopen(),
       next: () => tabs.step(1),
       prev: () => tabs.step(-1),
     },

@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vite-plus/test";
+import { warn } from "../messages/messages.program";
 import { Msg as VimMsg } from "../vim/vim.program";
-import { Cmd, init, layout, type Model, Msg, sessionTabs, strip, update } from "./tabs.program";
+import {
+  CLOSED_TABS_KEPT,
+  Cmd,
+  init,
+  layout,
+  type Model,
+  Msg,
+  sessionTabs,
+  strip,
+  update,
+} from "./tabs.program";
 
 const M = Msg.cases;
 const C = Cmd.cases;
@@ -139,6 +150,85 @@ describe("the collection", () => {
 
     expect(sessionTabs(model)).toEqual({ urls: ["https://a/", "https://b/"], activeIndex: 0 });
     expect(sessionTabs(init)).toBeNull();
+  });
+});
+
+describe("reopening a closed tab", () => {
+  const three = run([open("https://a/"), open("https://b/"), open("https://c/")], ready).model;
+  const close = (id: number) => M.TabCloseRequested.make({ id });
+  const reopen = M.TabReopenRequested.make({});
+  const urls = (model: Model) => strip(model).tabs.map((tab) => tab.url);
+
+  const navigated = (model: Model, id: number, url: string) => {
+    const state = { ...model.snapshots.get(id)!, url };
+
+    return M.TabChanged.make({ id, state });
+  };
+
+  test("puts the URL back where it was and makes it active", () => {
+    const { model, cmds } = run([close(2), reopen], three);
+
+    expect(urls(model)).toEqual(["https://a/", "https://b/", "https://c/"]);
+    expect(model.activeId).toBe(4);
+    expect(cmds).toContainEqual(C.CreateTabView.make({ id: 4, url: "https://b/" }));
+    expect(model.closed).toEqual([]);
+  });
+
+  test("an index past the end of a shorter strip appends", () => {
+    const { model } = run([close(3), M.TabDied.make({ id: 1 }), reopen], three);
+
+    expect(urls(model)).toEqual(["https://b/", "https://c/"]);
+  });
+
+  test("the newest close comes back first", () => {
+    const once = run([close(3), close(1), reopen], three).model;
+
+    expect(urls(once)).toEqual(["https://a/", "https://b/"]);
+    expect(urls(run([reopen], once).model)).toEqual(["https://a/", "https://b/", "https://c/"]);
+  });
+
+  test("only the newest closes are kept", () => {
+    const many = Array.from({ length: CLOSED_TABS_KEPT + 2 }, (_, i) => `https://${i}/`);
+    const opened = run([...many.map((url) => open(url)), open("https://last/")], ready).model;
+    const { model } = run(opened.order.slice(0, many.length).map(close), opened);
+
+    expect(model.closed).toHaveLength(CLOSED_TABS_KEPT);
+    expect(model.closed[0]!.url).toBe("https://2/");
+  });
+
+  test("a tab that died or was discarded is not offered back", () => {
+    const { model } = run([M.TabDied.make({ id: 1 }), M.TabDiscarded.make({ id: 2 })], three);
+
+    expect(model.closed).toEqual([]);
+  });
+
+  test("a tab with no URL is not remembered", () => {
+    const { model } = run([navigated(three, 2, ""), close(2)], three);
+
+    expect(model.closed).toEqual([]);
+  });
+
+  test("with nothing to reopen it says so and does nothing else", () => {
+    const { model, cmds, follow } = run([reopen], three);
+
+    expect(model).toBe(three);
+    expect(cmds).toEqual([]);
+    expect(follow).toEqual([warn("no closed tab to reopen")]);
+  });
+
+  test("a URL the desktop owns still goes to the prompts", () => {
+    const { model, cmds } = run([navigated(three, 2, "bankid:///?x"), close(2), reopen], three);
+
+    expect(model.order).toEqual([1, 3]);
+    expect(cmds).toContainEqual(
+      C.RequestExternal.make({
+        url: "bankid:///?x",
+        scheme: "bankid",
+        origin: null,
+        selfInitiated: true,
+        opener: null,
+      }),
+    );
   });
 });
 
