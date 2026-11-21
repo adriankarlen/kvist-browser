@@ -3,6 +3,7 @@ import type { Rect, TabId } from "../shared/schema/browser";
 import { composeContextMenuCss } from "./context-menu";
 import type { KeyInput, KeySource } from "./features/vim/vim.program";
 import { type Layout, Msg } from "./features/tabs/tabs.program";
+import { TabLayout } from "./tab-layout";
 import type { PageSenders } from "./links";
 import type { PageContents } from "./page-host";
 import { Tab } from "./tab";
@@ -46,7 +47,7 @@ export class TabViews {
    */
   readonly #views = new Map<TabId, WebContentsView>();
   #menuCss = "";
-  #applied: Layout | null = null;
+  readonly #layout = new TabLayout();
 
   constructor(
     window: BaseWindow,
@@ -121,9 +122,8 @@ export class TabViews {
     this.#views.set(id, view);
     this.#tabs.set(id, tab);
     this.#stack.addPage(view);
-    tab.setVisible(false);
+    this.#layout.place(id, tab);
     tab.navigate(url);
-    this.#applied = null;
   }
 
   destroy(id: TabId): void {
@@ -175,18 +175,8 @@ export class TabViews {
     if (!this.#window.isDestroyed()) this.#window.close();
   }
 
-  /** Applies the layout the model derived, touching only what changed. */
   reconcile(layout: Layout): void {
-    const previous = this.#applied;
-
-    for (const [id, tab] of this.#tabs) {
-      const visible = id === layout.visible;
-
-      if (previous === null || (id === previous.visible) !== visible) tab.setVisible(visible);
-    }
-
-    if (layout.visible !== null) this.#tabs.get(layout.visible)?.setBounds(layout.bounds);
-    this.#applied = layout;
+    this.#layout.reconcile(layout, this.#tabs);
   }
 
   #windowRect(): Rect {
