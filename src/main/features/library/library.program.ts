@@ -36,6 +36,8 @@ export const Msg = Schema.TaggedUnion({
   VisitCommitted: { url: Schema.String, at: Schema.Finite },
   /** Bookmark the page, or remove every bookmark it already has. */
   BookmarkToggled: { url: Schema.String, title: Schema.String },
+  /** One row deleted from the bookmarks panel; other rows for the same URL stay. */
+  BookmarkRemoveRequested: { id: Schema.Int },
   ZoomChanged: { origin: Schema.String, level: Schema.Finite },
   /** The window closing with tabs open: the next launch restores them. */
   SessionClosed: { state: SessionState, at: Schema.Finite },
@@ -49,6 +51,7 @@ export const Cmd = Schema.TaggedUnion({
   RecordVisit: { url: Schema.String, at: Schema.Finite },
   AddBookmark: { url: Schema.String, title: Schema.String },
   RemoveBookmarks: { url: Schema.String },
+  RemoveBookmark: { id: Schema.Int },
   SaveZoom: { origin: Schema.String, level: Schema.Finite },
   SaveSession: { state: SessionState, at: Schema.Finite },
   ClearSession: {},
@@ -67,6 +70,7 @@ export function update(msg: Msg, model: Model): Next<Model, MessagesMsg, Cmd> {
         ? next(model, [Cmd.cases.RemoveBookmarks.make({ url })], [say(`removed bookmark ${url}`)])
         : // A page that never set a title has nothing better than its URL.
           next(model, [Cmd.cases.AddBookmark.make({ url, title: title.trim() || url })]),
+    BookmarkRemoveRequested: ({ id }) => next(model, [Cmd.cases.RemoveBookmark.make({ id })]),
     ZoomChanged: ({ origin, level }) => {
       const clamped = clamp(level);
 
