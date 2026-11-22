@@ -39,6 +39,8 @@ export interface ChromeSenders {
   prompt(prompt: PromptWire | null): void;
   restoreSession(session: RestoreSessionState): void;
   completionAccept(candidate: CompletionCandidate): void;
+  bookmarksOpen(): void;
+  bookmarksChanged(): void;
 }
 
 export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
@@ -69,6 +71,8 @@ export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
       prompt: (prompt) => events.publish(event.PromptChanged.make({ prompt })),
       restoreSession: (session) => events.publish(event.SessionRestored.make({ session })),
       completionAccept: (candidate) => events.publish(event.CompletionPicked.make({ candidate })),
+      bookmarksOpen: () => events.publish(event.BookmarksOpenRequested.make({})),
+      bookmarksChanged: () => events.publish(event.BookmarksChanged.make({})),
     },
   };
 }

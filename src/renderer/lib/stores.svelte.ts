@@ -2,6 +2,7 @@ import { ChromeIntent } from "../../shared/rpc/chrome";
 import type { Rect, TabId } from "../../shared/schema/browser";
 import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
 import { app, claimCompletion, queries } from "../app/store.svelte";
+import { Msg as BookmarksMsg } from "../features/bookmarks/bookmarks.program";
 import {
   Msg as DownloadsMsg,
   panelVisible,
@@ -77,6 +78,33 @@ export const downloads = {
     return panelVisible(app.model.downloads);
   },
   cancel: (id: number) => app.dispatch(DownloadsMsg.cases.DownloadCancelClicked.make({ id })),
+};
+
+const B = BookmarksMsg.cases;
+
+/** The picker's verbs. Leaving `id` out acts on the selected row, as the keyboard does. */
+export const bookmarks = {
+  get open() {
+    return app.model.bookmarks.open;
+  },
+  get query() {
+    return app.model.bookmarks.query;
+  },
+  get rows() {
+    return app.model.bookmarks.rows;
+  },
+  get selected() {
+    return app.model.bookmarks.selected;
+  },
+  get opened() {
+    return app.model.bookmarks.opened;
+  },
+  filter: (query: string) => app.dispatch(B.BookmarksQueryChanged.make({ query })),
+  move: (by: number) => app.dispatch(B.BookmarkSelectionMoved.make({ by })),
+  pick: (id?: number) => app.dispatch(B.BookmarkPicked.make({ id })),
+  remove: (id?: number) => app.dispatch(B.BookmarkDeleteRequested.make({ id })),
+  dismiss: () => app.dispatch(B.BookmarksDismissed.make({})),
+  blurred: (chromeFocused: boolean) => app.dispatch(B.BookmarksBlurred.make({ chromeFocused })),
 };
 
 export const ui = {

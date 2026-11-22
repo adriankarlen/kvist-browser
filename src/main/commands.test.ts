@@ -3,7 +3,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
-import { completeCommand, createCommands } from "./commands";
+import { completeCommand, createCommands, modeAfter } from "./commands";
 import type { Messenger as Messages } from "./messenger";
 import type { TabsAccess } from "./actions";
 
@@ -103,6 +103,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     {
       focusOmnibox: () => void sent.push({ channel: "focusOmnibox" }),
       downloadsToggle: () => void sent.push({ channel: "downloadsToggle" }),
+      bookmarksOpen: () => void sent.push({ channel: "bookmarksOpen" }),
     },
     messages as unknown as Messages,
     clipboard,
@@ -205,6 +206,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.set", () => true],
     ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
     ["bookmark.toggle", () => bookmarks.toggle.mock.calls.length === 1],
+    ["bookmarks.open", () => sent.some(({ channel }) => channel === "bookmarksOpen")],
     ["app.quit", () => quit.mock.calls.length === 1],
     ["app.devtools", () => active.toggleDevTools.mock.calls.length === 1],
   ];
@@ -710,6 +712,25 @@ test(":bookmark is an alias for bookmark.toggle", () => {
   commands.execute("bookmark");
 
   expect(bookmarks.toggle).toHaveBeenCalledTimes(1);
+});
+
+test("opening the bookmarks panel moves window focus first, then asks the chrome", () => {
+  const { commands, win, sent } = createStubs();
+
+  commands.execute("bookmarks");
+
+  expect(win.webContents.focus).toHaveBeenCalledTimes(1);
+  expect(sent).toEqual([{ channel: "bookmarksOpen" }]);
+});
+
+test("a typed line ends in normal mode unless its command opens something to type into", () => {
+  expect(modeAfter("bookmarks")).toBe("insert");
+  expect(modeAfter("  bookmarks.open ")).toBe("insert");
+  expect(modeAfter("bookmark")).toBe("normal");
+  expect(modeAfter("o example.com")).toBe("normal");
+  expect(modeAfter("nope")).toBe("normal");
+  expect(modeAfter("toString")).toBe("normal");
+  expect(modeAfter("")).toBe("normal");
 });
 
 test("completion offers aliases first, then commands, by prefix", () => {

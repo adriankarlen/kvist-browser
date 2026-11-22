@@ -151,6 +151,8 @@ export interface Actions {
   bookmark: {
     /** Bookmark the active tab's URL, or remove every bookmark it already has. */
     toggle: Action;
+    /** Open the bookmarks panel, with the keyboard on its filter. */
+    open: Action;
   };
   zoom: {
     /** Add a step; clamped at the upper limit. */
@@ -179,7 +181,7 @@ export function createActions(
   zoom: ZoomStoreAccess,
   bookmarks: BookmarkAccess,
   win: BrowserWindow,
-  chrome: Pick<ChromeSenders, "focusOmnibox" | "downloadsToggle">,
+  chrome: Pick<ChromeSenders, "focusOmnibox" | "downloadsToggle" | "bookmarksOpen">,
   messages: Messages,
   clipboard: Clipboard,
   opener: FileOpener,
@@ -437,6 +439,10 @@ export function createActions(
         }
 
         bookmarks.toggle(snapshot.url, snapshot.title);
+      },
+      open: () => {
+        focusChrome();
+        chrome.bookmarksOpen();
       },
     },
     zoom: {

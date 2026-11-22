@@ -1,0 +1,84 @@
+@layer kvist.components {
+  .kv-bookmarks {
+    color: var(--kv-bookmarks-fg);
+  }
+
+  .kv-bookmarks__filter {
+    --kv-line-fg: var(--kv-bookmarks-fg);
+    --kv-line-prompt-fg: var(--kv-bookmarks-prompt-fg);
+  }
+
+  .kv-bookmarks__filter .kv-line__input::placeholder {
+    color: var(--kv-bookmarks-muted-fg);
+  }
+
+  /* The panel itself must stay overflow: visible — its label lives outside the
+     box — so the rows are what scroll. */
+  .kv-bookmarks__list {
+    max-height: var(--kv-bookmarks-max-height);
+    overflow-y: auto;
+  }
+
+  .kv-bookmarks__item {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+  }
+
+  .kv-bookmarks__item:hover {
+    background: var(--kv-bookmarks-hover-bg);
+  }
+
+  .kv-bookmarks__item.is-selected {
+    background: var(--kv-bookmarks-selected-bg);
+    color: var(--kv-bookmarks-selected-fg);
+  }
+
+  .kv-bookmarks__open {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 2ch;
+    text-align: left;
+    color: inherit;
+  }
+
+  /* A fixed column, so every URL starts at the same place. */
+  .kv-bookmarks__title {
+    flex: none;
+    width: var(--kv-bookmarks-title-width);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .kv-bookmarks__url {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--kv-bookmarks-muted-fg);
+  }
+
+  .kv-bookmarks__date {
+    flex: none;
+    width: var(--kv-bookmarks-date-width);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--kv-bookmarks-muted-fg);
+  }
+
+  .kv-bookmarks__delete {
+    flex: none;
+    color: var(--kv-bookmarks-delete-fg);
+  }
+
+  .kv-bookmarks__delete:hover {
+    color: var(--kv-bookmarks-delete-hover-fg);
+  }
+
+  .kv-bookmarks__empty {
+    color: var(--kv-bookmarks-muted-fg);
+  }
+}

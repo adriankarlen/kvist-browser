@@ -1,6 +1,7 @@
 <script lang="ts">
   import "./App.css";
-  import { browser, contentRect, downloads, find, messages, prompts, ui, vim } from "./lib/stores.svelte";
+  import { bookmarks, browser, contentRect, downloads, find, messages, prompts, ui, vim } from "./lib/stores.svelte";
+  import BookmarksPanel from "./features/bookmarks/BookmarksPanel.svelte";
   import CommandLine from "./lib/CommandLine.svelte";
   import DownloadsPanel from "./lib/DownloadsPanel.svelte";
   import FindLine from "./lib/FindLine.svelte";
@@ -32,6 +33,9 @@
     <Omnibox />
     <div class="kv-panel kv-content" data-label={browser.active?.title ?? "page"} use:contentRect>
     </div>
+    {#if bookmarks.open}
+      <BookmarksPanel />
+    {/if}
     <!-- Shows itself while something is transferring, and stays up while
          `:downloads` keeps it pinned. -->
     {#if downloads.visible}
