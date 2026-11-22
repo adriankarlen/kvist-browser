@@ -133,6 +133,7 @@ prompt mode, where it denies the permission question instead.
 | `i`  | Insert mode (focus the page)        |
 | `o`  | Insert mode, focused on the omnibox |
 | `B`  | Bookmark the page, or remove it     |
+| `gb` | Open the bookmarks panel            |
 | `:`  | Command mode                        |
 
 ### Commands
@@ -146,6 +147,7 @@ prompt mode, where it denies the permission question instead.
 | `:undo`                   | Reopen the last closed tab                  |
 | `:downloads`              | Keep the downloads panel open, or let it go |
 | `:bookmark`               | Bookmark the page, or remove its bookmarks  |
+| `:bookmarks`              | Open the bookmarks panel                    |
 | `:downloads.clear`        | Forget the downloads that have finished     |
 | `:downloads.cancel [n]`   | Stop row `n`, or the newest live transfer   |
 | `:qa`                     | Quit Kvist                                  |
@@ -251,6 +253,23 @@ that have stopped, leaving anything still transferring in the list.
 `:downloads.cancel` stops the newest transfer still moving, and
 `:downloads.cancel 2` stops the second row as the panel shows it — the panel
 displays no ids, so a row position is the only thing there is to point at.
+
+### Bookmarks
+
+`B` bookmarks the page, and pressing it again removes every bookmark the page
+has. `gb` or `:bookmarks` opens a `bookmarks` panel, newest first, with the
+keyboard in its filter. Typing narrows the list by title or URL.
+
+| Key                   | Action                         |
+| --------------------- | ------------------------------ |
+| Down, Tab, Ctrl-n     | Next row                       |
+| Up, Shift-Tab, Ctrl-p | Previous row                   |
+| Enter                 | Open the row in the active tab |
+| Shift-Delete          | Delete the row                 |
+| Escape                | Close the panel                |
+
+A click opens a row too, and each row's `x` button deletes it. Opening a
+bookmark closes the panel and hands the keyboard back to the page.
 
 ### Ad blocking
 
