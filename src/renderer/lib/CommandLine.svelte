@@ -17,10 +17,15 @@
 
   $effect(() => () => overlay.release());
 
+  // Derived, so only entering command mode reruns the effect. Reading the mode
+  // directly reran it on every model change, which stole focus back from the
+  // bookmarks filter that `:bookmarks` opens.
+  const commanding = $derived(vim.mode === "command");
+
   // Opening is driven by main switching mode, so focus follows the mode rather
   // than a click.
   $effect(() => {
-    if (vim.mode === "command") {
+    if (commanding) {
       line = "";
       input?.focus();
     }
