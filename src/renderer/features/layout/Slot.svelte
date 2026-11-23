@@ -1,6 +1,11 @@
 <script lang="ts">
   import "./Slot.css";
-  import { type ElementId, type Region, tabStripDirection } from "../../../shared/layout";
+  import {
+    completionGrow,
+    type ElementId,
+    type Region,
+    tabStripDirection,
+  } from "../../../shared/layout";
   import { layout, messages, prompts, vim } from "../../lib/stores.svelte";
   import BookmarksPanel from "../bookmarks/BookmarksPanel.svelte";
   import CommandLine from "../../lib/CommandLine.svelte";
@@ -29,7 +34,7 @@
     <!-- A prompt is what main is asking, a message is what it has to say, and
          never both at once. -->
     {#if vim.mode === "command"}
-      <CommandLine />
+      <CommandLine grow={completionGrow(region)} />
     {:else if prompts.current}
       <PromptLine />
     {:else if messages.current}

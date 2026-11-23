@@ -1,3 +1,4 @@
+import type { CompletionGrow } from "./schema/completion";
 import { ELEMENT_IDS, type ElementId, type Layout, type Region } from "./schema/layout";
 
 export type { ElementId, Layout, Placement, Region } from "./schema/layout";
@@ -39,8 +40,8 @@ const TOP_OR_BOTTOM: ReadonlyArray<Region> = ["top", "bottom"];
 export const SUPPORT: Readonly<Record<ElementId, Support>> = {
   tabs: { regions: EVERY_EDGE, hideable: true },
   omnibox: { regions: ["top"], hideable: false },
-  bookmarks: { regions: EVERY_EDGE, hideable: false },
-  downloads: { regions: EVERY_EDGE, hideable: false },
+  bookmarks: { regions: TOP_OR_BOTTOM, hideable: false },
+  downloads: { regions: TOP_OR_BOTTOM, hideable: false },
   status: { regions: TOP_OR_BOTTOM, hideable: false },
   find: { regions: TOP_OR_BOTTOM, hideable: false },
   completion: { regions: ["overlay"], hideable: false },
@@ -72,3 +73,7 @@ export const isSideRegion = (region: Region): boolean => region === "left" || re
 
 export const tabStripDirection = (region: Region): TabStripDirection =>
   isSideRegion(region) ? "vertical" : "horizontal";
+
+/** A list opens away from the window edge its input sits on. */
+export const completionGrow = (region: Region): CompletionGrow =>
+  region === "top" ? "down" : "up";

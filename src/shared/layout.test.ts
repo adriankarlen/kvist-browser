@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { arrange, DEFAULT_LAYOUT, type Layout, tabStripDirection } from "./layout";
+import { arrange, completionGrow, DEFAULT_LAYOUT, type Layout, tabStripDirection } from "./layout";
 
 const moved = (changes: Partial<Layout>): Layout => ({ ...DEFAULT_LAYOUT, ...changes });
 
@@ -34,4 +34,9 @@ test("the tab strip runs along the edge it sits on", () => {
   expect(tabStripDirection("right")).toBe("vertical");
   expect(tabStripDirection("top")).toBe("horizontal");
   expect(tabStripDirection("bottom")).toBe("horizontal");
+});
+
+test("a completion list opens away from the edge its input sits on", () => {
+  expect(completionGrow("top")).toBe("down");
+  expect(completionGrow("bottom")).toBe("up");
 });

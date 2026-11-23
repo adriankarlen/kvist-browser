@@ -1,11 +1,14 @@
 <script lang="ts">
   import "./CommandLine.css";
+  import type { CompletionGrow } from "../../shared/schema/completion";
   import { completionOverlay, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let line = $state("");
+  let { grow }: { grow: CompletionGrow } = $props();
+
   const anchor = createAnchor();
 
   // selectFirst: false — a bare Enter runs what was typed, not the first match.
@@ -46,7 +49,7 @@
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
       anchor: box,
-      grow: "up",
+      grow,
     });
   });
 
