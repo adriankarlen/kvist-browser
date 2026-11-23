@@ -36,4 +36,15 @@
   .kv-prompt__answer.is-deny:hover {
     color: var(--kv-prompt-deny-hover-fg);
   }
+
+  /* In a side column the question wraps, and the answers wrap under it. */
+  .kv-prompt.is-vertical {
+    flex-wrap: wrap;
+  }
+
+  .kv-prompt.is-vertical .kv-prompt__text {
+    flex-basis: calc(100% - 2ch);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
