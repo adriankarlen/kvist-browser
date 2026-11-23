@@ -182,6 +182,7 @@ describe("layout", () => {
     ]);
     expect(problemsOf("[layout.tabs]\nregion = 'floating'")).toEqual(["layout.tabs.region"]);
     expect(problemsOf("[layout.completion]\nregion = 'top'")).toEqual(["layout.completion.region"]);
+    expect(problemsOf("[layout.downloads]\nregion = 'left'")).toEqual(["layout.downloads.region"]);
   });
 
   test("only the tab strip can be hidden yet", () => {

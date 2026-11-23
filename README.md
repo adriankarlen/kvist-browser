@@ -256,8 +256,8 @@ An element you move keeps its default order, so you rarely need `order`.
 | ------------ | ------- | ----------- | -------- |
 | `tabs`       | top     | any edge    | yes      |
 | `omnibox`    | top     | top         | no       |
-| `bookmarks`  | bottom  | any edge    | no       |
-| `downloads`  | bottom  | any edge    | no       |
+| `bookmarks`  | bottom  | top, bottom | no       |
+| `downloads`  | bottom  | top, bottom | no       |
 | `status`     | bottom  | top, bottom | no       |
 | `find`       | bottom  | top, bottom | no       |
 | `completion` | overlay | overlay     | no       |
