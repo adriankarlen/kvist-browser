@@ -149,7 +149,7 @@ const CssLength = Schema.String.check(
   Schema.makeFilter((size: string) => /^\d+(\.\d+)?(px|ch|em|rem|%|vw|vh)$/.test(size.trim())),
 );
 
-const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible"];
+const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible", "autohide"];
 
 function reportUnknownKeys(table: Table, field: string, problems: Problem[]): void {
   for (const key of Object.keys(table)) {
@@ -177,13 +177,13 @@ function parseRegion(id: ElementId, value: unknown, problems: Problem[]): Region
   return fallback;
 }
 
-function parseVisible(id: ElementId, value: unknown, problems: Problem[]): boolean {
-  const field = `layout.${id}.visible`;
-  const fallback = DEFAULT_LAYOUT[id].visible;
-  const visible = read(value, field, Schema.Boolean, "not true or false", fallback, problems);
+function parseAutohide(id: ElementId, value: unknown, problems: Problem[]): boolean {
+  const field = `layout.${id}.autohide`;
+  const fallback = DEFAULT_LAYOUT[id].autohide;
+  const autohide = read(value, field, Schema.Boolean, "not true or false", fallback, problems);
 
-  if (visible || SUPPORT[id].hideable) return visible;
-  problems.push({ field, reason: `${id} cannot be hidden yet` });
+  if (!autohide || SUPPORT[id].autohide) return autohide;
+  problems.push({ field, reason: `${id} cannot auto-hide` });
 
   return fallback;
 }
@@ -215,7 +215,22 @@ function parsePlacement(id: ElementId, value: unknown, problems: Problem[]): Pla
     problems,
   );
 
-  return { region, order, size: size?.trim(), visible: parseVisible(id, table.visible, problems) };
+  const visible = read(
+    table.visible,
+    `${field}.visible`,
+    Schema.Boolean,
+    "not true or false",
+    fallback.visible,
+    problems,
+  );
+
+  return {
+    region,
+    order,
+    size: size?.trim(),
+    visible,
+    autohide: parseAutohide(id, table.autohide, problems),
+  };
 }
 
 function parseLayout(value: unknown, problems: Problem[]): Layout {

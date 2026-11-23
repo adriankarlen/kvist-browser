@@ -27,6 +27,8 @@ export const Placement = Schema.Struct({
   /** A CSS length for the element's thickness across its region. Undefined keeps the theme's. */
   size: Schema.UndefinedOr(Schema.String),
   visible: Schema.Boolean,
+  /** Tucks the element into a thin edge until it is hovered or has news. */
+  autohide: Schema.Boolean,
 });
 
 export type Placement = typeof Placement.Type;

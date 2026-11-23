@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
-import { DEFAULT_LAYOUT } from "../shared/layout";
+import { DEFAULT_LAYOUT, ELEMENT_IDS } from "../shared/layout";
 import { parseSettings } from "./settings";
 
 const settingsOf = (source: string, previous?: Settings): Settings =>
@@ -43,7 +43,7 @@ test("every field is read", () => {
     adblock: false,
     layout: {
       ...DEFAULT_LAYOUT,
-      tabs: { region: "left", order: 0, size: "30ch", visible: true },
+      tabs: { region: "left", order: 0, size: "30ch", visible: true, autohide: false },
     },
     tabFocusPage: false,
     downloadDir: "~/dl",
@@ -148,8 +148,10 @@ describe("layout", () => {
       order: -1,
       size: undefined,
       visible: true,
+      autohide: false,
     });
     expect(layoutOf("[layout.tabs]\nvisible = false").tabs.visible).toBe(false);
+    expect(layoutOf("[layout.tabs]\nautohide = true").tabs.autohide).toBe(true);
     expect(layoutOf("[layout.bookmarks]\nsize = ' 12.5rem '").bookmarks.size).toBe("12.5rem");
   });
 
@@ -168,6 +170,7 @@ describe("layout", () => {
     expect(problemsOf("[layout.tabs]\nregion = 'middle'")).toEqual(["layout.tabs.region"]);
     expect(problemsOf("[layout.tabs]\nvisible = 'no'")).toEqual(["layout.tabs.visible"]);
     expect(problemsOf("[layout.tabs]\nsize = 30")).toEqual(["layout.tabs.size"]);
+    expect(problemsOf("[layout.tabs]\nautohide = 'yes'")).toEqual(["layout.tabs.autohide"]);
   });
 
   test("a region the element is not built for yet falls back, and says which ones it is", () => {
@@ -182,13 +185,32 @@ describe("layout", () => {
     ]);
     expect(problemsOf("[layout.tabs]\nregion = 'floating'")).toEqual(["layout.tabs.region"]);
     expect(problemsOf("[layout.completion]\nregion = 'top'")).toEqual(["layout.completion.region"]);
-    expect(problemsOf("[layout.downloads]\nregion = 'left'")).toEqual(["layout.downloads.region"]);
+    expect(problemsOf("[layout.downloads]\nregion = 'floating'")).toEqual([
+      "layout.downloads.region",
+    ]);
   });
 
-  test("only the tab strip can be hidden yet", () => {
-    expect(layoutOf("[layout.status]\nvisible = false").status.visible).toBe(true);
-    expect(problemsOf("[layout.status]\nvisible = false")).toEqual(["layout.status.visible"]);
-    expect(problemsOf("[layout.tabs]\nvisible = false")).toEqual([]);
+  test("the panels and lines go to any edge", () => {
+    for (const id of ["bookmarks", "downloads", "status", "find"] as const) {
+      expect(layoutOf(`[layout.${id}]\nregion = 'left'`)[id].region).toBe("left");
+      expect(layoutOf(`[layout.${id}]\nregion = 'right'`)[id].region).toBe("right");
+    }
+  });
+
+  test("every element can be hidden", () => {
+    for (const id of ELEMENT_IDS) {
+      expect(layoutOf(`[layout.${id}]\nvisible = false`)[id].visible).toBe(false);
+      expect(problemsOf(`[layout.${id}]\nvisible = false`)).toEqual([]);
+    }
+  });
+
+  test("only the tab strip can auto-hide", () => {
+    const { settings, problems } = parseSettings("[layout.status]\nautohide = true");
+
+    expect(settings.layout.status.autohide).toBe(false);
+    expect(problems).toEqual([
+      { field: "layout.status.autohide", reason: "status cannot auto-hide" },
+    ]);
   });
 
   test("tabs.orientation is gone, and saying so does not cost the rest of the file", () => {
