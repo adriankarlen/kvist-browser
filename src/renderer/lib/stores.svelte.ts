@@ -10,7 +10,7 @@ import {
 } from "../features/downloads/downloads.program";
 import { Msg as LinkMsg } from "../features/link/link.program";
 import { activeTab, Msg as MainMsg } from "../features/main/main.program";
-import { Msg as UiMsg, tabOrientation } from "../features/ui/ui.program";
+import { tabOrientation } from "../features/ui/ui.program";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -114,7 +114,6 @@ export const ui = {
   get searchUrl() {
     return app.model.ui.settings.searchUrl;
   },
-  toggleTabOrientation: () => app.dispatch(UiMsg.cases.OrientationToggled.make({})),
 };
 
 /** The verbs the omnibox, the tab strip and the command line ask main for. */

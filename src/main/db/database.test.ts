@@ -23,6 +23,15 @@ describe("database", () => {
     }).pipe(Effect.provide(testDatabase)),
   );
 
+  it.effect("the session no longer keeps a tab orientation", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const columns = yield* sql<{ readonly name: string }>`PRAGMA table_info(session)`;
+
+      expect(columns.map((column) => column.name)).not.toContain("orientation");
+    }).pipe(Effect.provide(testDatabase)),
+  );
+
   it.effect("a file database survives a re-open, migrations run once, and WAL is on", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
