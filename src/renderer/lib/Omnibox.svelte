@@ -135,7 +135,14 @@
 
   function onblur(): void {
     focused = false;
-    // Every blur, even the window's: a click on the page would otherwise
+  }
+
+  // Focus moving between the bar's own controls is not leaving it.
+  function onfocusout(event: FocusEvent & { currentTarget: HTMLFormElement }): void {
+    const to = event.relatedTarget;
+
+    if (to instanceof Node && event.currentTarget.contains(to)) return;
+    // Every exit, even the window's: a click on the page would otherwise
     // leave a summoned bar up with nothing to dismiss it.
     layout.omniboxDismissed();
 
@@ -143,6 +150,12 @@
     // normal there would pull focus onto the page behind the user's back, so
     // only treat a blur as leaving the omnibox while the chrome still has it.
     if (document.hasFocus()) vim.toNormal();
+  }
+
+  // A button click blurs the input first, which would dismiss a summoned bar
+  // before the click lands. macOS never focuses the button, so keep the input's.
+  function keepSummoned(event: MouseEvent): void {
+    if (layout.omniboxHidden) event.preventDefault();
   }
 
   // Main asks for focus with a Cmd, which runs before a hidden omnibox has
@@ -159,12 +172,14 @@
     class={["kv-panel", "kv-omnibox", `is-${elementDirection(region)}`]}
     data-label="url"
     onsubmit={submit}
+    {onfocusout}
     use:anchor.element
   >
     <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
     <button
       class="kv-omnibox__button"
       type="button"
+      onmousedown={keepSummoned}
       title="Back"
       disabled={!browser.active?.canGoBack}
       onclick={() => browse.goBack()}>&lt;</button
@@ -172,6 +187,7 @@
     <button
       class="kv-omnibox__button"
       type="button"
+      onmousedown={keepSummoned}
       title="Forward"
       disabled={!browser.active?.canGoForward}
       onclick={() => browse.goForward()}>&gt;</button
@@ -179,6 +195,7 @@
     <button
       class="kv-omnibox__button"
       type="button"
+      onmousedown={keepSummoned}
       title="Reload"
       onclick={() => browse.reload()}>r</button
     >
@@ -200,6 +217,7 @@
       class="kv-omnibox__bookmark"
       class:is-bookmarked={browser.active?.bookmarked}
       type="button"
+      onmousedown={keepSummoned}
       title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
       aria-label="Bookmark this page"
       aria-pressed={browser.active?.bookmarked ?? false}
@@ -210,6 +228,7 @@
     <button
       class="kv-omnibox__button"
       type="button"
+      onmousedown={keepSummoned}
       title="DevTools"
       onclick={() => browse.toggleDevTools()}>d</button
     >

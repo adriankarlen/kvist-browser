@@ -1,9 +1,13 @@
 <script lang="ts">
+  import type { Attachment } from "svelte/attachments";
   import "./TabStrip.css";
   import { browser, browse, layout } from "./stores.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
 
   let { region }: { region: Region } = $props();
+
+  // Set by the keyboard reveal, read once by the strip as it renders.
+  let focusOnReveal = false;
 
   // Only an auto-hidden strip tracks the pointer; a fixed one has nothing to reveal.
   function hovered(): void {
@@ -13,6 +17,32 @@
   function left(): void {
     if (layout.tabsAutohide) layout.tabStripLeft();
   }
+
+  function reveal(): void {
+    focusOnReveal = true;
+    layout.tabStripHovered();
+  }
+
+  const takeFocus: Attachment<HTMLElement> = (nav) => {
+    if (!focusOnReveal) return;
+    focusOnReveal = false;
+
+    const target =
+      nav.querySelector<HTMLElement>(".kv-tab.is-active .kv-tab__label") ??
+      nav.querySelector<HTMLElement>("button");
+
+    target?.focus();
+  };
+
+  // Keyboard focus leaving tucks the strip again, unless the pointer still holds it.
+  function onfocusout(event: FocusEvent & { currentTarget: HTMLElement }): void {
+    const nav = event.currentTarget;
+    const to = event.relatedTarget;
+
+    if (to instanceof Node && nav.contains(to)) return;
+
+    if (!nav.matches(":hover")) left();
+  }
 </script>
 
 {#if layout.tabStrip === "shown"}
@@ -21,6 +51,8 @@
     data-label="tabs"
     onmouseenter={hovered}
     onmouseleave={left}
+    {onfocusout}
+    {@attach takeFocus}
   >
     {#each browser.tabs as tab (tab.id)}
       <div class="kv-tab" class:is-active={tab.id === browser.activeId}>
@@ -48,9 +80,12 @@
     <div class="kv-tabstrip__drag"></div>
   </nav>
 {:else if layout.tabStrip === "tucked"}
-  <div
+  <button
     class={["kv-tabstrip-edge", `is-${elementDirection(region)}`]}
-    role="presentation"
+    type="button"
+    aria-label="Show tabs"
+    title="Show tabs"
     onmouseenter={hovered}
-  ></div>
+    onclick={reveal}
+  ></button>
 {/if}
