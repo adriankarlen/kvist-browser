@@ -1,5 +1,6 @@
-export type { NewtabLink, Settings, TabOrientation, UserConfig } from "./schema/config";
+export type { NewtabLink, Settings, UserConfig } from "./schema/config";
 
+import { DEFAULT_LAYOUT } from "./layout";
 import type { Settings } from "./schema/config";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -10,7 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: "github", url: "https://github.com" },
     { name: "youtube", url: "https://youtube.com" },
   ],
-  tabOrientation: "horizontal",
+  layout: DEFAULT_LAYOUT,
   tabFocusPage: true,
   adblock: true,
   downloadDir: undefined,

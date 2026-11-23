@@ -1,15 +1,11 @@
 @layer kvist.components {
   .kv-shell {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: var(--kv-chrome-inset);
     height: 100vh;
     padding: var(--kv-chrome-inset);
     background: var(--kv-chrome-bg);
-  }
-
-  .kv-shell.is-sidebar {
-    flex-direction: row;
   }
 
   .kv-main {

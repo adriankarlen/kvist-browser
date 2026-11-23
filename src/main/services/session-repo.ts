@@ -1,6 +1,5 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import { SqlClient, SqlSchema } from "effect/sql";
-import type { TabOrientation } from "../../shared/config";
 import { parse } from "../db/validation";
 
 /** What a relaunch restores: the tabs, which one was active, and the window. */
@@ -11,7 +10,6 @@ export interface SessionState {
   height: number;
   x: number | null;
   y: number | null;
-  orientation: TabOrientation | null;
 }
 
 const Int = Schema.Int;
@@ -20,7 +18,6 @@ const Positive = Int.check(Schema.isGreaterThan(0));
 
 /** Non-empty tab URLs; producers already pass `externalProtocolTarget`. */
 const Urls = Schema.NonEmptyArray(Schema.NonEmptyString);
-const Orientation = Schema.NullOr(Schema.Literals(["horizontal", "vertical"]));
 
 const activeWithinTabs = Schema.makeFilter(
   (state: { readonly tabs: ReadonlyArray<string>; readonly activeIndex: number }) =>
@@ -34,7 +31,6 @@ const SaveInput = Schema.Struct({
   height: Positive,
   x: Schema.NullOr(Int),
   y: Schema.NullOr(Int),
-  orientation: Orientation,
   savedAt: NonNegative,
 }).check(activeWithinTabs);
 
@@ -50,7 +46,6 @@ const StoredSession = Schema.Struct({
   height: Positive,
   x: Schema.NullOr(Int),
   y: Schema.NullOr(Int),
-  orientation: Orientation,
 });
 
 export class SessionRepo extends Context.Service<
@@ -72,7 +67,7 @@ export class SessionRepo extends Context.Service<
         Request: Schema.Void,
         Result: Schema.Unknown,
         execute: () => sql`
-          SELECT tabs_json, active_index, width, height, x, y, orientation
+          SELECT tabs_json, active_index, width, height, x, y
           FROM session WHERE id = 1
         `,
       });
@@ -90,7 +85,7 @@ export class SessionRepo extends Context.Service<
             ON CONFLICT (id) DO UPDATE SET
               tabs_json = excluded.tabs_json, active_index = excluded.active_index,
               width = excluded.width, height = excluded.height, x = excluded.x, y = excluded.y,
-              orientation = excluded.orientation, saved_at = excluded.saved_at
+              saved_at = excluded.saved_at
           `.pipe(
             Effect.as(true),
             Effect.catchCause((cause) =>

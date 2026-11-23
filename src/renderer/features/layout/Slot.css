@@ -1,0 +1,29 @@
+@layer kvist.components {
+  .kv-slot {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .kv-slot > * {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .kv-region.is-left > .kv-slot,
+  .kv-region.is-right > .kv-slot {
+    width: var(--kv-layout-size, var(--kv-sidebar-width));
+  }
+
+  .kv-region.is-top > .kv-slot,
+  .kv-region.is-bottom > .kv-slot {
+    height: var(--kv-layout-size, auto);
+  }
+
+  /* A side tab strip runs the full height, as the vertical strip always has. */
+  .kv-region.is-left > .kv-slot--tabs,
+  .kv-region.is-right > .kv-slot--tabs {
+    flex: 1;
+  }
+}

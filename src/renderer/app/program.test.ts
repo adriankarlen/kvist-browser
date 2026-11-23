@@ -5,7 +5,7 @@ import type { DownloadState } from "../../shared/schema/downloads";
 import { Msg as DownloadsMsg, panelVisible } from "../features/downloads/downloads.program";
 import { Cmd as LinkCmd } from "../features/link/link.program";
 import { Msg as MainMsg } from "../features/main/main.program";
-import { Msg as UiMsg, tabOrientation } from "../features/ui/ui.program";
+import { regions } from "../features/ui/ui.program";
 import { type Cmd, type Model, type Msg, program } from "./program";
 
 const E = ChromeEvent.cases;
@@ -45,19 +45,18 @@ describe("events from main are Msgs", () => {
     expect(model.main.message?.text).toBe("hi");
   });
 
-  test("a config injects its stylesheet; a new orientation in the file drops the flip", () => {
-    const flipped = run([UiMsg.cases.OrientationToggled.make({})]).model;
-
-    expect(tabOrientation(flipped.ui)).toBe("vertical");
-
-    const vertical = {
-      css: "a{}",
-      settings: { ...DEFAULT_SETTINGS, tabOrientation: "vertical" as const },
+  test("a config injects its stylesheet and lays the chrome out", () => {
+    const layout = {
+      ...DEFAULT_SETTINGS.layout,
+      tabs: { ...DEFAULT_SETTINGS.layout.tabs, region: "left" as const },
     };
 
-    const { model, cmds } = run([E.ConfigChanged.make({ config: vertical })], flipped);
+    const config = { css: "a{}", settings: { ...DEFAULT_SETTINGS, layout } };
 
-    expect(model.ui.orientation).toBeNull();
+    const { model, cmds } = run([E.ConfigChanged.make({ config })]);
+
+    expect(regions(model.ui).left).toEqual(["tabs"]);
+    expect(regions(model.ui).top).toEqual(["omnibox"]);
     expect(cmds).toContainEqual(LinkCmd.cases.InjectCss.make({ css: "a{}" }));
   });
 

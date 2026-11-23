@@ -1,8 +1,5 @@
 import { Schema } from "effect";
-
-export const TabOrientation = Schema.Literals(["horizontal", "vertical"]);
-
-export type TabOrientation = typeof TabOrientation.Type;
+import { Layout } from "./layout";
 
 export const NewtabLink = Schema.Struct({ name: Schema.String, url: Schema.String });
 
@@ -16,7 +13,8 @@ export const Settings = Schema.Struct({
   newtabLinks: Schema.Array(NewtabLink),
   /** Clock timezone on the new tab page, an IANA name or "UTC±n". Undefined follows the system. */
   newtabTimezone: Schema.UndefinedOr(Schema.String),
-  tabOrientation: TabOrientation,
+  /** Where every chrome element lives, from the [layout.<element>] tables. */
+  layout: Layout,
   /**
    * Hand keyboard focus back to the page after a tab action. Vim keys only
    * reach main from a focused webContents, so turning this off means tab

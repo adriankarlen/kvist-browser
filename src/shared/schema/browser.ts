@@ -1,5 +1,4 @@
 import { Schema } from "effect";
-import { TabOrientation } from "./config";
 
 export const TabId = Schema.Int;
 
@@ -77,10 +76,3 @@ export const Message = Schema.Struct({
 });
 
 export type Message = typeof Message.Type;
-
-/** Sent once on startup when a saved session exists. `null` follows the config. */
-export const RestoreSessionState = Schema.Struct({
-  orientation: Schema.NullOr(TabOrientation),
-});
-
-export type RestoreSessionState = typeof RestoreSessionState.Type;

@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { ChromeIntent } from "../../shared/rpc/chrome";
 import type { Rect, TabId } from "../../shared/schema/browser";
 import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
@@ -10,7 +11,8 @@ import {
 } from "../features/downloads/downloads.program";
 import { Msg as LinkMsg } from "../features/link/link.program";
 import { activeTab, Msg as MainMsg } from "../features/main/main.program";
-import { Msg as UiMsg, tabOrientation } from "../features/ui/ui.program";
+import { regions } from "../features/ui/ui.program";
+import type { ElementId, Layout, Region } from "../../shared/layout";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -108,13 +110,39 @@ export const bookmarks = {
 };
 
 export const ui = {
-  get tabOrientation() {
-    return tabOrientation(app.model.ui);
-  },
   get searchUrl() {
     return app.model.ui.settings.searchUrl;
   },
-  toggleTabOrientation: () => app.dispatch(UiMsg.cases.OrientationToggled.make({})),
+};
+
+/** The status row is the command line, a prompt or a message, in that order. */
+const statusShowing = (): boolean =>
+  vim.mode === "command" || prompts.current !== null || messages.current !== null;
+
+/** Find outlives its prompt: matches stay highlighted for n and N. */
+const findShowing = (): boolean => vim.mode === "find" || find.active;
+
+export const layout = {
+  elementsIn: (region: Region): ReadonlyArray<ElementId> => regions(app.model.ui)[region],
+  size: (id: ElementId): string | undefined => app.model.ui.settings.layout[id].size,
+  /** Whether an element has anything to show right now; a region with none is left out. */
+  showing: (id: ElementId): boolean => {
+    switch (id) {
+      case "tabs":
+      case "omnibox":
+        return true;
+      case "bookmarks":
+        return bookmarks.open;
+      case "downloads":
+        return downloads.visible;
+      case "status":
+        return statusShowing();
+      case "find":
+        return findShowing();
+      case "completion":
+        return false;
+    }
+  },
 };
 
 /** The verbs the omnibox, the tab strip and the command line ask main for. */
@@ -171,6 +199,18 @@ export const completionOverlay = {
 };
 
 /**
+ * Runs `report` once each layout change is in the DOM. A move that keeps an
+ * element's size fires no ResizeObserver. Untracked: a report that dispatches
+ * replaces the model, which would re-run the effect. Call it from an action.
+ */
+export function afterLayoutChange(report: () => void): void {
+  const layout = $derived(app.model.ui.settings.layout);
+  const reportFor = (_layout: Layout): void => untrack(report);
+
+  $effect(() => reportFor(layout));
+}
+
+/**
  * Keeps main told where page content goes: the content box, not the border
  * box, because the tab's native layer would cover a border.
  */
@@ -195,7 +235,8 @@ export const contentRect = (node: HTMLElement) => {
 
   observer.observe(node);
   window.addEventListener("resize", report);
-  report();
+
+  afterLayoutChange(report);
 
   return {
     destroy() {

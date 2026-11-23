@@ -1,0 +1,14 @@
+@layer kvist.components {
+  .kv-region {
+    display: flex;
+    flex-direction: column;
+    gap: var(--kv-chrome-inset);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .kv-region.is-left,
+  .kv-region.is-right {
+    flex: none;
+  }
+}

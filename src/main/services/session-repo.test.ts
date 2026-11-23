@@ -25,7 +25,6 @@ const baseState: SessionState = {
   height: 800,
   x: 100,
   y: 50,
-  orientation: "vertical",
 };
 
 test("load returns null when no session has been saved", () => {
@@ -84,17 +83,6 @@ test("save drops input with activeIndex beyond tabs.length", () => {
   expect(session.load()).toBeNull();
 });
 
-test("save drops input with an unknown orientation string", () => {
-  // The renderer's setter only ever sends 'horizontal' | 'vertical' | null,
-  // but the validator is the layer that protects against drift.
-  // SAFETY: the cast widens "diagonal" past the TabOrientation union so the
-  // validator has a chance to reject it — without it, TS would reject the
-  // object literal at compile time and the assertion under test would not exist.
-  const bad = { ...baseState, orientation: "diagonal" as unknown as "horizontal" };
-  expect(session.save(bad, 1)).toBe(false);
-  expect(session.load()).toBeNull();
-});
-
 test("load returns null when the row's activeIndex is out of range", () => {
   // Bypass save() to plant a row directly: this is the failure mode that
   // matters (a corrupted row from a previous version), not a present-day
@@ -128,13 +116,8 @@ test("load returns null when the URL list contains an empty string", () => {
   expect(session.load()).toBeNull();
 });
 
-test("a state with null position and orientation survives the round-trip", () => {
-  const headless: SessionState = {
-    ...baseState,
-    x: null,
-    y: null,
-    orientation: null,
-  };
+test("a state with a null position survives the round-trip", () => {
+  const headless: SessionState = { ...baseState, x: null, y: null };
 
   expect(session.save(headless, 1)).toBe(true);
   expect(session.load()).toEqual(headless);

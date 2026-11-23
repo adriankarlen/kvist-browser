@@ -1,4 +1,5 @@
 import type { Rect } from "../../shared/schema/browser";
+import { afterLayoutChange } from "./stores.svelte";
 
 /** Report the element's border box so the dropdown meets its outer edge. */
 export function createAnchor() {
@@ -22,8 +23,14 @@ export function createAnchor() {
 
       const observer = new ResizeObserver(report);
       observer.observe(node);
+
+      // Something above the anchor in its region can appear or grow, moving
+      // it without resizing it. The region resizes when that happens.
+      const region = node.closest(".kv-region");
+
+      if (region !== null) observer.observe(region);
       window.addEventListener("resize", report);
-      report();
+      afterLayoutChange(report);
 
       return {
         destroy() {

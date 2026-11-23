@@ -6,7 +6,6 @@ import type {
   FindResult,
   Message,
   Mode,
-  RestoreSessionState,
   ScrollCommand,
 } from "../shared/schema/browser";
 import type {
@@ -37,7 +36,6 @@ export interface ChromeSenders {
   downloadsToggle(): void;
   message(message: Message | null): void;
   prompt(prompt: PromptWire | null): void;
-  restoreSession(session: RestoreSessionState): void;
   completionAccept(candidate: CompletionCandidate): void;
   bookmarksOpen(): void;
   bookmarksChanged(): void;
@@ -52,7 +50,6 @@ export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
     "DownloadsChanged",
     "MessageChanged",
     "PromptChanged",
-    "SessionRestored",
   ]);
 
   const event = ChromeEvent.cases;
@@ -69,7 +66,6 @@ export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
       downloadsToggle: () => events.publish(event.DownloadsToggled.make({})),
       message: (message) => events.publish(event.MessageChanged.make({ message })),
       prompt: (prompt) => events.publish(event.PromptChanged.make({ prompt })),
-      restoreSession: (session) => events.publish(event.SessionRestored.make({ session })),
       completionAccept: (candidate) => events.publish(event.CompletionPicked.make({ candidate })),
       bookmarksOpen: () => events.publish(event.BookmarksOpenRequested.make({})),
       bookmarksChanged: () => events.publish(event.BookmarksChanged.make({})),

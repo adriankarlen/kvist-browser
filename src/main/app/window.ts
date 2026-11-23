@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, shell, WebContentsView } from "electron";
-import type { TabOrientation, UserConfig } from "../../shared/config";
+import type { UserConfig } from "../../shared/config";
 import { refreshCosmeticStyles } from "../adblock";
 import {
   type BookmarkAccess,
@@ -136,14 +136,6 @@ export function createWindow(saved: SessionState | null): void {
     icon: iconPath,
     webPreferences: { preload },
   });
-
-  /**
-   * The chrome's runtime orientation override, kept here so it can be saved
-   * with the rest of the session state on `win.on("close")`. The chrome
-   * pushes it via `toMain.orientationOverride` whenever the override
-   * changes — `null` means "no override, follow the config".
-   */
-  let orientationOverride: TabOrientation | null = saved?.orientation ?? null;
 
   const { events: chromeEvents, send: chrome } = chromeLink();
 
@@ -514,7 +506,6 @@ export function createWindow(saved: SessionState | null): void {
           height: bounds.height,
           x: bounds.x,
           y: bounds.y,
-          orientation: orientationOverride,
         },
         at: Date.now(),
       }),
@@ -554,23 +545,14 @@ export function createWindow(saved: SessionState | null): void {
       // chrome line is one component and y/n/Escape one keybind set.
       const restore = (allow: boolean): void => {
         if (!allow) {
-          // Same path as a fresh launch: one homepage tab. The mirror
-          // has to follow: the saved flip never reached the chrome in
-          // this branch (no restoreSession broadcast), so persisting it
-          // onto the new homepage session would survive until the user
-          // explicitly re-flipped the orientation.
-          orientationOverride = null;
+          // Same path as a fresh launch: one homepage tab.
           tabs.create();
 
           return;
         }
 
-        // The chrome seeds its orientation override from the saved flip
-        // before any tabs are created, so the very first paint shows the
-        // saved layout, not a horizontal default that flashes before
-        // being overridden. Main owns the tab restore — the URL list and
-        // bounds never need to leave main.
-        chrome.restoreSession({ orientation: saved.orientation });
+        // Main owns the tab restore: the URL list and bounds never need to
+        // leave main.
         // `background: true` keeps the chrome on whatever tab it already
         // shows; the final `activate` is what lands on the saved one.
         let activeId: TabId | null = null;
@@ -677,11 +659,6 @@ export function createWindow(saved: SessionState | null): void {
                   library(LibraryMsg.cases.BookmarkRemoveRequested.make({ id })),
                 PromptAnswered: ({ id, allow }) =>
                   mainStore().dispatch(PromptsMsg.cases.PromptAnswered.make({ id, allow })),
-                // The chrome owns the override; main mirrors it so the close
-                // handler can save it with the rest of the session.
-                OrientationOverridden: ({ orientation }) => {
-                  orientationOverride = orientation;
-                },
                 CommandEntered: ({ line }) => {
                   runCommand(line);
                   // A typed `:foo` ends in normal mode, or in the mode its

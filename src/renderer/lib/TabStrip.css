@@ -10,7 +10,6 @@
 
   .kv-tabstrip.is-vertical {
     flex-direction: column;
-    width: var(--kv-sidebar-width);
   }
 
   .kv-tab {

@@ -1,6 +1,16 @@
 import { Result, Schema } from "effect";
 import { Toml } from "effect/encoding";
 import { DEFAULT_SETTINGS, type NewtabLink, type Problem, type Settings } from "../shared/config";
+import {
+  DEFAULT_LAYOUT,
+  ELEMENT_IDS,
+  type ElementId,
+  type Layout,
+  type Placement,
+  REGIONS,
+  SUPPORT,
+} from "../shared/layout";
+import { ElementId as ElementIdSchema, Region } from "../shared/schema/layout";
 
 /**
  * What one parse produced: the settings to use, and everything wrong with the
@@ -133,6 +143,107 @@ function parseSearchUrl(value: unknown, problems: Problem[]): string {
   );
 }
 
+const quoted = (names: ReadonlyArray<string>): string => names.map((n) => `"${n}"`).join(", ");
+
+const CssLength = Schema.String.check(
+  Schema.makeFilter((size: string) => /^\d+(\.\d+)?(px|ch|em|rem|%|vw|vh)$/.test(size.trim())),
+);
+
+const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible"];
+
+function reportUnknownKeys(table: Table, field: string, problems: Problem[]): void {
+  for (const key of Object.keys(table)) {
+    if (!PLACEMENT_KEYS.includes(key)) {
+      problems.push({
+        field: `${field}.${key}`,
+        reason: `unknown key; expected ${quoted(PLACEMENT_KEYS)}`,
+      });
+    }
+  }
+}
+
+function parseRegion(id: ElementId, value: unknown, problems: Problem[]): Region {
+  const field = `layout.${id}.region`;
+  const fallback = DEFAULT_LAYOUT[id].region;
+  const { regions } = SUPPORT[id];
+  const named = read(value, field, Region, `not one of ${quoted(REGIONS)}`, fallback, problems);
+
+  if (regions.includes(named)) return named;
+  problems.push({
+    field,
+    reason: `"${named}" is not supported for ${id} yet; use ${quoted(regions)}`,
+  });
+
+  return fallback;
+}
+
+function parseVisible(id: ElementId, value: unknown, problems: Problem[]): boolean {
+  const field = `layout.${id}.visible`;
+  const fallback = DEFAULT_LAYOUT[id].visible;
+  const visible = read(value, field, Schema.Boolean, "not true or false", fallback, problems);
+
+  if (visible || SUPPORT[id].hideable) return visible;
+  problems.push({ field, reason: `${id} cannot be hidden yet` });
+
+  return fallback;
+}
+
+function parsePlacement(id: ElementId, value: unknown, problems: Problem[]): Placement {
+  const field = `layout.${id}`;
+  const fallback = DEFAULT_LAYOUT[id];
+  const table = section(value, field, problems);
+
+  reportUnknownKeys(table, field, problems);
+
+  const region = parseRegion(id, table.region, problems);
+
+  const order = read(
+    table.order,
+    `${field}.order`,
+    Schema.Int,
+    "not a whole number",
+    fallback.order,
+    problems,
+  );
+
+  const size = read(
+    table.size,
+    `${field}.size`,
+    CssLength,
+    'not a CSS length like "30ch" or "240px"',
+    fallback.size,
+    problems,
+  );
+
+  return { region, order, size: size?.trim(), visible: parseVisible(id, table.visible, problems) };
+}
+
+function parseLayout(value: unknown, problems: Problem[]): Layout {
+  const table = section(value, "layout", problems);
+  const isElement = Schema.is(ElementIdSchema);
+
+  for (const key of Object.keys(table)) {
+    if (!isElement(key)) {
+      problems.push({
+        field: `layout.${key}`,
+        reason: `not a layout element; expected ${quoted(ELEMENT_IDS)}`,
+      });
+    }
+  }
+
+  const placement = (id: ElementId): Placement => parsePlacement(id, table[id], problems);
+
+  return {
+    tabs: placement("tabs"),
+    omnibox: placement("omnibox"),
+    bookmarks: placement("bookmarks"),
+    downloads: placement("downloads"),
+    status: placement("status"),
+    find: placement("find"),
+    completion: placement("completion"),
+  };
+}
+
 /**
  * Reads config.toml. Pure: the previous settings come in as an argument, so a
  * syntax error mid-edit can keep them without anything holding state between
@@ -163,6 +274,13 @@ export function parseSettings(
   const string = Schema.String;
   const boolean = Schema.Boolean;
 
+  if (tabs.orientation !== undefined) {
+    problems.push({
+      field: "tabs.orientation",
+      reason: 'removed; use [layout.tabs] region = "left" (or "top", "bottom", "right")',
+    });
+  }
+
   const settings: Settings = {
     homepage: read(
       root.homepage,
@@ -183,14 +301,7 @@ export function parseSettings(
       DEFAULT_SETTINGS.adblock,
       problems,
     ),
-    tabOrientation: read(
-      tabs.orientation,
-      "tabs.orientation",
-      Schema.Literals(["horizontal", "vertical"]),
-      'not "horizontal" or "vertical"',
-      DEFAULT_SETTINGS.tabOrientation,
-      problems,
-    ),
+    layout: parseLayout(root.layout, problems),
     tabFocusPage: read(
       tabs["focus-page"],
       "tabs.focus-page",

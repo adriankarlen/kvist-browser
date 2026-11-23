@@ -1,9 +1,9 @@
 <script lang="ts">
   import "./TabStrip.css";
   import { browser, browse } from "./stores.svelte";
-  import type { TabOrientation } from "../../shared/config";
+  import type { TabStripDirection } from "../../shared/layout";
 
-  let { orientation }: { orientation: TabOrientation } = $props();
+  let { orientation }: { orientation: TabStripDirection } = $props();
 </script>
 
 <nav

@@ -1,5 +1,4 @@
 import { Schema } from "effect";
-import { TabOrientation } from "../../../shared/schema/config";
 import { next, type Next } from "../../../shared/tea/program";
 import { clamp } from "../../zoom";
 import { type Msg as MessagesMsg, say } from "../messages/messages.program";
@@ -23,7 +22,6 @@ const SessionState = Schema.Struct({
   height: Schema.Int,
   x: Schema.NullOr(Schema.Int),
   y: Schema.NullOr(Schema.Int),
-  orientation: Schema.NullOr(TabOrientation),
 });
 
 export const Msg = Schema.TaggedUnion({

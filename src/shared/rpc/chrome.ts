@@ -1,21 +1,13 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
-import {
-  BrowserState,
-  FindResult,
-  Message,
-  Mode,
-  Rect,
-  RestoreSessionState,
-  TabId,
-} from "../schema/browser";
+import { BrowserState, FindResult, Message, Mode, Rect, TabId } from "../schema/browser";
 import {
   CompletionCandidate,
   CompletionOverlayState,
   OmniboxSuggestion,
 } from "../schema/completion";
 import { Bookmark } from "../schema/bookmarks";
-import { TabOrientation, UserConfig } from "../schema/config";
+import { UserConfig } from "../schema/config";
 import { DownloadState } from "../schema/downloads";
 import { PromptWire } from "../schema/prompts";
 
@@ -32,8 +24,6 @@ export const ChromeEvent = Schema.TaggedUnion({
   DownloadsToggled: {},
   MessageChanged: { message: Schema.NullOr(Message) },
   PromptChanged: { prompt: Schema.NullOr(PromptWire) },
-  /** A saved session is being restored; the chrome seeds its orientation from it. */
-  SessionRestored: { session: RestoreSessionState },
   /** A row clicked in the completion overlay, relayed back to accept. */
   CompletionPicked: { candidate: CompletionCandidate },
   /** `:bookmarks`: open the panel with an empty filter. Main has already focused the chrome. */
@@ -65,8 +55,6 @@ export const ChromeIntent = Schema.TaggedUnion({
   BookmarkRemoveRequested: { id: Schema.Int },
   /** An answer for the prompt with this id; anything else is stale and ignored. */
   PromptAnswered: { id: Schema.Int, allow: Schema.Boolean },
-  /** The chrome's orientation override, mirrored so main can save it with the session. */
-  OrientationOverridden: { orientation: Schema.NullOr(TabOrientation) },
   /** What the completion overlay should show, or null to close it. */
   CompletionOverlayChanged: { state: Schema.NullOr(CompletionOverlayState) },
 });

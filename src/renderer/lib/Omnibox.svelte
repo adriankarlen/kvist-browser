@@ -193,12 +193,6 @@
   <button
     class="kv-omnibox__button"
     type="button"
-    title="Toggle tab orientation"
-    onclick={() => ui.toggleTabOrientation()}>{ui.tabOrientation === "vertical" ? "—" : "|"}</button
-  >
-  <button
-    class="kv-omnibox__button"
-    type="button"
     title="DevTools"
     onclick={() => browse.toggleDevTools()}>d</button
   >
