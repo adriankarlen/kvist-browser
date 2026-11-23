@@ -34,6 +34,15 @@ export const interpret: Interpret<Msg | MessagesMsg, Cmd, never, Services> = (cm
         yield* (yield* BookmarksRepo).removeUrl(url);
         yield* reloadBookmarks(dispatch);
       }),
+    RemoveBookmark: ({ id }) =>
+      Effect.gen(function* () {
+        const repo = yield* BookmarksRepo;
+        const row = yield* repo.get(id);
+
+        if (row !== null && (yield* repo.remove(id)))
+          dispatch(say(`removed bookmark ${row.title}`));
+        yield* reloadBookmarks(dispatch);
+      }),
     SaveZoom: ({ origin, level }) =>
       Effect.flatMap(Effect.service(ZoomRepo), (repo) => repo.set(origin, level)),
     SaveSession: ({ state, at }) =>

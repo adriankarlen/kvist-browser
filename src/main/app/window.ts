@@ -11,9 +11,11 @@ import {
 import { Msg as LibraryMsg } from "../features/library/library.program";
 import { systemClipboard } from "../clipboard";
 import { omniboxSuggestions } from "../omnibox";
+import { bookmarkRows } from "../bookmark-rows";
+import { BookmarksRepo } from "../services/bookmarks-repo";
 import { SessionRepo, type SessionState } from "../services/session-repo";
 import type { TabId } from "../../shared/schema/browser";
-import { completeCommand, createCommands } from "../commands";
+import { completeCommand, createCommands, modeAfter } from "../commands";
 import { Msg as DownloadsMsg } from "../features/downloads/downloads.program";
 import { project, projectThrottled } from "./store";
 import { say, warn } from "../features/messages/messages.program";
@@ -49,7 +51,7 @@ import {
 } from "../features/vim/vim.program";
 import { UserStyles } from "../user-styles";
 import type { ZoomStoreAccess } from "../zoom";
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import type { Fiber } from "effect";
 import { RpcServer } from "effect/rpc";
 import { ChromeIntent, ChromeRpcs } from "../../shared/rpc/chrome";
@@ -251,7 +253,19 @@ export function createWindow(saved: SessionState | null): void {
     ),
   );
 
-  const releaseBookmarks = () => bookmarksFiber.interruptUnsafe();
+  // Every write, not the URL set: deleting one of two rows for a URL leaves
+  // the set as it was, but an open panel still has a row to drop.
+  const bookmarkRowsFiber = runtime.runFork(
+    Effect.flatMap(Effect.service(BookmarksRepo), (repo) =>
+      Stream.runForEach(repo.changes, () => Effect.sync(() => chrome.bookmarksChanged())),
+    ),
+  );
+
+  const releaseBookmarks = () => {
+    bookmarksFiber.interruptUnsafe();
+    bookmarkRowsFiber.interruptUnsafe();
+  };
+
   tabManagers.add(tabViews);
 
   const completion = new CompletionOverlay(
@@ -637,6 +651,7 @@ export function createWindow(saved: SessionState | null): void {
           Subscribe: () => chromeEvents.stream,
           OmniboxSuggestions: ({ query }) => omniboxSuggestions(query),
           CommandCompletions: ({ line }) => Effect.sync(() => completeCommand(line)),
+          BookmarkRows: ({ query }) => bookmarkRows(query),
           Dispatch: (message) =>
             Effect.sync(() =>
               ChromeIntent.match(message, {
@@ -658,6 +673,8 @@ export function createWindow(saved: SessionState | null): void {
                   vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode })),
                 DownloadCancelRequested: ({ id }) =>
                   mainStore().dispatch(DownloadsMsg.cases.DownloadCancelRequested.make({ id })),
+                BookmarkRemoveRequested: ({ id }) =>
+                  library(LibraryMsg.cases.BookmarkRemoveRequested.make({ id })),
                 PromptAnswered: ({ id, allow }) =>
                   mainStore().dispatch(PromptsMsg.cases.PromptAnswered.make({ id, allow })),
                 // The chrome owns the override; main mirrors it so the close
@@ -667,10 +684,11 @@ export function createWindow(saved: SessionState | null): void {
                 },
                 CommandEntered: ({ line }) => {
                   runCommand(line);
-                  // A typed `:foo` ends in normal mode. Button-driven intents
-                  // must not take this path, or a click would drop the mode
-                  // out from under someone typing.
-                  vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode: "normal" }));
+                  // A typed `:foo` ends in normal mode, or in the mode its
+                  // command declares. Button-driven intents must not take
+                  // this path, or a click would drop the mode out from under
+                  // someone typing.
+                  vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode: modeAfter(line) }));
                 },
                 CompletionOverlayChanged: ({ state }) =>
                   mainStore().dispatch(CompletionMsg.cases.CompletionChanged.make({ state })),

@@ -112,6 +112,19 @@
     /* Rows scroll past this; the panel is a strip, not a page. */
     --kv-downloads-max-height: 8lh;
 
+    --kv-bookmarks-fg: var(--kv-color-text);
+    --kv-bookmarks-muted-fg: var(--kv-color-muted);
+    --kv-bookmarks-prompt-fg: var(--kv-color-accent);
+    --kv-bookmarks-selected-bg: var(--kv-color-overlay);
+    --kv-bookmarks-selected-fg: var(--kv-color-accent);
+    --kv-bookmarks-hover-bg: var(--kv-color-surface);
+    --kv-bookmarks-title-width: 40%;
+    --kv-bookmarks-date-width: 10ch;
+    --kv-bookmarks-delete-fg: var(--kv-color-muted);
+    --kv-bookmarks-delete-hover-fg: var(--kv-color-danger);
+    /* Taller than downloads: this is a list to pick from, not a status strip. */
+    --kv-bookmarks-max-height: 12lh;
+
     /* the context menu, rendered in the page but themed like the chrome */
     --kv-menu-bg: var(--kv-panel-bg);
     --kv-menu-fg: var(--kv-color-text);

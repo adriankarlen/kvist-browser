@@ -165,6 +165,13 @@ test("o focuses the omnibox and enters insert", () => {
   expect(vim.mode).toBe("insert");
 });
 
+test("gb opens the bookmarks panel and enters insert, so its filter gets the keys", () => {
+  key("g");
+  key("b");
+  expect(execute).toHaveBeenCalledWith("bookmarks.open");
+  expect(vim.mode).toBe("insert");
+});
+
 test("colon opens the command line and moves focus to the chrome", () => {
   key(":");
   expect(vim.mode).toBe("command");

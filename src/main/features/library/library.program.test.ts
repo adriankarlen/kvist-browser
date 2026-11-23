@@ -30,6 +30,13 @@ test("toggling a saved page removes every bookmark for it, and says so", () => {
   ]);
 });
 
+test("removing one row from the panel deletes that row only", () => {
+  const result = update(M.BookmarkRemoveRequested.make({ id: 7 }), loaded);
+
+  expect(result.model).toBe(loaded);
+  expect(result.cmds).toEqual([C.RemoveBookmark.make({ id: 7 })]);
+});
+
 test("a zoom change is clamped, kept for the next navigation, and saved", () => {
   const result = update(M.ZoomChanged.make({ origin: "https://a", level: 99 }), loaded);
 

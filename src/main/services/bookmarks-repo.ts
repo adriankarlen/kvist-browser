@@ -1,16 +1,12 @@
 import { Clock, Context, Effect, Layer, PubSub, Schema, Stream } from "effect";
 import { SqlClient, SqlSchema } from "effect/sql";
+import { Bookmark } from "../../shared/schema/bookmarks";
 import { clampLimit, DEFAULT_LIMIT, escapeLike } from "../db/query";
 import { epochMillis, nonEmptyString, parse, urlString } from "../db/validation";
 
-export const BookmarkRow = Schema.Struct({
-  id: Schema.Int,
-  url: Schema.String,
-  title: Schema.String,
-  createdAt: Schema.Int,
-});
+export const BookmarkRow = Bookmark;
 
-export type BookmarkRow = typeof BookmarkRow.Type;
+export type BookmarkRow = Bookmark;
 
 const AddRow = Schema.Struct({ url: urlString, title: nonEmptyString, createdAt: epochMillis });
 

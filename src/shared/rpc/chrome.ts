@@ -14,6 +14,7 @@ import {
   CompletionOverlayState,
   OmniboxSuggestion,
 } from "../schema/completion";
+import { Bookmark } from "../schema/bookmarks";
 import { TabOrientation, UserConfig } from "../schema/config";
 import { DownloadState } from "../schema/downloads";
 import { PromptWire } from "../schema/prompts";
@@ -35,6 +36,10 @@ export const ChromeEvent = Schema.TaggedUnion({
   SessionRestored: { session: RestoreSessionState },
   /** A row clicked in the completion overlay, relayed back to accept. */
   CompletionPicked: { candidate: CompletionCandidate },
+  /** `:bookmarks`: open the panel with an empty filter. Main has already focused the chrome. */
+  BookmarksOpenRequested: {},
+  /** A bookmark was added or removed anywhere; an open panel asks for its rows again. */
+  BookmarksChanged: {},
 });
 
 export type ChromeEvent = typeof ChromeEvent.Type;
@@ -57,6 +62,7 @@ export const ChromeIntent = Schema.TaggedUnion({
   FindRequested: { query: Schema.String },
   FindStopped: {},
   DownloadCancelRequested: { id: Schema.Int },
+  BookmarkRemoveRequested: { id: Schema.Int },
   /** An answer for the prompt with this id; anything else is stale and ignored. */
   PromptAnswered: { id: Schema.Int, allow: Schema.Boolean },
   /** The chrome's orientation override, mirrored so main can save it with the session. */
@@ -77,5 +83,10 @@ export class ChromeRpcs extends RpcGroup.make(
   Rpc.make("CommandCompletions", {
     payload: { line: Schema.String },
     success: Schema.Array(CompletionCandidate),
+  }),
+  /** The bookmarks panel's rows for a filter; a blank filter lists them all. */
+  Rpc.make("BookmarkRows", {
+    payload: { query: Schema.String },
+    success: Schema.Array(Bookmark),
   }),
 ) {}

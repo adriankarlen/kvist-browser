@@ -1,8 +1,11 @@
+import type { Mode } from "../shared/schema/browser";
 import type { CompletionCandidate } from "../shared/schema/completion";
 import type { Action, Actions } from "./actions";
 
 interface CommandSpec {
   run: (actions: Actions) => Action;
+  /** The mode a typed `:` line ends in. Normal unless the command opens something to type into. */
+  enter?: Mode;
   /** Shown beside the command while completing, e.g. `<level>`; brackets mark it optional. */
   arg?: string;
   /** Needs a mode a `:` line cannot leave it in, so completion does not offer it. */
@@ -63,6 +66,7 @@ const COMMANDS = {
   "style.open": { run: (a) => a.style.open },
 
   "bookmark.toggle": { run: (a) => a.bookmark.toggle },
+  "bookmarks.open": { run: (a) => a.bookmark.open, enter: "insert" },
 
   "zoom.in": { run: (a) => a.zoom.in },
   "zoom.out": { run: (a) => a.zoom.out },
@@ -96,6 +100,7 @@ const ALIASES = {
   zoom: "zoom.set",
   style: "style.open",
   bookmark: "bookmark.toggle",
+  bookmarks: "bookmarks.open",
 } satisfies Record<string, CommandName>;
 
 // Maps, not records: a record lookup would find `toString` and every
@@ -121,6 +126,14 @@ export function createCommands(actions: Actions): Commands {
       return true;
     },
   };
+}
+
+/** The mode a typed `:` line leaves behind once it has run. */
+export function modeAfter(line: string): Mode {
+  const [word = ""] = line.trim().split(/\s+/);
+  const name = specs.has(word) ? word : aliases.get(word);
+
+  return (name === undefined ? undefined : specs.get(name)?.enter) ?? "normal";
 }
 
 function withArg(name: string, arg: string | undefined): string {
