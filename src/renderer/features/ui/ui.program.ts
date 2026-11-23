@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { DEFAULT_SETTINGS } from "../../../shared/config";
-import { type Settings, type TabOrientation, UserConfig } from "../../../shared/schema/config";
+import { arrange, type ElementId, type Region } from "../../../shared/layout";
+import { type Settings, UserConfig } from "../../../shared/schema/config";
 import { next, type Next } from "../../../shared/tea/program";
 import { Cmd as LinkCmds, type Cmd as LinkCmd } from "../link/link.program";
 
@@ -17,7 +18,8 @@ export const Msg = Schema.TaggedUnion({
 
 export type Msg = typeof Msg.Type;
 
-export const tabOrientation = (model: Model): TabOrientation => model.settings.tabOrientation;
+export const regions = (model: Model): Readonly<Record<Region, ReadonlyArray<ElementId>>> =>
+  arrange(model.settings.layout);
 
 export function update(msg: Msg, _model: Model): Next<Model, never, LinkCmd> {
   return Msg.match(msg, {

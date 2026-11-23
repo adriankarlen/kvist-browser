@@ -1,5 +1,6 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
+import { DEFAULT_LAYOUT } from "../shared/layout";
 import { parseSettings } from "./settings";
 
 const settingsOf = (source: string, previous?: Settings): Settings =>
@@ -20,8 +21,11 @@ test("every field is read", () => {
     adblock = false
 
     [tabs]
-    orientation = "vertical"
     focus-page = false
+
+    [layout.tabs]
+    region = "left"
+    size = "30ch"
 
     [downloads]
     dir = "~/dl"
@@ -37,7 +41,10 @@ test("every field is read", () => {
     homepage: "https://example.com",
     searchUrl: "https://search.example/?q={q}",
     adblock: false,
-    tabOrientation: "vertical",
+    layout: {
+      ...DEFAULT_LAYOUT,
+      tabs: { region: "left", order: 0, size: "30ch", visible: true },
+    },
     tabFocusPage: false,
     downloadDir: "~/dl",
     newtabTimezone: "Europe/Stockholm",
@@ -54,7 +61,6 @@ test("a field the user wrote and we could not use is reported", () => {
   expect(problemsOf("homepage = 3")).toEqual(["homepage"]);
   expect(problemsOf("search = 3")).toEqual(["search"]);
   expect(problemsOf("adblock = 'yes'")).toEqual(["adblock"]);
-  expect(problemsOf("[tabs]\norientation = 'sideways'")).toEqual(["tabs.orientation"]);
   expect(problemsOf("[tabs]\nfocus-page = 1")).toEqual(["tabs.focus-page"]);
   expect(problemsOf("[downloads]\ndir = true")).toEqual(["downloads.dir"]);
 });
@@ -65,10 +71,10 @@ test("a search template without a {q} placeholder has nowhere to put the query",
 });
 
 test("an unusable field falls back rather than being fatal", () => {
-  const settings = settingsOf("homepage = 3\nadblock = 'yes'\n[tabs]\norientation = 'sideways'");
+  const settings = settingsOf("homepage = 3\nadblock = 'yes'\n[layout.tabs]\nregion = 'sideways'");
   expect(settings.homepage).toBe(DEFAULT_SETTINGS.homepage);
   expect(settings.adblock).toBe(DEFAULT_SETTINGS.adblock);
-  expect(settings.tabOrientation).toBe(DEFAULT_SETTINGS.tabOrientation);
+  expect(settings.layout).toEqual(DEFAULT_LAYOUT);
 });
 
 test("a syntax error keeps the settings that last parsed", () => {
@@ -126,6 +132,71 @@ test("a section written as something other than a table is reported once", () =>
   expect(settingsOf("homepage = 'https://a.b'\ntabs = 5")).toEqual({
     ...DEFAULT_SETTINGS,
     homepage: "https://a.b",
+  });
+});
+
+describe("layout", () => {
+  const layoutOf = (source: string) => settingsOf(source).layout;
+
+  test("no [layout] is today's layout", () => {
+    expect(layoutOf("homepage = 'https://a.b'")).toEqual(DEFAULT_LAYOUT);
+  });
+
+  test("every placement field is read, and the rest of the table keeps its defaults", () => {
+    expect(layoutOf("[layout.find]\nregion = 'top'\norder = -1").find).toEqual({
+      region: "top",
+      order: -1,
+      size: undefined,
+      visible: true,
+    });
+    expect(layoutOf("[layout.tabs]\nvisible = false").tabs.visible).toBe(false);
+    expect(layoutOf("[layout.bookmarks]\nsize = ' 12.5rem '").bookmarks.size).toBe("12.5rem");
+  });
+
+  test("one bad field costs only itself", () => {
+    const source = "[layout.tabs]\nregion = 'right'\norder = 1.5\nsize = 'wide'";
+
+    expect(layoutOf(source).tabs).toEqual({ ...DEFAULT_LAYOUT.tabs, region: "right" });
+    expect(problemsOf(source)).toEqual(["layout.tabs.order", "layout.tabs.size"]);
+  });
+
+  test("each kind of mistake is reported against its field", () => {
+    expect(problemsOf("layout = 1")).toEqual(["layout"]);
+    expect(problemsOf("[layout]\nsidebar = {}")).toEqual(["layout.sidebar"]);
+    expect(problemsOf("[layout]\ntabs = 'left'")).toEqual(["layout.tabs"]);
+    expect(problemsOf("[layout.tabs]\nregoin = 'left'")).toEqual(["layout.tabs.regoin"]);
+    expect(problemsOf("[layout.tabs]\nregion = 'middle'")).toEqual(["layout.tabs.region"]);
+    expect(problemsOf("[layout.tabs]\nvisible = 'no'")).toEqual(["layout.tabs.visible"]);
+    expect(problemsOf("[layout.tabs]\nsize = 30")).toEqual(["layout.tabs.size"]);
+  });
+
+  test("a region the element is not built for yet falls back, and says which ones it is", () => {
+    const { settings, problems } = parseSettings("[layout.omnibox]\nregion = 'bottom'");
+
+    expect(settings.layout.omnibox.region).toBe("top");
+    expect(problems).toEqual([
+      {
+        field: "layout.omnibox.region",
+        reason: '"bottom" is not supported for omnibox yet; use "top"',
+      },
+    ]);
+    expect(problemsOf("[layout.tabs]\nregion = 'floating'")).toEqual(["layout.tabs.region"]);
+    expect(problemsOf("[layout.completion]\nregion = 'top'")).toEqual(["layout.completion.region"]);
+  });
+
+  test("only the tab strip can be hidden yet", () => {
+    expect(layoutOf("[layout.status]\nvisible = false").status.visible).toBe(true);
+    expect(problemsOf("[layout.status]\nvisible = false")).toEqual(["layout.status.visible"]);
+    expect(problemsOf("[layout.tabs]\nvisible = false")).toEqual([]);
+  });
+
+  test("tabs.orientation is gone, and saying so does not cost the rest of the file", () => {
+    const { settings, problems } = parseSettings(
+      "homepage = 'https://a.b'\n[tabs]\norientation = 'vertical'",
+    );
+
+    expect(settings).toEqual({ ...DEFAULT_SETTINGS, homepage: "https://a.b" });
+    expect(problems.map(({ field }) => field)).toEqual(["tabs.orientation"]);
   });
 });
 

@@ -10,7 +10,8 @@ import {
 } from "../features/downloads/downloads.program";
 import { Msg as LinkMsg } from "../features/link/link.program";
 import { activeTab, Msg as MainMsg } from "../features/main/main.program";
-import { tabOrientation } from "../features/ui/ui.program";
+import { regions } from "../features/ui/ui.program";
+import type { ElementId, Region } from "../../shared/layout";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -108,11 +109,38 @@ export const bookmarks = {
 };
 
 export const ui = {
-  get tabOrientation() {
-    return tabOrientation(app.model.ui);
-  },
   get searchUrl() {
     return app.model.ui.settings.searchUrl;
+  },
+};
+
+/** The status row is the command line, a prompt or a message, in that order. */
+const statusShowing = (): boolean =>
+  vim.mode === "command" || prompts.current !== null || messages.current !== null;
+
+/** Find outlives its prompt: matches stay highlighted for n and N. */
+const findShowing = (): boolean => vim.mode === "find" || find.active;
+
+export const layout = {
+  elementsIn: (region: Region): ReadonlyArray<ElementId> => regions(app.model.ui)[region],
+  size: (id: ElementId): string | undefined => app.model.ui.settings.layout[id].size,
+  /** Whether an element has anything to show right now; a region with none is left out. */
+  showing: (id: ElementId): boolean => {
+    switch (id) {
+      case "tabs":
+      case "omnibox":
+        return true;
+      case "bookmarks":
+        return bookmarks.open;
+      case "downloads":
+        return downloads.visible;
+      case "status":
+        return statusShowing();
+      case "find":
+        return findShowing();
+      case "completion":
+        return false;
+    }
   },
 };
 
