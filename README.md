@@ -207,8 +207,11 @@ adblock = true # ad and tracker blocking
 # search = "https://duckduckgo.com/?q={q}"
 
 [tabs]
-orientation = "horizontal" # or "vertical"
 focus-page = true # hand keyboard focus to the page after a tab switch
+
+# Where each part of the chrome sits. See "Layout" below.
+[layout.tabs]
+region = "left" # vertical tabs; "top" is the default
 
 # Where downloads are saved. Without it Kvist follows $XDG_DOWNLOAD_DIR, and
 # falls back to ~/Downloads.
@@ -232,6 +235,36 @@ url = "https://youtube.com"
 Anything missing or invalid falls back to the default. A broken file keeps
 the last config that parsed instead of reverting to defaults out from under
 you.
+
+### Layout
+
+Each part of the chrome has a `[layout.<element>]` table:
+
+```toml
+[layout.tabs]
+region = "left" # top, bottom, left or right
+order = 0 # sorts the elements inside one region
+size = "30ch" # width at the left or right, height at the top or bottom
+visible = true
+```
+
+Left and right run the full height of the window. Top and bottom sit above
+and below the page, between them. Leave a field out to keep its default.
+An element you move keeps its default order, so you rarely need `order`.
+
+| Element      | Default | Can go      | Can hide |
+| ------------ | ------- | ----------- | -------- |
+| `tabs`       | top     | any edge    | yes      |
+| `omnibox`    | top     | top         | no       |
+| `bookmarks`  | bottom  | any edge    | no       |
+| `downloads`  | bottom  | any edge    | no       |
+| `status`     | bottom  | top, bottom | no       |
+| `find`       | bottom  | top, bottom | no       |
+| `completion` | overlay | overlay     | no       |
+
+`status` is the row that the command line, prompts and messages share. The
+tab strip runs vertically at the left or right, and horizontally at the top
+or bottom. `tabs.orientation` is gone: use `[layout.tabs] region` instead.
 
 ### Downloads
 
