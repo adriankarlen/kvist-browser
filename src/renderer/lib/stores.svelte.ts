@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { ChromeIntent } from "../../shared/rpc/chrome";
 import type { Rect, TabId } from "../../shared/schema/browser";
 import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
@@ -11,7 +12,7 @@ import {
 import { Msg as LinkMsg } from "../features/link/link.program";
 import { activeTab, Msg as MainMsg } from "../features/main/main.program";
 import { regions } from "../features/ui/ui.program";
-import type { ElementId, Region } from "../../shared/layout";
+import type { ElementId, Layout, Region } from "../../shared/layout";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -222,7 +223,15 @@ export const contentRect = (node: HTMLElement) => {
 
   observer.observe(node);
   window.addEventListener("resize", report);
-  report();
+
+  // A layout change can move the box without resizing it, which no
+  // ResizeObserver reports. An effect runs once the change is in the DOM.
+  // Reporting is untracked: it dispatches, and the model it replaces would
+  // re-run the effect.
+  const layout = $derived(app.model.ui.settings.layout);
+  const reportFor = (_layout: Layout): void => untrack(report);
+
+  $effect(() => reportFor(layout));
 
   return {
     destroy() {
