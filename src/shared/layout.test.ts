@@ -3,6 +3,7 @@ import {
   arrange,
   completionGrow,
   DEFAULT_LAYOUT,
+  isPalette,
   elementDirection,
   type Layout,
   SUPPORT,
@@ -55,12 +56,12 @@ test("at the side, a completion list opens towards the larger half of the window
   expect(completionGrow("right", { y: 800, height: 20 }, 1000)).toBe("up");
 });
 
-test("every element but the omnibox and completion can go to any edge", () => {
+test("the omnibox goes on top or floats, and the others go to any edge", () => {
   for (const id of ["tabs", "bookmarks", "downloads", "status", "find"] as const) {
     expect(SUPPORT[id].regions).toEqual(["top", "bottom", "left", "right"]);
   }
 
-  expect(SUPPORT.omnibox.regions).toEqual(["top"]);
+  expect(SUPPORT.omnibox.regions).toEqual(["top", "floating"]);
   expect(SUPPORT.completion.regions).toEqual(["overlay"]);
 });
 
@@ -68,4 +69,11 @@ test("only the tab strip can auto-hide", () => {
   const autohiding = Object.entries(SUPPORT).filter(([, support]) => support.autohide);
 
   expect(autohiding.map(([id]) => id)).toEqual(["tabs"]);
+});
+
+test("only a floating omnibox is the palette", () => {
+  expect(isPalette(DEFAULT_LAYOUT)).toBe(false);
+  expect(
+    isPalette({ ...DEFAULT_LAYOUT, omnibox: { ...DEFAULT_LAYOUT.omnibox, region: "floating" } }),
+  ).toBe(true);
 });

@@ -1,0 +1,22 @@
+/*
+ * Layer order for the palette, like the chrome's: user CSS is unlayered, so
+ * the palette stays retheme-able. The document is transparent, so the page
+ * shows through around the panel.
+ */
+@layer kvist.reset, kvist.tokens, kvist.components;
+
+@import "../shared/styles/reset.css";
+@import "../shared/styles/tokens.css";
+@import "../shared/styles/panel.css";
+
+@layer kvist.reset {
+  html,
+  body {
+    height: 100%;
+    background: transparent;
+  }
+
+  body {
+    user-select: none;
+  }
+}

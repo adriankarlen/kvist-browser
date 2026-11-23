@@ -47,6 +47,7 @@ const COMMANDS = {
   "focus.page": { run: (a) => a.focus.page, keybindOnly: true },
   "focus.chrome": { run: (a) => a.focus.chrome, keybindOnly: true },
   "focus.omnibox": { run: (a) => a.focus.omnibox, keybindOnly: true },
+  "cmdline.open": { run: (a) => a.cmdline.open, keybindOnly: true },
 
   "insert.leave": { run: (a) => a.insert.leave, keybindOnly: true },
 

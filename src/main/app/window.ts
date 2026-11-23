@@ -57,7 +57,13 @@ import { RpcServer } from "effect/rpc";
 import { ChromeIntent, ChromeRpcs } from "../../shared/rpc/chrome";
 import { OverlayIntent, OverlayRpcs } from "../../shared/rpc/overlay";
 import { PageIntent, PageRpcs } from "../../shared/rpc/page";
-import { chromeLink, overlayLink, type OverlaySenders, pageLink } from "../links";
+import { chromeLink, overlayLink, type OverlaySenders, pageLink, paletteLink } from "../links";
+import { PaletteIntent, PaletteRpcs } from "../../shared/rpc/palette";
+import { PaletteOverlay, type PaletteSenders } from "../palette-overlay";
+import { Msg as PaletteMsg } from "../features/palette/palette.program";
+import { acceptOmnibox } from "../../shared/omnibox-action";
+import { resolveUrl } from "../../shared/url";
+import { isPalette } from "../../shared/layout";
 import { serve } from "../services/surface";
 
 import { mainStore, runtime, useSync } from "./runtime";
@@ -81,6 +87,8 @@ const pagePreload = join(import.meta.dirname, "../preload/page.cjs");
 const overlayPreload = join(import.meta.dirname, "../preload/overlay.cjs");
 const rendererHtml = join(import.meta.dirname, "../renderer/index.html");
 const overlayHtml = join(import.meta.dirname, "../renderer/overlay.html");
+const palettePreload = join(import.meta.dirname, "../preload/palette.cjs");
+const paletteHtml = join(import.meta.dirname, "../renderer/palette.html");
 const iconPath = join(app.getAppPath(), "images/kvist-logo.png");
 
 /** The echo area, as the imperative code that has not moved onto the store calls it. */
@@ -340,6 +348,7 @@ export function createWindow(saved: SessionState | null): void {
     configureTabs(next);
     chrome.config(next);
     completion.applyCss();
+    palette.applyCss();
   };
 
   // Throttled: a transfer reports far more often than the panel can show.
@@ -376,6 +385,10 @@ export function createWindow(saved: SessionState | null): void {
     // Read at call time, so a config save changes where the next search goes
     // without the window being recreated.
     () => currentConfig().settings.searchUrl,
+    {
+      isOn: () => isPalette(currentConfig().settings.layout),
+      summon: (text) => mainStore().dispatch(PaletteMsg.cases.PaletteSummoned.make({ text })),
+    },
   );
 
   const commands = createCommands(actions);
@@ -458,6 +471,101 @@ export function createWindow(saved: SessionState | null): void {
     }
   };
 
+  const dismissPalette = (handBack: boolean): void =>
+    mainStore().dispatch(PaletteMsg.cases.PaletteDismissed.make({ handBack }));
+
+  const palette = new PaletteOverlay(
+    () => {
+      const view = new WebContentsView({ webPreferences: { preload: palettePreload } });
+      const contents = view.webContents;
+      view.setBackgroundColor("#00000000");
+      views.addOverlay(view);
+
+      const loaded = process.env.VITE_DEV_SERVER_URL
+        ? contents.loadURL(new URL("palette.html", process.env.VITE_DEV_SERVER_URL).href)
+        : contents.loadFile(paletteHtml);
+
+      void loaded.catch(() => {
+        if (!contents.isDestroyed()) contents.close();
+      });
+
+      // The palette types like the chrome does, so the mode machine sees its keys the same way.
+      interceptKeys(contents, "chrome", onKey);
+      // A click on the page or the chrome leaves the palette. Losing the whole
+      // window is not a reason to pull focus onto the page.
+      contents.on("blur", () => dismissPalette(win.isFocused()));
+
+      return {
+        host: view,
+        link: servePalette(contents),
+        release: () => {
+          views.remove(view);
+
+          if (!contents.isDestroyed()) contents.close();
+        },
+      };
+    },
+    () => currentConfig().css,
+  );
+
+  const paletteFiber = runtime.runFork(
+    project(
+      (model) => ({
+        ...model.palette,
+        bounds: layout(model.tabs).bounds,
+        size: model.config.current?.settings.layout.omnibox.size,
+      }),
+      (view) => palette.render(view),
+    ),
+  );
+
+  /** The palette's own surface: it can ask for a destination, never drive tabs directly. */
+  function servePalette(contents: Electron.WebContents): PaletteSenders {
+    const link = paletteLink();
+
+    serve(
+      runtime,
+      contents,
+      RpcServer.make(PaletteRpcs).pipe(
+        Effect.provide(
+          PaletteRpcs.toLayer({
+            Subscribe: () => link.events.stream,
+            Suggestions: ({ query }) => omniboxSuggestions(query, strip(mainStore().get().tabs)),
+            CommandCompletions: ({ line }) => Effect.sync(() => completeCommand(line)),
+            Dispatch: (message) =>
+              Effect.sync(() =>
+                PaletteIntent.match(message, {
+                  Submitted: ({ text }) => {
+                    dismissPalette(true);
+
+                    if (text.trim() === "") return;
+                    tabs.active?.navigate(resolveUrl(text, currentConfig().settings.searchUrl));
+                  },
+                  SuggestionPicked: ({ candidate }) => {
+                    dismissPalette(true);
+                    acceptOmnibox(candidate, {
+                      navigate: (url) => tabs.active?.navigate(url),
+                      activate: (id) =>
+                        mainStore().dispatch(TabsMsg.cases.TabActivated.make({ id })),
+                    });
+                  },
+                  // Closed first, so a command that opens something else gets the focus.
+                  CommandEntered: ({ line }) => {
+                    dismissPalette(false);
+                    runCommand(line);
+                    vim.dispatch(VimMsgs.cases.ModeRequested.make({ mode: modeAfter(line) }));
+                  },
+                  Dismissed: () => dismissPalette(true),
+                }),
+              ),
+          }),
+        ),
+      ),
+    );
+
+    return link.send;
+  }
+
   // Saves before `closed` because `getBounds` on a destroyed window is
   // undefined. `close` fires on every close path (user click, app quit,
   // macOS reopen-by-relaunch) — last-write-wins on the singleton row, so the
@@ -517,6 +625,7 @@ export function createWindow(saved: SessionState | null): void {
     tabManagers.delete(tabViews);
     tabsFiber.interruptUnsafe();
     completionFiber.interruptUnsafe();
+    paletteFiber.interruptUnsafe();
   });
 
   // The window follows the config in force: now, and after every save.
@@ -686,5 +795,6 @@ export function createWindow(saved: SessionState | null): void {
     releasePermissions();
     releaseBookmarks();
     completion.release();
+    palette.release();
   });
 }

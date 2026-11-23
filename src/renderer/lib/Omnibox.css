@@ -8,31 +8,6 @@
     position: relative;
   }
 
-  .kv-mode {
-    flex: none;
-    padding: 0 1ch;
-    color: var(--kv-mode-fg);
-    background: var(--kv-mode-bg);
-    text-transform: uppercase;
-    border-radius: var(--kv-radius);
-  }
-
-  .kv-mode.is-insert {
-    background: var(--kv-mode-insert-bg);
-  }
-
-  .kv-mode.is-command {
-    background: var(--kv-mode-command-bg);
-  }
-
-  .kv-mode.is-find {
-    background: var(--kv-mode-find-bg);
-  }
-
-  .kv-mode.is-prompt {
-    background: var(--kv-mode-prompt-bg);
-  }
-
   .kv-omnibox__button {
     color: var(--kv-omnibox-button-fg);
     padding: 0 0.5ch;

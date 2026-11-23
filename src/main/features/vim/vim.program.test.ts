@@ -172,10 +172,10 @@ test("gb opens the bookmarks panel and enters insert, so its filter gets the key
   expect(vim.mode).toBe("insert");
 });
 
-test("colon opens the command line and moves focus to the chrome", () => {
+test("colon enters command mode and opens a command line", () => {
   key(":");
   expect(vim.mode).toBe("command");
-  expect(execute).toHaveBeenCalledWith("focus.chrome");
+  expect(execute).toHaveBeenCalledWith("cmdline.open");
 });
 
 test("command mode leaves keys to the chrome", () => {

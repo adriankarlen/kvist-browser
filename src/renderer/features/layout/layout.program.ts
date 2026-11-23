@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import type { Placement } from "../../../shared/layout";
+import { isPalette, type Layout, type Placement } from "../../../shared/layout";
 import { next, type Next } from "../../../shared/tea/program";
 import type { Model as MainModel } from "../main/main.program";
 
@@ -70,18 +70,22 @@ export const omniboxShown = (model: Model, placement: Placement): boolean =>
 export const findShown = (main: MainModel, placement: Placement): boolean =>
   main.mode === "find" || (placement.visible && main.findResult !== null);
 
-export type StatusLine = "command" | "prompt" | "message";
+export type StatusLine = "command" | "prompt" | "message" | "location";
 
 /**
- * The status row is the command line, a prompt or a message, in that order.
- * A hidden row still shows errors, or a command that failed would say nothing.
+ * The command line, a prompt or a message, in that order. A hidden row
+ * still shows errors, or a failed command would say nothing. The palette
+ * replaces the command line, and an idle row shows the URL.
  */
-export function statusLine(main: MainModel, placement: Placement): StatusLine | null {
-  if (main.mode === "command") return "command";
+export function statusLine(main: MainModel, layout: Layout): StatusLine | null {
+  const palette = isPalette(layout);
+  const { visible } = layout.status;
+
+  if (main.mode === "command" && !palette) return "command";
 
   if (main.prompt !== null) return "prompt";
 
-  if (main.message === null) return null;
+  if (main.message !== null && (visible || main.message.level === "error")) return "message";
 
-  return placement.visible || main.message.level === "error" ? "message" : null;
+  return palette && visible ? "location" : null;
 }

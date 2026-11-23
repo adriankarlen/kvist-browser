@@ -1,5 +1,6 @@
 import { ChromeEvent } from "../shared/rpc/chrome";
 import { OverlayEvent } from "../shared/rpc/overlay";
+import { PaletteEvent } from "../shared/rpc/palette";
 import { PageEvent } from "../shared/rpc/page";
 import type {
   BrowserState,
@@ -17,6 +18,7 @@ import type { UserConfig } from "../shared/schema/config";
 import type { ContextMenuState } from "../shared/schema/context-menu";
 import type { DownloadState } from "../shared/schema/downloads";
 import type { PromptWire } from "../shared/schema/prompts";
+import type { PaletteSenders } from "./palette-overlay";
 import { EventLink } from "./services/event-link";
 
 /** A surface's events, and the calls main makes to publish them. */
@@ -122,6 +124,19 @@ export function overlayLink(): Link<OverlayEvent, OverlaySenders> {
       completionState: (state) => events.publish(event.CompletionStateChanged.make({ state })),
       completionInset: (inset) => events.publish(event.CompletionInsetChanged.make({ inset })),
       completionCss: (css) => events.publish(event.CompletionCssChanged.make({ css })),
+    },
+  };
+}
+
+export function paletteLink(): Link<PaletteEvent, PaletteSenders> {
+  const events = new EventLink<PaletteEvent>(["Opened", "CssChanged"]);
+  const event = PaletteEvent.cases;
+
+  return {
+    events,
+    send: {
+      opened: (text, seq, size) => events.publish(event.Opened.make({ text, seq, size })),
+      css: (css) => events.publish(event.CssChanged.make({ css })),
     },
   };
 }

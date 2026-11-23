@@ -180,7 +180,7 @@ describe("layout", () => {
     expect(problems).toEqual([
       {
         field: "layout.omnibox.region",
-        reason: '"bottom" is not supported for omnibox yet; use "top"',
+        reason: '"bottom" is not supported for omnibox yet; use "top", "floating"',
       },
     ]);
     expect(problemsOf("[layout.tabs]\nregion = 'floating'")).toEqual(["layout.tabs.region"]);
@@ -188,6 +188,13 @@ describe("layout", () => {
     expect(problemsOf("[layout.downloads]\nregion = 'floating'")).toEqual([
       "layout.downloads.region",
     ]);
+  });
+
+  test("the omnibox can float, as the command palette", () => {
+    const { settings, problems } = parseSettings("[layout.omnibox]\nregion = 'floating'");
+
+    expect(settings.layout.omnibox.region).toBe("floating");
+    expect(problems).toEqual([]);
   });
 
   test("the panels and lines go to any edge", () => {
