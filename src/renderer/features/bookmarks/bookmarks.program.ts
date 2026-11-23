@@ -12,12 +12,24 @@ export interface Model {
   readonly open: boolean;
   readonly query: string;
   readonly rows: ReadonlyArray<Bookmark>;
+  /** The query `rows` answer. Null until the first answer since opening. */
+  readonly rowsFor: string | null;
   readonly selected: number;
+  /** Enter landed while the rows were stale; the next answer is picked from. */
+  readonly pickPending: boolean;
   /** Counts openings, so a second `:bookmarks` while open still refocuses the filter. */
   readonly opened: number;
 }
 
-export const init: Model = { open: false, query: "", rows: [], selected: 0, opened: 0 };
+export const init: Model = {
+  open: false,
+  query: "",
+  rows: [],
+  rowsFor: null,
+  selected: 0,
+  pickPending: false,
+  opened: 0,
+};
 
 /** No id means the selected row: the keyboard acts on it, the mouse names one. */
 const Target = { id: Schema.UndefinedOr(Schema.Int) };
@@ -31,8 +43,12 @@ export const Msg = Schema.TaggedUnion({
   BookmarkPicked: Target,
   BookmarkDeleteRequested: Target,
   BookmarksDismissed: {},
-  /** The filter lost focus. Leaving the window blurs it too, and that must not move focus. */
-  BookmarksBlurred: { chromeFocused: Schema.Boolean },
+  /**
+   * The filter lost focus. Only a blur that leaves the keyboard nowhere hands
+   * it back to the page: leaving the window, or focus moving to another
+   * chrome input, must not move focus.
+   */
+  BookmarksBlurred: { handBack: Schema.Boolean },
 });
 
 export type Msg = typeof Msg.Type;
@@ -48,7 +64,22 @@ const I = ChromeIntent.cases;
 
 const fetch = (query: string): Cmd => Cmd.cases.FetchBookmarks.make({ query });
 const toNormal = (): LinkCmd => send(I.ModeRequested.make({ mode: "normal" }));
-const closed = (model: Model): Model => ({ ...model, open: false, query: "", rows: [] });
+
+const closed = (model: Model): Model => ({
+  ...model,
+  open: false,
+  query: "",
+  rows: [],
+  rowsFor: null,
+  pickPending: false,
+});
+
+/** Whether the rows on screen answer what is typed now. */
+const current = (model: Model): boolean => model.rowsFor === model.query;
+
+function pick(model: Model, row: Bookmark): Next<Model, never, Cmd | LinkCmd> {
+  return next(closed(model), [send(I.NavigationRequested.make({ url: row.url })), toNormal()]);
+}
 
 function clampSelection(selected: number, rows: ReadonlyArray<Bookmark>): number {
   return Math.max(0, Math.min(selected, rows.length - 1));
@@ -61,16 +92,29 @@ function target(model: Model, id: number | undefined): Bookmark | undefined {
 export function update(msg: Msg, model: Model): Next<Model, never, Cmd | LinkCmd> {
   return Msg.match(msg, {
     BookmarksOpenRequested: () =>
-      next({ open: true, query: "", rows: model.rows, selected: 0, opened: model.opened + 1 }, [
-        fetch(""),
-      ]),
+      next(
+        {
+          ...model,
+          open: true,
+          query: "",
+          rowsFor: null,
+          selected: 0,
+          pickPending: false,
+          opened: model.opened + 1,
+        },
+        [fetch("")],
+      ),
     BookmarksChanged: () => (model.open ? next(model, [fetch(model.query)]) : next(model)),
     BookmarksQueryChanged: ({ query }) =>
       model.open ? next({ ...model, query, selected: 0 }, [fetch(query)]) : next(model),
-    BookmarksFetched: ({ query, rows }) =>
-      model.open && query === model.query
-        ? next({ ...model, rows, selected: clampSelection(model.selected, rows) })
-        : next(model),
+    BookmarksFetched: ({ query, rows }) => {
+      if (!model.open || query !== model.query) return next(model);
+      const selected = clampSelection(model.selected, rows);
+      const answered = { ...model, rows, rowsFor: query, selected, pickPending: false };
+      const row = model.pickPending ? rows[selected] : undefined;
+
+      return row === undefined ? next(answered) : pick(answered, row);
+    },
     BookmarkSelectionMoved: ({ by }) => {
       const count = model.rows.length;
 
@@ -78,17 +122,21 @@ export function update(msg: Msg, model: Model): Next<Model, never, Cmd | LinkCmd
 
       return next({ ...model, selected: (((model.selected + by) % count) + count) % count });
     },
+    // A click names a row the user can see. Enter means "the selected match
+    // for what I typed", so on stale rows it waits for the answer.
     BookmarkPicked: ({ id }) => {
-      const row = model.open ? target(model, id) : undefined;
+      if (!model.open) return next(model);
 
-      if (row === undefined) return next(model);
+      if (id === undefined && !current(model)) return next({ ...model, pickPending: true });
+      const row = target(model, id);
 
-      return next(closed(model), [send(I.NavigationRequested.make({ url: row.url })), toNormal()]);
+      return row === undefined ? next(model) : pick(model, row);
     },
     // Dropped here before main confirms, so a click feels instant; the
     // refetch that main's change triggers settles what is really left.
     BookmarkDeleteRequested: ({ id }) => {
-      const row = model.open ? target(model, id) : undefined;
+      const stale = id === undefined && !current(model);
+      const row = model.open && !stale ? target(model, id) : undefined;
 
       if (row === undefined) return next(model);
       const rows = model.rows.filter((entry) => entry.id !== row.id);
@@ -98,10 +146,10 @@ export function update(msg: Msg, model: Model): Next<Model, never, Cmd | LinkCmd
       ]);
     },
     BookmarksDismissed: () => (model.open ? next(closed(model), [toNormal()]) : next(model)),
-    BookmarksBlurred: ({ chromeFocused }) => {
+    BookmarksBlurred: ({ handBack }) => {
       if (!model.open) return next(model);
 
-      return next(closed(model), chromeFocused ? [toNormal()] : []);
+      return next(closed(model), handBack ? [toNormal()] : []);
     },
   });
 }

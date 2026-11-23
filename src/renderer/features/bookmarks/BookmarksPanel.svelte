@@ -39,6 +39,8 @@
   }
 
   function onkeydown(event: KeyboardEvent): void {
+    // An IME uses these keys, Enter above all, to commit what it composed.
+    if (event.isComposing) return;
     const { key, ctrlKey, shiftKey } = event;
 
     if (key === "ArrowDown" || (key === "Tab" && !shiftKey) || (ctrlKey && key === "n")) {
@@ -58,8 +60,18 @@
     event.preventDefault();
   }
 
-  function onblur(): void {
-    bookmarks.blurred(document.hasFocus());
+  function typable(target: EventTarget | null): boolean {
+    return (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    );
+  }
+
+  // Focus moving to another chrome input keeps the keyboard in the chrome.
+  // Handing it to the page there would pull focus from under that input.
+  function onblur(event: FocusEvent): void {
+    bookmarks.blurred(document.hasFocus() && !typable(event.relatedTarget));
   }
 </script>
 

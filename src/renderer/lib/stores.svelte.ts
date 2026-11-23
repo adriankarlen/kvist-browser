@@ -104,7 +104,7 @@ export const bookmarks = {
   pick: (id?: number) => app.dispatch(B.BookmarkPicked.make({ id })),
   remove: (id?: number) => app.dispatch(B.BookmarkDeleteRequested.make({ id })),
   dismiss: () => app.dispatch(B.BookmarksDismissed.make({})),
-  blurred: (chromeFocused: boolean) => app.dispatch(B.BookmarksBlurred.make({ chromeFocused })),
+  blurred: (handBack: boolean) => app.dispatch(B.BookmarksBlurred.make({ handBack })),
 };
 
 export const ui = {

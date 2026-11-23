@@ -108,6 +108,40 @@ describe("picking", () => {
     );
   });
 
+  test("Enter on rows for an older query waits, then picks from the answer", () => {
+    const typed = update(M.BookmarksQueryChanged.make({ query: "site 1" }), listed).model;
+    const waiting = update(M.BookmarkPicked.make({ id: undefined }), typed);
+
+    expect(waiting.model).toMatchObject({ open: true, pickPending: true });
+    expect(waiting.cmds).toEqual([]);
+
+    const answered = update(
+      M.BookmarksFetched.make({ query: "site 1", rows: [row(1)] }),
+      waiting.model,
+    );
+
+    expect(answered.model.open).toBe(false);
+    expect(answered.cmds).toEqual([
+      send(I.NavigationRequested.make({ url: "https://site1.test/" })),
+      toNormal,
+    ]);
+  });
+
+  test("Enter before the first answer since opening waits too", () => {
+    const opened = update(M.BookmarksOpenRequested.make({}), init).model;
+
+    expect(update(M.BookmarkPicked.make({ id: undefined }), opened).model.pickPending).toBe(true);
+  });
+
+  test("a waiting Enter whose answer is empty picks nothing and stops waiting", () => {
+    const typed = update(M.BookmarksQueryChanged.make({ query: "zzz" }), listed).model;
+    const waiting = update(M.BookmarkPicked.make({ id: undefined }), typed).model;
+    const answered = update(M.BookmarksFetched.make({ query: "zzz", rows: [] }), waiting);
+
+    expect(answered.model).toMatchObject({ open: true, pickPending: false });
+    expect(answered.cmds).toEqual([]);
+  });
+
   test("with nothing to pick, nothing happens", () => {
     const empty = { ...listed, rows: [] };
 
@@ -133,6 +167,12 @@ describe("deleting", () => {
   });
 });
 
+test("Shift+Delete on rows for an older query deletes nothing", () => {
+  const typed = update(M.BookmarksQueryChanged.make({ query: "site 1" }), listed);
+
+  expect(update(M.BookmarkDeleteRequested.make({ id: undefined }), typed.model).cmds).toEqual([]);
+});
+
 describe("closing", () => {
   test("Escape closes and hands keys back to the page", () => {
     const result = update(M.BookmarksDismissed.make({}), listed);
@@ -141,12 +181,10 @@ describe("closing", () => {
     expect(result.cmds).toEqual([toNormal]);
   });
 
-  test("a blur closes, but only moves focus while the chrome still has it", () => {
-    expect(update(M.BookmarksBlurred.make({ chromeFocused: true }), listed).cmds).toEqual([
-      toNormal,
-    ]);
+  test("a blur closes, but hands keys to the page only when asked to", () => {
+    expect(update(M.BookmarksBlurred.make({ handBack: true }), listed).cmds).toEqual([toNormal]);
 
-    const away = update(M.BookmarksBlurred.make({ chromeFocused: false }), listed);
+    const away = update(M.BookmarksBlurred.make({ handBack: false }), listed);
 
     expect(away.model.open).toBe(false);
     expect(away.cmds).toEqual([]);
@@ -154,7 +192,7 @@ describe("closing", () => {
 
   test("the blur that follows a pick or a dismissal does nothing", () => {
     const shut = update(M.BookmarkPicked.make({ id: undefined }), listed).model;
-    const result = update(M.BookmarksBlurred.make({ chromeFocused: true }), shut);
+    const result = update(M.BookmarksBlurred.make({ handBack: true }), shut);
 
     expect(result.model).toBe(shut);
     expect(result.cmds).toEqual([]);
