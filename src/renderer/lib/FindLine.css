@@ -14,4 +14,12 @@
     flex: none;
     color: var(--kv-find-count-fg);
   }
+
+  .kv-find.is-vertical {
+    flex-wrap: wrap;
+  }
+
+  .kv-find.is-vertical .kv-find__query {
+    overflow-wrap: anywhere;
+  }
 }

@@ -97,4 +97,18 @@
     flex: 1;
     -webkit-app-region: drag;
   }
+
+  .kv-tabstrip-edge {
+    background: var(--kv-tabstrip-edge-bg);
+  }
+
+  .kv-tabstrip-edge.is-horizontal {
+    flex: none;
+    height: var(--kv-tabstrip-edge-size);
+  }
+
+  .kv-tabstrip-edge.is-vertical {
+    flex: 1;
+    width: var(--kv-tabstrip-edge-size);
+  }
 }

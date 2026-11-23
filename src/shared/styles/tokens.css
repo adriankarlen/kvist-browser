@@ -38,6 +38,8 @@
     --kv-sidebar-width: 26ch;
     --kv-omnibox-height: 28px;
     --kv-tab-width: 22ch;
+    /* What an auto-hidden tab strip leaves behind to hover over. */
+    --kv-tabstrip-edge-size: 4px;
 
     /* ---- parts --------------------------------------------------------- */
     --kv-chrome-bg: var(--kv-color-base);
@@ -63,6 +65,7 @@
     --kv-tab-hover-bg: var(--kv-color-surface);
     --kv-tab-hover-fg: var(--kv-color-accent);
     --kv-tab-hover-close: var(--kv-color-danger);
+    --kv-tabstrip-edge-bg: var(--kv-border-color);
 
     --kv-mode-fg: var(--kv-color-base);
     --kv-mode-bg: var(--kv-color-accent);

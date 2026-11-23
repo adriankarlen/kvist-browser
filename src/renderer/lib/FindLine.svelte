@@ -1,6 +1,9 @@
 <script lang="ts">
   import "./FindLine.css";
-  import { find, vim } from "./stores.svelte";
+  import { elementDirection, type Region } from "../../shared/layout";
+  import { find, layout, vim } from "./stores.svelte";
+
+  let { region }: { region: Region } = $props();
 
   let input = $state<HTMLInputElement>();
 
@@ -49,21 +52,27 @@
   }
 </script>
 
-<form class="kv-panel kv-line kv-find" data-label="find" onsubmit={submit}>
-  <span class="kv-line__prompt">/</span>
-  {#if vim.mode === "find"}
-    <input
-      class="kv-line__input"
-      bind:this={input}
-      bind:value={query}
-      spellcheck="false"
-      autocomplete="off"
-      {oninput}
-      {onkeydown}
-      {onblur}
-    />
-  {:else}
-    <span class="kv-find__query">{find.query}</span>
-  {/if}
-  <span class="kv-find__count">{count}</span>
-</form>
+{#if layout.findShown}
+  <form
+    class={["kv-panel", "kv-line", "kv-find", `is-${elementDirection(region)}`]}
+    data-label="find"
+    onsubmit={submit}
+  >
+    <span class="kv-line__prompt">/</span>
+    {#if vim.mode === "find"}
+      <input
+        class="kv-line__input"
+        bind:this={input}
+        bind:value={query}
+        spellcheck="false"
+        autocomplete="off"
+        {oninput}
+        {onkeydown}
+        {onblur}
+      />
+    {:else}
+      <span class="kv-find__query">{find.query}</span>
+    {/if}
+    <span class="kv-find__count">{count}</span>
+  </form>
+{/if}

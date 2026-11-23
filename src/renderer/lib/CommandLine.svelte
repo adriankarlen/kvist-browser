@@ -1,13 +1,13 @@
 <script lang="ts">
   import "./CommandLine.css";
-  import type { CompletionGrow } from "../../shared/schema/completion";
-  import { completionOverlay, vim, browse } from "./stores.svelte";
+  import { completionGrow, elementDirection, type Region } from "../../shared/layout";
+  import { completionOverlay, layout, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let line = $state("");
-  let { grow }: { grow: CompletionGrow } = $props();
+  let { region }: { region: Region } = $props();
 
   const anchor = createAnchor();
 
@@ -39,7 +39,7 @@
   $effect(() => {
     const box = anchor.current;
 
-    if (box === null || !completion.open) {
+    if (box === null || !completion.open || !layout.completionShown) {
       overlay.hide();
 
       return;
@@ -49,7 +49,7 @@
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
       anchor: box,
-      grow,
+      grow: completionGrow(region, box, window.innerHeight),
     });
   });
 
@@ -88,7 +88,12 @@
   }
 </script>
 
-<form class="kv-panel kv-line kv-cmdline" data-label="cmd" onsubmit={submit} use:anchor.element>
+<form
+  class={["kv-panel", "kv-line", "kv-cmdline", `is-${elementDirection(region)}`]}
+  data-label="cmd"
+  onsubmit={submit}
+  use:anchor.element
+>
   <span class="kv-line__prompt">:</span>
   <input
     class="kv-line__input"

@@ -121,4 +121,27 @@
   .kv-downloads__item.is-failed .kv-downloads__status {
     color: inherit;
   }
+
+  /* In a side column the name takes the first line, and the progress and
+     numbers wrap under it at their natural width. */
+  .kv-downloads.is-vertical .kv-downloads__item {
+    flex-wrap: wrap;
+  }
+
+  .kv-downloads.is-vertical .kv-downloads__name {
+    flex-basis: calc(100% - 3ch);
+  }
+
+  .kv-downloads.is-vertical .kv-downloads__bar {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 4ch;
+  }
+
+  .kv-downloads.is-vertical .kv-downloads__percent,
+  .kv-downloads.is-vertical .kv-downloads__size,
+  .kv-downloads.is-vertical .kv-downloads__rate,
+  .kv-downloads.is-vertical .kv-downloads__eta {
+    width: auto;
+  }
 }

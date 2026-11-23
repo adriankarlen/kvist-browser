@@ -1,5 +1,12 @@
 import { expect, test } from "vite-plus/test";
-import { arrange, completionGrow, DEFAULT_LAYOUT, type Layout, tabStripDirection } from "./layout";
+import {
+  arrange,
+  completionGrow,
+  DEFAULT_LAYOUT,
+  elementDirection,
+  type Layout,
+  SUPPORT,
+} from "./layout";
 
 const moved = (changes: Partial<Layout>): Layout => ({ ...DEFAULT_LAYOUT, ...changes });
 
@@ -23,20 +30,42 @@ test("order sorts a region, and a tie falls back to the default order", () => {
   expect(arrange(layout).top).toEqual(["omnibox", "tabs", "find"]);
 });
 
-test("a hidden element is in no region", () => {
-  const layout = moved({ tabs: { ...DEFAULT_LAYOUT.tabs, visible: false } });
+test("a hidden element keeps its place, so it can still show when summoned", () => {
+  const layout = moved({ find: { ...DEFAULT_LAYOUT.find, visible: false } });
 
-  expect(Object.values(arrange(layout)).flat()).not.toContain("tabs");
+  expect(arrange(layout).bottom).toContain("find");
 });
 
-test("the tab strip runs along the edge it sits on", () => {
-  expect(tabStripDirection("left")).toBe("vertical");
-  expect(tabStripDirection("right")).toBe("vertical");
-  expect(tabStripDirection("top")).toBe("horizontal");
-  expect(tabStripDirection("bottom")).toBe("horizontal");
+test("an element runs along the edge it sits on", () => {
+  expect(elementDirection("left")).toBe("vertical");
+  expect(elementDirection("right")).toBe("vertical");
+  expect(elementDirection("top")).toBe("horizontal");
+  expect(elementDirection("bottom")).toBe("horizontal");
 });
 
 test("a completion list opens away from the edge its input sits on", () => {
-  expect(completionGrow("top")).toBe("down");
-  expect(completionGrow("bottom")).toBe("up");
+  const anchor = { y: 0, height: 20 };
+
+  expect(completionGrow("top", { y: 900, height: 20 }, 1000)).toBe("down");
+  expect(completionGrow("bottom", anchor, 1000)).toBe("up");
+});
+
+test("at the side, a completion list opens towards the larger half of the window", () => {
+  expect(completionGrow("left", { y: 100, height: 20 }, 1000)).toBe("down");
+  expect(completionGrow("right", { y: 800, height: 20 }, 1000)).toBe("up");
+});
+
+test("every element but the omnibox and completion can go to any edge", () => {
+  for (const id of ["tabs", "bookmarks", "downloads", "status", "find"] as const) {
+    expect(SUPPORT[id].regions).toEqual(["top", "bottom", "left", "right"]);
+  }
+
+  expect(SUPPORT.omnibox.regions).toEqual(["top"]);
+  expect(SUPPORT.completion.regions).toEqual(["overlay"]);
+});
+
+test("only the tab strip can auto-hide", () => {
+  const autohiding = Object.entries(SUPPORT).filter(([, support]) => support.autohide);
+
+  expect(autohiding.map(([id]) => id)).toEqual(["tabs"]);
 });

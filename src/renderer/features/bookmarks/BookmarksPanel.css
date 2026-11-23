@@ -81,4 +81,19 @@
   .kv-bookmarks__empty {
     color: var(--kv-bookmarks-muted-fg);
   }
+
+  /* A side column has no room for three columns: the title sits over the
+     URL, and the date goes. */
+  .kv-bookmarks.is-vertical .kv-bookmarks__open {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .kv-bookmarks.is-vertical .kv-bookmarks__title {
+    width: auto;
+  }
+
+  .kv-bookmarks.is-vertical .kv-bookmarks__date {
+    display: none;
+  }
 }

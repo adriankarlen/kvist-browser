@@ -19,4 +19,10 @@
   .kv-message.is-error .kv-message__text {
     color: var(--kv-message-error-fg);
   }
+
+  /* A side column is too narrow to cut a message short. */
+  .kv-message.is-vertical .kv-message__text {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }

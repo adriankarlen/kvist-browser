@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import type { Attachment } from "svelte/attachments";
   import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
+  import { elementDirection, type Region } from "../../shared/layout";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, ui, vim, browse } from "./stores.svelte";
+  import { browser, completionOverlay, layout, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
 
+  let { region }: { region: Region } = $props();
   let input = $state<HTMLInputElement>();
   let draft = $state("");
   let focused = $state(false);
@@ -75,7 +78,7 @@
   $effect(() => {
     const box = anchor.current;
 
-    if (!focused || box === null || !completion.open) {
+    if (!focused || box === null || !completion.open || !layout.completionShown) {
       overlay.hide();
 
       return;
@@ -124,14 +127,24 @@
 
   // Main swallows keys from the chrome while in normal mode, so a mouse click
   // into the omnibox has to announce insert the same way "o" does.
-  function onfocus(): void {
+  function onfocus(event: FocusEvent & { currentTarget: HTMLInputElement }): void {
     focused = true;
-    input?.select();
+    event.currentTarget.select();
     browse.setMode("insert");
   }
 
   function onblur(): void {
     focused = false;
+  }
+
+  // Focus moving between the bar's own controls is not leaving it.
+  function onfocusout(event: FocusEvent & { currentTarget: HTMLFormElement }): void {
+    const to = event.relatedTarget;
+
+    if (to instanceof Node && event.currentTarget.contains(to)) return;
+    // Every exit, even the window's: a click on the page would otherwise
+    // leave a summoned bar up with nothing to dismiss it.
+    layout.omniboxDismissed();
 
     // The window going to the background also blurs the input. Dropping to
     // normal there would pull focus onto the page behind the user's back, so
@@ -139,61 +152,85 @@
     if (document.hasFocus()) vim.toNormal();
   }
 
-  // Main asks for focus with a Cmd; the omnibox only has to be findable.
-  const focusable: Attachment<HTMLInputElement> = (node) => registerElement("omnibox", node);
+  // A button click blurs the input first, which would dismiss a summoned bar
+  // before the click lands. macOS never focuses the button, so keep the input's.
+  function keepSummoned(event: MouseEvent): void {
+    if (layout.omniboxHidden) event.preventDefault();
+  }
+
+  // Main asks for focus with a Cmd, which runs before a hidden omnibox has
+  // rendered. So a summoned one focuses itself as it appears.
+  const focusable: Attachment<HTMLInputElement> = (node) => {
+    if (untrack(() => layout.omniboxHidden)) node.focus();
+
+    return registerElement("omnibox", node);
+  };
 </script>
 
-<form class="kv-panel kv-omnibox" data-label="url" onsubmit={submit} use:anchor.element>
-  <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
-  <button
-    class="kv-omnibox__button"
-    type="button"
-    title="Back"
-    disabled={!browser.active?.canGoBack}
-    onclick={() => browse.goBack()}>&lt;</button
+{#if layout.omniboxShown}
+  <form
+    class={["kv-panel", "kv-omnibox", `is-${elementDirection(region)}`]}
+    data-label="url"
+    onsubmit={submit}
+    {onfocusout}
+    use:anchor.element
   >
-  <button
-    class="kv-omnibox__button"
-    type="button"
-    title="Forward"
-    disabled={!browser.active?.canGoForward}
-    onclick={() => browse.goForward()}>&gt;</button
-  >
-  <button
-    class="kv-omnibox__button"
-    type="button"
-    title="Reload"
-    onclick={() => browse.reload()}>r</button
-  >
+    <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
+    <button
+      class="kv-omnibox__button"
+      type="button"
+      onmousedown={keepSummoned}
+      title="Back"
+      disabled={!browser.active?.canGoBack}
+      onclick={() => browse.goBack()}>&lt;</button
+    >
+    <button
+      class="kv-omnibox__button"
+      type="button"
+      onmousedown={keepSummoned}
+      title="Forward"
+      disabled={!browser.active?.canGoForward}
+      onclick={() => browse.goForward()}>&gt;</button
+    >
+    <button
+      class="kv-omnibox__button"
+      type="button"
+      onmousedown={keepSummoned}
+      title="Reload"
+      onclick={() => browse.reload()}>r</button
+    >
 
-  <span class="kv-omnibox__prompt">:</span>
-  <input
-    class="kv-omnibox__input"
-    bind:this={input}
-    {@attach focusable}
-    bind:value={draft}
-    spellcheck="false"
-    autocomplete="off"
-    placeholder="enter url or search"
-    {onfocus}
-    {onblur}
-    {onkeydown}
-  />
-  <button
-    class="kv-omnibox__bookmark"
-    class:is-bookmarked={browser.active?.bookmarked}
-    type="button"
-    title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
-    aria-label="Bookmark this page"
-    aria-pressed={browser.active?.bookmarked ?? false}
-    onclick={() => browse.runCommand("bookmark.toggle")}>*</button
-  >
-  <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
+    <span class="kv-omnibox__prompt">:</span>
+    <input
+      class="kv-omnibox__input"
+      bind:this={input}
+      {@attach focusable}
+      bind:value={draft}
+      spellcheck="false"
+      autocomplete="off"
+      placeholder="enter url or search"
+      {onfocus}
+      {onblur}
+      {onkeydown}
+    />
+    <button
+      class="kv-omnibox__bookmark"
+      class:is-bookmarked={browser.active?.bookmarked}
+      type="button"
+      onmousedown={keepSummoned}
+      title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
+      aria-label="Bookmark this page"
+      aria-pressed={browser.active?.bookmarked ?? false}
+      onclick={() => browse.runCommand("bookmark.toggle")}>*</button
+    >
+    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
 
-  <button
-    class="kv-omnibox__button"
-    type="button"
-    title="DevTools"
-    onclick={() => browse.toggleDevTools()}>d</button
-  >
-</form>
+    <button
+      class="kv-omnibox__button"
+      type="button"
+      onmousedown={keepSummoned}
+      title="DevTools"
+      onclick={() => browse.toggleDevTools()}>d</button
+    >
+  </form>
+{/if}

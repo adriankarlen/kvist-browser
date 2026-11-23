@@ -69,5 +69,6 @@ export function update(msg: Msg, model: Model): Next<Model, never, Cmd | LinkCmd
 export const transferring = (model: Model): boolean =>
   model.list.some((entry) => !finished(entry.status));
 
-export const panelVisible = (model: Model): boolean =>
-  transferring(model) || model.lingering || model.pinned;
+/** A panel the layout hides never pops up by itself; `:downloads` still pins it. */
+export const panelVisible = (model: Model, placedVisible: boolean): boolean =>
+  model.pinned || (placedVisible && (transferring(model) || model.lingering));

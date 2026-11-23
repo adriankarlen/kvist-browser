@@ -6,6 +6,10 @@
     min-height: 0;
   }
 
+  .kv-slot:not(:has(> *)) {
+    display: none;
+  }
+
   .kv-slot > * {
     flex: 1 1 auto;
     min-width: 0;
@@ -25,5 +29,16 @@
   .kv-region.is-left > .kv-slot--tabs,
   .kv-region.is-right > .kv-slot--tabs {
     flex: 1;
+  }
+
+  /* A tucked strip is only as thick as its edge, whatever size it has when out. */
+  .kv-region.is-left > .kv-slot--tabs:has(> .kv-tabstrip-edge),
+  .kv-region.is-right > .kv-slot--tabs:has(> .kv-tabstrip-edge) {
+    width: auto;
+  }
+
+  .kv-region.is-top > .kv-slot--tabs:has(> .kv-tabstrip-edge),
+  .kv-region.is-bottom > .kv-slot--tabs:has(> .kv-tabstrip-edge) {
+    height: auto;
   }
 }
