@@ -246,25 +246,34 @@ region = "left" # top, bottom, left or right
 order = 0 # sorts the elements inside one region
 size = "30ch" # width at the left or right, height at the top or bottom
 visible = true
+autohide = false # tabs only: tuck into a thin edge until needed
 ```
 
 Left and right run the full height of the window. Top and bottom sit above
 and below the page, between them. Leave a field out to keep its default.
 An element you move keeps its default order, so you rarely need `order`.
+Changes apply as soon as you save the file.
 
-| Element      | Default | Can go      | Can hide |
-| ------------ | ------- | ----------- | -------- |
-| `tabs`       | top     | any edge    | yes      |
-| `omnibox`    | top     | top         | no       |
-| `bookmarks`  | bottom  | top, bottom | no       |
-| `downloads`  | bottom  | top, bottom | no       |
-| `status`     | bottom  | top, bottom | no       |
-| `find`       | bottom  | top, bottom | no       |
-| `completion` | overlay | overlay     | no       |
+| Element      | Default | Can go   | `visible = false` means                           |
+| ------------ | ------- | -------- | ------------------------------------------------- |
+| `tabs`       | top     | any edge | no tab strip                                      |
+| `omnibox`    | top     | top      | shown only while you use it (`o`)                 |
+| `bookmarks`  | bottom  | any edge | no change: it only shows while open (`gb`)        |
+| `downloads`  | bottom  | any edge | no popup while downloading; `:downloads` shows it |
+| `status`     | bottom  | any edge | command line, prompts and errors only             |
+| `find`       | bottom  | any edge | shown while you type; `n` and `N` still work      |
+| `completion` | overlay | overlay  | no completion lists                               |
 
-`status` is the row that the command line, prompts and messages share. The
-tab strip runs vertically at the left or right, and horizontally at the top
-or bottom. `tabs.orientation` is gone: use `[layout.tabs] region` instead.
+`status` is the row that the command line, prompts and messages share.
+Hidden, it drops info messages but still shows errors. The tab strip, and
+every panel and line, runs vertically at the left or right and horizontally
+at the top or bottom. `tabs.orientation` is gone: use `[layout.tabs] region`
+instead.
+
+With `autohide = true`, the tab strip shrinks to a thin edge. Hover over the
+edge to bring it back. It also shows for a moment when you open, close or
+switch tabs. The page resizes to make room. `--kv-tabstrip-edge-size` and
+`--kv-tabstrip-edge-bg` style the edge.
 
 ### Downloads
 

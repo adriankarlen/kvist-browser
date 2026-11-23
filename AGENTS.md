@@ -48,6 +48,12 @@ Where things are, with the _why_ living next to the code it constrains.
 - **Renderer owns layout.** The chrome measures its content area with a
   `ResizeObserver` and sends `ContentRectMeasured`; main derives the bounds.
   Tab orientation is a pure CSS concern.
+- **Each element owns its visibility.** Config says where an element goes;
+  the element decides whether it has anything to show, and renders nothing
+  when it does not. CSS hides an empty slot and an empty region
+  (`:not(:has(> *))`), so no list of open conditions lives anywhere else.
+  The chrome's own visibility state (tab-strip auto-hide, a summoned hidden
+  omnibox) is `features/layout/layout.program.ts`.
 - **IPC is Effect RPC over a `MessagePort` per surface**, full snapshots
   main → renderer and `dispatch(intent)` back. The port is the capability:
   see [IPC](docs/architecture.md#ipc).
