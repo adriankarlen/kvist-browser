@@ -1,5 +1,7 @@
 import type { BrowserWindow } from "electron";
+import { Schema } from "effect";
 import { afterEach, expect, test, vi } from "vite-plus/test";
+import { CompletionCandidate } from "../shared/schema/completion";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
@@ -789,4 +791,12 @@ test("every completed name runs", () => {
   for (const { value } of offered) {
     expect(commands.execute(value), value).toBe(true);
   }
+});
+
+test("every completion crosses the wire, including commands that take no argument", () => {
+  const encode = Schema.encodeUnknownSync(Schema.Array(CompletionCandidate));
+  const candidates = completeCommand("t");
+
+  expect(candidates.some(({ hint }) => hint === undefined)).toBe(true);
+  expect(() => encode(candidates)).not.toThrow();
 });

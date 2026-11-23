@@ -16,6 +16,9 @@
     selectFirst: false,
   });
 
+  // Derived, so showing the list (which dispatches) does not rerun the effect below.
+  const completionShown = $derived(layout.completionShown);
+
   const overlay = completionOverlay.claim(accept);
 
   $effect(() => () => overlay.release());
@@ -39,7 +42,7 @@
   $effect(() => {
     const box = anchor.current;
 
-    if (box === null || !completion.open || !layout.completionShown) {
+    if (box === null || !completion.open || !completionShown) {
       overlay.hide();
 
       return;

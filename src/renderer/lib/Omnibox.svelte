@@ -36,8 +36,9 @@
         kind: row.kind,
         // A bookmark's title can differ from its URL; a history row's label
         // is already the URL until KVI-43 backfills titles, so a hint there
-        // would just repeat the label.
-        hint: row.kind === "bookmark" ? row.value : undefined,
+        // would just repeat the label. Left out, not undefined: the wire
+        // schema rejects an undefined hint.
+        ...(row.kind === "bookmark" && { hint: row.value }),
       }),
     );
   },
@@ -62,6 +63,11 @@
 
   // A clicked row comes back through main: the overlay is a webContents of
   // its own, so its clicks cannot reach this document directly.
+  // Derived, so the effect below reruns only when the setting flips. Read
+  // straight from the model, every show would dispatch, replace the model,
+  // and rerun the effect without end.
+  const completionShown = $derived(layout.completionShown);
+
   const overlay = completionOverlay.claim((candidate) => {
     completion.close();
     acceptSuggestion(candidate);
@@ -78,7 +84,7 @@
   $effect(() => {
     const box = anchor.current;
 
-    if (!focused || box === null || !completion.open || !layout.completionShown) {
+    if (!focused || box === null || !completion.open || !completionShown) {
       overlay.hide();
 
       return;
