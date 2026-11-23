@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { ChromeIntent } from "../../../shared/rpc/chrome";
 import { CompletionCandidate } from "../../../shared/schema/completion";
 import { next, type Next } from "../../../shared/tea/program";
+import { Msg as LayoutMsg } from "../layout/layout.program";
 
 /** The chrome's way out: to main, to the document, and to whichever input owns the overlay. */
 export interface Model {
@@ -32,10 +33,16 @@ export type Cmd = typeof Cmd.Type;
 
 export const send = (intent: ChromeIntent): Cmd => Cmd.cases.SendToMain.make({ intent });
 
-export function update(msg: Msg, model: Model): Next<Model, never, Cmd> {
+export function update(msg: Msg, model: Model): Next<Model, LayoutMsg, Cmd> {
   return Msg.match(msg, {
     IntentSent: ({ intent }) => next({ sent: model.sent + 1 }, [send(intent)]),
-    OmniboxFocusRequested: () => next(model, [Cmd.cases.FocusElement.make({ name: "omnibox" })]),
+    // Summoned too: a hidden omnibox has no input to focus until it renders.
+    OmniboxFocusRequested: () =>
+      next(
+        model,
+        [Cmd.cases.FocusElement.make({ name: "omnibox" })],
+        [LayoutMsg.cases.OmniboxSummoned.make({})],
+      ),
     CompletionPicked: ({ candidate }) =>
       next(model, [Cmd.cases.AcceptCompletion.make({ candidate })]),
   });

@@ -12,7 +12,16 @@ import {
 import { Msg as LinkMsg } from "../features/link/link.program";
 import { activeTab, Msg as MainMsg } from "../features/main/main.program";
 import { regions } from "../features/ui/ui.program";
-import type { ElementId, Layout, Region } from "../../shared/layout";
+import {
+  findShown,
+  Msg as LayoutMsg,
+  omniboxShown,
+  type StatusLine,
+  statusLine,
+  tabStrip,
+  type TabStripState,
+} from "../features/layout/layout.program";
+import type { ElementId, Layout, Placement, Region } from "../../shared/layout";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -77,7 +86,7 @@ export const downloads = {
     return transferring(app.model.downloads);
   },
   get visible() {
-    return panelVisible(app.model.downloads);
+    return panelVisible(app.model.downloads, app.model.ui.settings.layout.downloads.visible);
   },
   cancel: (id: number) => app.dispatch(DownloadsMsg.cases.DownloadCancelClicked.make({ id })),
 };
@@ -115,34 +124,38 @@ export const ui = {
   },
 };
 
-/** The status row is the command line, a prompt or a message, in that order. */
-const statusShowing = (): boolean =>
-  vim.mode === "command" || prompts.current !== null || messages.current !== null;
+const L = LayoutMsg.cases;
+const placement = (id: ElementId): Placement => app.model.ui.settings.layout[id];
 
-/** Find outlives its prompt: matches stay highlighted for n and N. */
-const findShowing = (): boolean => vim.mode === "find" || find.active;
-
+/** Where elements go, and whether each has anything to show right now. */
 export const layout = {
   elementsIn: (region: Region): ReadonlyArray<ElementId> => regions(app.model.ui)[region],
-  size: (id: ElementId): string | undefined => app.model.ui.settings.layout[id].size,
-  /** Whether an element has anything to show right now; a region with none is left out. */
-  showing: (id: ElementId): boolean => {
-    switch (id) {
-      case "tabs":
-      case "omnibox":
-        return true;
-      case "bookmarks":
-        return bookmarks.open;
-      case "downloads":
-        return downloads.visible;
-      case "status":
-        return statusShowing();
-      case "find":
-        return findShowing();
-      case "completion":
-        return false;
-    }
+  size: (id: ElementId): string | undefined => placement(id).size,
+  get tabStrip(): TabStripState {
+    return tabStrip(app.model.layout, placement("tabs"));
   },
+  get tabsAutohide(): boolean {
+    return placement("tabs").autohide;
+  },
+  get omniboxShown(): boolean {
+    return omniboxShown(app.model.layout, placement("omnibox"));
+  },
+  /** The layout hides the omnibox, so it only exists while summoned. */
+  get omniboxHidden(): boolean {
+    return !placement("omnibox").visible;
+  },
+  get findShown(): boolean {
+    return findShown(app.model.main, placement("find"));
+  },
+  get statusLine(): StatusLine | null {
+    return statusLine(app.model.main, placement("status"));
+  },
+  get completionShown(): boolean {
+    return placement("completion").visible;
+  },
+  tabStripHovered: () => app.dispatch(L.TabStripHovered.make({})),
+  tabStripLeft: () => app.dispatch(L.TabStripLeft.make({})),
+  omniboxDismissed: () => app.dispatch(L.OmniboxDismissed.make({})),
 };
 
 /** The verbs the omnibox, the tab strip and the command line ask main for. */

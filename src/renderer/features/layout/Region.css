@@ -11,4 +11,10 @@
   .kv-region.is-right {
     flex: none;
   }
+
+  /* An element with nothing to show renders nothing. Its empty box would
+     still take a gap in the shell. */
+  .kv-region:not(:has(> .kv-slot > *)) {
+    display: none;
+  }
 }

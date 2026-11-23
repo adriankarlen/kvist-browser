@@ -6,6 +6,7 @@ import type { CompletionCandidate } from "../../shared/schema/completion";
 import { interpretAll, interpretersFor, make, type Store } from "../../shared/tea/store";
 import * as Bookmarks from "../features/bookmarks/bookmarks.program";
 import * as Downloads from "../features/downloads/downloads.program";
+import * as Layout from "../features/layout/layout.program";
 import * as Link from "../features/link/link.program";
 import { type Cmd, type Model, type Msg, program } from "./program";
 
@@ -56,6 +57,14 @@ const interpret = interpretAll<Msg, Cmd, never, never>([
           Effect.andThen(
             Effect.sync(() => dispatch(Downloads.Msg.cases.DownloadsLingerEnded.make({}))),
           ),
+        ),
+    }),
+  ),
+  interpreter(Layout.Cmd, (cmd, dispatch) =>
+    Layout.Cmd.match(cmd, {
+      PeekTabStrip: ({ millis }) =>
+        Effect.sleep(millis).pipe(
+          Effect.andThen(Effect.sync(() => dispatch(Layout.Msg.cases.TabStripPeekEnded.make({})))),
         ),
     }),
   ),

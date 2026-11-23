@@ -1,7 +1,10 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import "./BookmarksPanel.css";
+  import { elementDirection, type Region } from "../../../shared/layout";
   import { bookmarks } from "../../lib/stores.svelte";
+
+  let { region }: { region: Region } = $props();
 
   // Derived, so only a new opening reruns the attachment, not every model change.
   const opened = $derived(bookmarks.opened);
@@ -77,51 +80,56 @@
 
 <!-- Scrolls an inner element rather than itself: .kv-panel's label sits outside
      its box, and any overflow but visible would clip it away. -->
-<section class="kv-panel kv-bookmarks" data-label="bookmarks">
-  <div class="kv-line kv-bookmarks__filter">
-    <span class="kv-line__prompt">&gt;</span>
-    <input
-      class="kv-line__input"
-      {@attach fresh}
-      spellcheck="false"
-      autocomplete="off"
-      placeholder="filter bookmarks"
-      aria-label="Filter bookmarks"
-      {oninput}
-      {onkeydown}
-      {onblur}
-    />
-  </div>
-  <ul class="kv-bookmarks__list">
-    {#each bookmarks.rows as row, index (row.id)}
-      <li
-        class={["kv-bookmarks__item", { "is-selected": index === bookmarks.selected }]}
-        {@attach reveal(index === bookmarks.selected)}
-      >
-        <button
-          class="kv-bookmarks__open"
-          type="button"
-          title={row.url}
-          onmousedown={keepFocus}
-          onclick={() => bookmarks.pick(row.id)}
+{#if bookmarks.open}
+  <section
+    class={["kv-panel", "kv-bookmarks", `is-${elementDirection(region)}`]}
+    data-label="bookmarks"
+  >
+    <div class="kv-line kv-bookmarks__filter">
+      <span class="kv-line__prompt">&gt;</span>
+      <input
+        class="kv-line__input"
+        {@attach fresh}
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="filter bookmarks"
+        aria-label="Filter bookmarks"
+        {oninput}
+        {onkeydown}
+        {onblur}
+      />
+    </div>
+    <ul class="kv-bookmarks__list">
+      {#each bookmarks.rows as row, index (row.id)}
+        <li
+          class={["kv-bookmarks__item", { "is-selected": index === bookmarks.selected }]}
+          {@attach reveal(index === bookmarks.selected)}
         >
-          <span class="kv-bookmarks__title">{row.title}</span>
-          <span class="kv-bookmarks__url">{row.url}</span>
-          <span class="kv-bookmarks__date">{day(row.createdAt)}</span>
-        </button>
-        <button
-          class="kv-bookmarks__delete"
-          type="button"
-          title="Delete bookmark (Shift+Delete)"
-          aria-label="Delete bookmark {row.title}"
-          onmousedown={keepFocus}
-          onclick={() => bookmarks.remove(row.id)}
-        >
-          x
-        </button>
-      </li>
-    {:else}
-      <li class="kv-bookmarks__empty">{bookmarks.query === "" ? "no bookmarks" : "no matches"}</li>
-    {/each}
-  </ul>
-</section>
+          <button
+            class="kv-bookmarks__open"
+            type="button"
+            title={row.url}
+            onmousedown={keepFocus}
+            onclick={() => bookmarks.pick(row.id)}
+          >
+            <span class="kv-bookmarks__title">{row.title}</span>
+            <span class="kv-bookmarks__url">{row.url}</span>
+            <span class="kv-bookmarks__date">{day(row.createdAt)}</span>
+          </button>
+          <button
+            class="kv-bookmarks__delete"
+            type="button"
+            title="Delete bookmark (Shift+Delete)"
+            aria-label="Delete bookmark {row.title}"
+            onmousedown={keepFocus}
+            onclick={() => bookmarks.remove(row.id)}
+          >
+            x
+          </button>
+        </li>
+      {:else}
+        <li class="kv-bookmarks__empty">{bookmarks.query === "" ? "no bookmarks" : "no matches"}</li>
+      {/each}
+    </ul>
+  </section>
+{/if}

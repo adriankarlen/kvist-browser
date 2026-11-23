@@ -1,7 +1,10 @@
 <script lang="ts">
   import "./PromptLine.css";
   import { buttonLabels, describePrompt } from "./prompts.svelte";
+  import { elementDirection, type Region } from "../../shared/layout";
   import { prompts } from "./stores.svelte";
+
+  let { region }: { region: Region } = $props();
 
   const prompt = $derived(prompts.current?.state ?? null);
   const labels = $derived(prompt ? buttonLabels(prompt) : null);
@@ -20,7 +23,7 @@
 {#if prompt && labels}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="kv-panel kv-line kv-prompt"
+    class={["kv-panel", "kv-line", "kv-prompt", `is-${elementDirection(region)}`]}
     data-label={prompt.kind}
     onclick={stopBubble}
     role="alertdialog"

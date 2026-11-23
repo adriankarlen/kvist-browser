@@ -4,6 +4,7 @@ import { BrowserState, FindResult, Message, Mode } from "../../../shared/schema/
 import type { TabState } from "../../../shared/schema/browser";
 import { PromptWire } from "../../../shared/schema/prompts";
 import { next, type Next } from "../../../shared/tea/program";
+import { Msg as LayoutMsg } from "../layout/layout.program";
 import { type Cmd as LinkCmd, send } from "../link/link.program";
 
 /** What main last said: nothing here is decided by the chrome. */
@@ -39,9 +40,20 @@ export type Msg = typeof Msg.Type;
 
 const I = ChromeIntent.cases;
 
-export function update(msg: Msg, model: Model): Next<Model, never, LinkCmd> {
+const tabIds = (state: BrowserState): string => state.tabs.map((tab) => tab.id).join(",");
+
+/** An auto-hidden tab strip peeks when this is true. */
+const tabsShifted = (before: BrowserState, after: BrowserState): boolean =>
+  before.activeId !== after.activeId || tabIds(before) !== tabIds(after);
+
+export function update(msg: Msg, model: Model): Next<Model, LayoutMsg, LinkCmd> {
   return Msg.match(msg, {
-    StateChanged: ({ state }) => next({ ...model, browser: state }),
+    StateChanged: ({ state }) =>
+      next(
+        { ...model, browser: state },
+        [],
+        tabsShifted(model.browser, state) ? [LayoutMsg.cases.TabsShifted.make({})] : [],
+      ),
     ModeChanged: ({ mode }) => next({ ...model, mode }),
     MessageChanged: ({ message }) => next({ ...model, message }),
     PromptChanged: ({ prompt }) => next({ ...model, prompt }),
