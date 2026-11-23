@@ -162,6 +162,7 @@
     /* Fallback badge colour for a candidate whose kind has no dedicated
        --kv-completion-kind-<kind>-fg of its own. */
     --kv-completion-badge-fg: var(--kv-color-muted);
+    --kv-completion-kind-tab-fg: var(--kv-color-text);
     --kv-completion-kind-bookmark-fg: var(--kv-color-warning);
     --kv-completion-kind-history-fg: var(--kv-color-accent-alt);
     --kv-completion-kind-command-fg: var(--kv-color-accent);

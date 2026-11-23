@@ -4,6 +4,7 @@
   import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
   import { elementDirection, type Region } from "../../shared/layout";
+  import { acceptOmnibox, omniboxCandidate } from "../../shared/omnibox-action";
   import { resolveUrl } from "../../shared/url";
   import { browser, completionOverlay, layout, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
@@ -26,24 +27,9 @@
   // on screen. selectFirst: false — Enter submits the draft through
   // resolveUrl instead of accepting whatever suggestion ranked first.
   const completion = createCompletion(
-    async (query) => {
-    const rows = await browse.omniboxSuggestions(query);
-
-    return rows.map(
-      (row): Candidate => ({
-        label: row.label,
-        value: row.value,
-        kind: row.kind,
-        // A bookmark's title can differ from its URL; a history row's label
-        // is already the URL until KVI-43 backfills titles, so a hint there
-        // would just repeat the label. Left out, not undefined: the wire
-        // schema rejects an undefined hint.
-        ...(row.kind === "bookmark" && { hint: row.value }),
-      }),
-    );
-  },
-  { selectFirst: false },
-);
+    async (query) => (await browse.omniboxSuggestions(query)).map(omniboxCandidate),
+    { selectFirst: false },
+  );
 
   // The debounce keeps mid-word typing from firing an IPC request per
   // keystroke; the effect's cleanup cancels any timer a newer draft
@@ -117,9 +103,9 @@
   }
 
   // A suggestion is already a concrete destination, not typed search text —
-  // accepting one skips resolveUrl and navigates straight to its URL.
+  // accepting one skips resolveUrl.
   function acceptSuggestion(candidate: Candidate): void {
-    browse.navigate(candidate.value);
+    acceptOmnibox(candidate, { navigate: browse.navigate, activate: browse.activateTab });
     input?.blur();
   }
 

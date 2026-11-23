@@ -631,7 +631,8 @@ export function createWindow(saved: SessionState | null): void {
       Effect.provide(
         ChromeRpcs.toLayer({
           Subscribe: () => chromeEvents.stream,
-          OmniboxSuggestions: ({ query }) => omniboxSuggestions(query),
+          OmniboxSuggestions: ({ query }) =>
+            omniboxSuggestions(query, strip(mainStore().get().tabs)),
           CommandCompletions: ({ line }) => Effect.sync(() => completeCommand(line)),
           BookmarkRows: ({ query }) => bookmarkRows(query),
           Dispatch: (message) =>

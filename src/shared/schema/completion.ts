@@ -1,14 +1,15 @@
 import { Schema } from "effect";
-import { Rect } from "./browser";
+import { Rect, TabId } from "./browser";
 
 /**
- * One omnibox row: a concrete destination, not typed search text, so
- * accepting it navigates straight to `value`.
+ * One omnibox row: a concrete destination, not typed search text. `value` is
+ * its URL. A `tab` row names an open tab, which accepting switches to.
  */
 export const OmniboxSuggestion = Schema.Struct({
   label: Schema.String,
   value: Schema.String,
-  kind: Schema.Literals(["bookmark", "history"]),
+  kind: Schema.Literals(["tab", "bookmark", "history"]),
+  tabId: Schema.optionalKey(TabId),
 });
 
 export type OmniboxSuggestion = typeof OmniboxSuggestion.Type;
