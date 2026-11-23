@@ -1,4 +1,12 @@
 /* Main positions the view; this stylesheet controls the list's appearance. */
+
+/*
+ * Two documents use this file, so the build puts it in a shared chunk that
+ * loads before each document's own styles. The order is stated here too, or
+ * this would make components the lowest layer.
+ */
+@layer kvist.reset, kvist.tokens, kvist.components;
+
 @layer kvist.components {
   .kv-completion {
     margin: 0;

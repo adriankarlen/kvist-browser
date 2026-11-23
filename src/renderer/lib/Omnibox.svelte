@@ -7,7 +7,7 @@
   import { resolveUrl } from "../../shared/url";
   import { browser, completionOverlay, layout, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
-  import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
+  import { createCompletion, handleCompletionKey, type Candidate } from "../../shared/completion/completion.svelte";
 
   let { region }: { region: Region } = $props();
   let input = $state<HTMLInputElement>();

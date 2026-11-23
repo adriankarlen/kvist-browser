@@ -184,7 +184,7 @@ export default defineConfig({
       },
       {
         // Components read the model and dispatch; the client is the store's.
-        files: ["src/renderer/**/*.svelte", "src/overlay/**/*.svelte"],
+        files: ["src/renderer/**/*.svelte", "src/overlay/**/*.svelte", "src/shared/**/*.svelte"],
         rules: {
           "no-restricted-imports": [
             "error",

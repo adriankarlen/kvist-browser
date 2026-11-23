@@ -3,7 +3,7 @@
   import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { completionOverlay, layout, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
-  import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
+  import { createCompletion, handleCompletionKey, type Candidate } from "../../shared/completion/completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let line = $state("");

@@ -1,4 +1,4 @@
-import type { CompletionCandidate } from "../shared/schema/completion";
+import type { CompletionCandidate } from "../schema/completion";
 
 /**
  * The badge letter for a candidate's kind, or a neutral "•" when it has
