@@ -199,6 +199,18 @@ export const completionOverlay = {
 };
 
 /**
+ * Runs `report` once each layout change is in the DOM. A move that keeps an
+ * element's size fires no ResizeObserver. Untracked: a report that dispatches
+ * replaces the model, which would re-run the effect. Call it from an action.
+ */
+export function afterLayoutChange(report: () => void): void {
+  const layout = $derived(app.model.ui.settings.layout);
+  const reportFor = (_layout: Layout): void => untrack(report);
+
+  $effect(() => reportFor(layout));
+}
+
+/**
  * Keeps main told where page content goes: the content box, not the border
  * box, because the tab's native layer would cover a border.
  */
@@ -224,14 +236,7 @@ export const contentRect = (node: HTMLElement) => {
   observer.observe(node);
   window.addEventListener("resize", report);
 
-  // A layout change can move the box without resizing it, which no
-  // ResizeObserver reports. An effect runs once the change is in the DOM.
-  // Reporting is untracked: it dispatches, and the model it replaces would
-  // re-run the effect.
-  const layout = $derived(app.model.ui.settings.layout);
-  const reportFor = (_layout: Layout): void => untrack(report);
-
-  $effect(() => reportFor(layout));
+  afterLayoutChange(report);
 
   return {
     destroy() {
