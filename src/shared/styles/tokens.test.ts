@@ -38,10 +38,9 @@ test("the inventory found the stylesheets it checks", () => {
 });
 
 const declarations = (text: string): Array<[property: string, value: string]> =>
-  [...text.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map(([, property = "", value = ""]) => [
-    property,
-    value.trim(),
-  ]);
+  [...text.matchAll(/([a-z-]+)\s*:\s*([^;{}]+)(?:;|(?=\}))/g)].map(
+    ([, property = "", value = ""]) => [property, value.trim()],
+  );
 
 const COLOUR_LITERAL = new RegExp(
   [
