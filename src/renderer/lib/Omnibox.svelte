@@ -167,7 +167,9 @@
     {onfocusout}
     use:anchor.element
   >
-    <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
+    {#if vim.enabled}
+      <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
+    {/if}
     <button
       class="kv-omnibox__button"
       type="button"
@@ -210,12 +212,12 @@
       class:is-bookmarked={browser.active?.bookmarked}
       type="button"
       onmousedown={keepSummoned}
-      title={browser.active?.bookmarked ? "Remove bookmark (B)" : "Bookmark this page (B)"}
+      title={`${browser.active?.bookmarked ? "Remove bookmark" : "Bookmark this page"} (${vim.keys("B", "Mod+D")})`}
       aria-label="Bookmark this page"
       aria-pressed={browser.active?.bookmarked ?? false}
       onclick={() => browse.runCommand("bookmark.toggle")}>*</button
     >
-    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title="zoom (zi / zo / z0)">{zoom}%</span>
+    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title={`zoom (${vim.keys("zi / zo / z0", "Mod+= / Mod+- / Mod+0")})`}>{zoom}%</span>
 
     <button
       class="kv-omnibox__button"

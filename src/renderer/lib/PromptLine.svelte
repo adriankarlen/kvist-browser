@@ -2,7 +2,7 @@
   import "./PromptLine.css";
   import { buttonLabels, describePrompt } from "./prompts.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
-  import { prompts } from "./stores.svelte";
+  import { prompts, vim } from "./stores.svelte";
 
   let { region }: { region: Region } = $props();
 
@@ -31,7 +31,9 @@
   >
     <span class="kv-line__prompt">?</span>
     <span class="kv-prompt__text">{describePrompt(prompt)}</span>
-    <span class="kv-prompt__hint">y/n</span>
+    {#if vim.enabled}
+      <span class="kv-prompt__hint">y/n</span>
+    {/if}
     <button
       class="kv-prompt__answer is-allow"
       type="button"

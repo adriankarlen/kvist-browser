@@ -9,6 +9,8 @@
 </script>
 
 <output class={["kv-panel", "kv-line", "kv-location", `is-${elementDirection(region)}`]} data-label="url">
-  <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
+  {#if vim.enabled}
+    <span class="kv-mode is-{vim.mode}">{vim.mode}</span>
+  {/if}
   <span class="kv-location__url" title={url}>{url}</span>
 </output>
