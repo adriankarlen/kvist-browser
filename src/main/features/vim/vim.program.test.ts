@@ -505,10 +505,11 @@ test("a chrome input closing leaves its typing mode without moving focus", () =>
 
 test("a keybind's argument reaches its command", () => {
   const bound: Keybind = { mode: "normal", keys: "q", command: "zoom.set", arg: "2" };
+  const input = { key: "q", code: "KeyQ", control: false, alt: false, meta: false, shift: false };
 
-  vim = new Vim([bound], execute, () => {});
-  key("q");
-  expect(execute).toHaveBeenCalledWith("zoom.set", "2");
+  expect(step(init, input, "page", [bound]).cmds).toEqual([
+    Cmd.cases.RunCommand.make({ name: "zoom.set", arg: "2" }),
+  ]);
 });
 
 describe("standard mode", () => {
