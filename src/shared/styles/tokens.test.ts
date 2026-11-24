@@ -1,5 +1,6 @@
-import { globSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { NodeServices } from "@effect/platform-node";
+import { Effect, FileSystem, Path } from "effect";
 import { expect, test } from "vite-plus/test";
 
 // Read from disk: the test runner hands CSS imports over empty, `?raw` included.
@@ -10,16 +11,29 @@ interface Source {
   text: string;
 }
 
-const read = (patterns: string[]): Source[] =>
-  globSync(patterns, { cwd: root }).map((path) => ({
-    path,
-    text: readFileSync(`${root}/${path}`, "utf8").replace(/\/\*[\s\S]*?\*\//g, ""),
-  }));
+/** Every file matching the patterns, comments stripped. A read failure fails the whole file. */
+const read = (...patterns: string[]): Promise<Source[]> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const paths = yield* Effect.forEach(patterns, (pattern) => fs.glob(pattern, { root }));
+
+    return yield* Effect.forEach(paths.flat(), (file) =>
+      fs
+        .readFileString(path.join(root, file))
+        .pipe(Effect.map((text) => ({ path: file, text: text.replace(/\/\*[\s\S]*?\*\//g, "") }))),
+    );
+  }).pipe(Effect.provide(NodeServices.layer), Effect.runPromise);
 
 const TOKENS = "src/shared/styles/tokens.css";
-const stylesheets = read(["src/**/*.css", "public/*/style.css"]);
-const components = read(["src/**/*.svelte"]);
-const scripts = read(["src/**/*.ts"]).filter(({ path }) => !path.endsWith(".test.ts"));
+const stylesheets = await read("src/**/*.css", "public/*/style.css");
+const components = await read("src/**/*.svelte");
+const scripts = (await read("src/**/*.ts")).filter(({ path }) => !path.endsWith(".test.ts"));
+
+test("the inventory found the stylesheets it checks", () => {
+  expect(stylesheets.map(({ path }) => path)).toContain(TOKENS);
+  expect(components.length).toBeGreaterThan(0);
+});
 
 const declarations = (text: string): Array<[property: string, value: string]> =>
   [...text.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map(([, property = "", value = ""]) => [
