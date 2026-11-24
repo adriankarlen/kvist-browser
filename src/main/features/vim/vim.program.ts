@@ -1,14 +1,24 @@
 import { Schema } from "effect";
 import { Mode } from "../../../shared/schema/browser";
+import { InputMode } from "../../../shared/schema/config";
 import { next, type Next } from "../../../shared/tea/program";
 import { type Msg as MessagesMsg, Msg as MessagesMsgs } from "../messages/messages.program";
-import { DEFAULT_KEYBINDS, type Keybind } from "./keybinds";
+import {
+  type Chord,
+  DEFAULT_KEYBINDS,
+  findChord,
+  type Keybind,
+  STANDARD_KEYBINDS,
+} from "./keybinds";
 
 export interface KeyInput {
   readonly key: string;
+  /** The physical key, e.g. `KeyI`. macOS turns Alt+letter into another character. */
+  readonly code: string;
   readonly control: boolean;
   readonly alt: boolean;
   readonly meta: boolean;
+  readonly shift: boolean;
 }
 
 /**
@@ -21,6 +31,8 @@ export const KeySource = Schema.Literals(["page", "chrome"]);
 export type KeySource = typeof KeySource.Type;
 
 export interface Model {
+  /** Which key set is live, from `[input] mode`. */
+  readonly scheme: InputMode;
   readonly mode: Mode;
   /** The keys typed so far of a longer binding, like the `g` of `gt`. */
   readonly pending: string;
@@ -28,14 +40,16 @@ export interface Model {
   readonly promptPending: boolean;
 }
 
-export const init: Model = { mode: "normal", pending: "", promptPending: false };
+export const init: Model = { scheme: "vim", mode: "normal", pending: "", promptPending: false };
 
 export const Msg = Schema.TaggedUnion({
   KeyPressed: {
     key: Schema.String,
+    code: Schema.String,
     control: Schema.Boolean,
     alt: Schema.Boolean,
     meta: Schema.Boolean,
+    shift: Schema.Boolean,
     source: KeySource,
   },
   /** The chrome asking, e.g. Escape out of the command line. */
@@ -47,6 +61,7 @@ export const Msg = Schema.TaggedUnion({
   PromptPendingChanged: { pending: Schema.Boolean },
   /** A chrome input closed but kept the keyboard, e.g. the window lost focus. */
   ChromeInputClosed: {},
+  InputModeChanged: { scheme: InputMode },
 });
 
 export type Msg = typeof Msg.Type;
@@ -64,9 +79,11 @@ const run = (name: string, arg?: string): Cmd => Cmd.cases.RunCommand.make({ nam
 /**
  * A pending question turns normal into prompt, wherever the transition came
  * from: an answered prompt with another queued behind it keeps the mode.
+ * Standard mode answers with buttons, so its keys stay with the page.
  */
 function enter(model: Model, mode: Mode): Model {
-  const target = mode === "normal" && model.promptPending ? "prompt" : mode;
+  const capture = mode === "normal" && model.promptPending && model.scheme === "vim";
+  const target = capture ? "prompt" : mode;
 
   return target === model.mode ? model : { ...model, mode: target, pending: "" };
 }
@@ -88,7 +105,11 @@ function dispatchKey(model: Model, key: string, keybinds: ReadonlyArray<Keybind>
     const cleared = { ...model, pending: "" };
     const entered = match.enter === undefined ? cleared : enter(cleared, match.enter);
 
-    return { model: entered, consumed: true, cmds: match.command ? [run(match.command)] : [] };
+    return {
+      model: entered,
+      consumed: true,
+      cmds: match.command ? [run(match.command, match.arg)] : [],
+    };
   }
 
   const isPrefix = keybinds.some(
@@ -143,14 +164,43 @@ export function step(
   return passed;
 }
 
+/**
+ * Standard mode: a chord runs its command from any mode and either
+ * webContents, so Mod+T works while typing. Every other key is left alone.
+ */
+export function stepStandard(
+  model: Model,
+  input: KeyInput,
+  chords: ReadonlyArray<Chord> = STANDARD_KEYBINDS,
+): Dispatched {
+  const chord = findChord(chords, input);
+
+  if (chord === undefined) return { model, consumed: false, cmds: [] };
+  const entered = chord.enter === undefined ? model : enter(model, chord.enter);
+
+  return { model: entered, consumed: true, cmds: [run(chord.command, chord.arg)] };
+}
+
+const stepScheme = (model: Model, input: KeyInput, source: KeySource): Dispatched =>
+  model.scheme === "vim" ? step(model, input, source) : stepStandard(model, input);
+
 /** Whether a key must be kept from its webContents. */
 export const resolveKey = (model: Model, input: KeyInput, source: KeySource): boolean =>
-  step(model, input, source).consumed;
+  stepScheme(model, input, source).consumed;
+
+/** Hint and prompt exist only in vim; the typing modes follow focus, so they stay. */
+function switchScheme(model: Model, scheme: InputMode): Result {
+  if (scheme === model.scheme) return next(model);
+  const modal = model.mode === "hint" || model.mode === "prompt";
+  const switched = enter({ ...model, scheme, pending: "" }, modal ? "normal" : model.mode);
+
+  return next(switched, model.mode === "hint" ? [run("hints.hide")] : []);
+}
 
 export function update(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
     KeyPressed: ({ source, ...input }) => {
-      const stepped = step(model, input, source);
+      const stepped = stepScheme(model, input, source);
 
       // Any key at all ends what the echo area shows, wherever it came from.
       return next(stepped.model, stepped.cmds, [MessagesMsgs.cases.MessageDismissed.make({})]);
@@ -170,8 +220,11 @@ export function update(msg: Msg, model: Model): Result {
     // Its typing mode ends with it, but focus stays where the user put it.
     ChromeInputClosed: () =>
       next(prompting(model) || model.mode === "insert" ? enter(model, "normal") : model),
+    InputModeChanged: ({ scheme }) => switchScheme(model, scheme),
     PromptPendingChanged: ({ pending }) => {
       const flagged = { ...model, promptPending: pending };
+
+      if (model.scheme === "standard") return next(flagged);
 
       if (pending && model.mode === "normal") return next(enter(flagged, "prompt"));
 

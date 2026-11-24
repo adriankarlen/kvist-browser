@@ -16,7 +16,14 @@ export function interceptKeys(
     if (input.type !== "keyDown") return;
 
     const consumed = onKey(
-      { key: input.key, control: input.control, alt: input.alt, meta: input.meta },
+      {
+        key: input.key,
+        code: input.code,
+        control: input.control,
+        alt: input.alt,
+        meta: input.meta,
+        shift: input.shift,
+      },
       source,
     );
 
