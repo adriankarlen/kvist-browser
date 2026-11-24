@@ -15,6 +15,11 @@ export interface ClosedTab {
 
 export const CLOSED_TABS_KEPT = 25;
 
+/** Where `tab.select` goes: a 1-based position, or the last tab. */
+export const TabPosition = Schema.Union([Schema.Int, Schema.Literal("last")]);
+
+export type TabPosition = typeof TabPosition.Type;
+
 /**
  * The collection: which tabs exist, their order, which is active, and where
  * page content goes. Each page's own life (its webContents, error pages,
@@ -78,6 +83,7 @@ export const Msg = Schema.TaggedUnion({
   TabReopenRequested: {},
   TabActivated: { id: TabId },
   TabStepped: { offset: Schema.Int },
+  TabSelected: { position: TabPosition },
   TabChanged: { id: TabId, state: TabState },
   /** `focused`: whether the page holds the keyboard, so mode should follow it. */
   TabEditableChanged: { id: TabId, editable: Schema.Boolean, focused: Schema.Boolean },
@@ -299,6 +305,11 @@ export function update(msg: Msg, model: Model): Result {
       const length = model.order.length;
 
       return activate(model, model.order[(index + offset + length) % length]!);
+    },
+    TabSelected: ({ position }) => {
+      const id = model.order[position === "last" ? model.order.length - 1 : position - 1];
+
+      return id === undefined ? next(model) : activate(model, id);
     },
     TabChanged: ({ id, state }) =>
       model.snapshots.has(id)

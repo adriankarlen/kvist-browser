@@ -10,6 +10,7 @@ export interface DownloadsAccess {
 
 import type { Messenger as Messages } from "./messenger";
 import type { Tab } from "./tab";
+import type { TabPosition } from "./features/tabs/tabs.program";
 
 /** The tab verbs the commands use; the collection itself lives in the store. */
 /** The command palette, as the keybinds reach it. */
@@ -27,6 +28,7 @@ export interface TabsAccess {
   /** Reopens the tab the user closed most recently. */
   reopen(): void;
   step(offset: number): void;
+  select(position: TabPosition): void;
 }
 
 import { clamp, STEP, type ZoomStoreAccess } from "./zoom";
@@ -89,6 +91,8 @@ export interface Actions {
     reopen: Action;
     next: Action;
     prev: Action;
+    /** A 1-based position, or `last`. */
+    select: Action;
   };
   nav: {
     back: Action;
@@ -286,6 +290,12 @@ export function createActions(
       reopen: () => tabs.reopen(),
       next: () => tabs.step(1),
       prev: () => tabs.step(-1),
+      select: (arg) => {
+        const position = arg === "last" ? arg : Number(arg);
+
+        if (position === "last" || Number.isInteger(position)) tabs.select(position);
+        else messages.warn(`not a tab position: ${arg ?? ""}`);
+      },
     },
     nav: {
       back: () => tabs.active?.goBack(),

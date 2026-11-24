@@ -61,6 +61,7 @@ function createStubs(
     closeActive: vi.fn(),
     reopen: vi.fn(),
     step: vi.fn<(offset: number) => void>(),
+    select: vi.fn<(position: number | "last") => void>(),
   };
 
   const downloads = {
@@ -176,6 +177,7 @@ test("every command reaches the thing it names", () => {
     ["tab.reopen", () => tabs.reopen.mock.calls.length === 1],
     ["tab.next", () => tabs.step.mock.calls.some(([offset]) => offset === 1)],
     ["tab.prev", () => tabs.step.mock.calls.some(([offset]) => offset === -1)],
+    ["tab.select", () => true], // needs an argument; covered on its own below
     ["nav.back", () => active.goBack.mock.calls.length === 1],
     ["nav.forward", () => active.goForward.mock.calls.length === 1],
     ["nav.reload", () => active.reload.mock.calls.length === 1],
@@ -280,6 +282,18 @@ test("tab.next and tab.prev step either way", () => {
   commands.execute("tab.next");
   commands.execute("tab.prev");
   expect(tabs.step.mock.calls).toEqual([[1], [-1]]);
+});
+
+test("tab.select takes a position or last, and warns about anything else", () => {
+  const { commands, tabs, messages } = createStubs();
+
+  commands.execute("tab.select", "3");
+  commands.execute("tab.select", "last");
+  commands.execute("tab.select", "third");
+  commands.execute("tab.select");
+
+  expect(tabs.select.mock.calls).toEqual([[3], ["last"]]);
+  expect(messages.warn).toHaveBeenCalledTimes(2);
 });
 
 test("each scroll command names its own movement", () => {
