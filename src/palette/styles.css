@@ -3,7 +3,7 @@
  * the palette stays retheme-able. The document is transparent, so the page
  * shows through around the panel.
  */
-@layer kvist.reset, kvist.tokens, kvist.components;
+@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;
 
 @import "../shared/styles/reset.css";
 @import "../shared/styles/tokens.css";

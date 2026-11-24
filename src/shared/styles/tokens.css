@@ -1,179 +1,232 @@
 /*
- * Theme API in three tiers: palette, metrics, and parts. Swap palette to
- * reskin; swap parts to change single elements. Ships with Rose Pine;
- * Moon and Dawn are palette swaps in config.css.
+ * Theme API in three tiers: palette, metrics, and parts. Swap the palette to
+ * reskin, the metrics to restyle, and a part to change one element. Ships
+ * with Rosé Pine (dark) and Rosé Pine Dawn (light).
  */
 @layer kvist.tokens {
   :root {
-    /* ---- palette ------------------------------------------------------- */
-    --kv-color-base: #191724;
-    --kv-color-surface: #1f1d2e;
-    --kv-color-overlay: #26233a;
-    --kv-color-muted: #6e6a86;
-    --kv-color-subtle: #908caa;
-    --kv-color-text: #e0def4;
+    /* "light", or "light dark" to follow the OS. Websites are not affected. */
+    color-scheme: dark;
 
-    --kv-color-accent: #c4a7e7;
-    --kv-color-accent-alt: #9ccfd8;
-    --kv-color-warning: #f6c177;
-    --kv-color-danger: #eb6f92;
+    /* ---- palette: light-dark(<light>, <dark>) -------------------------- */
+    --kv-color-bg: light-dark(#faf4ed, #191724);
+    --kv-color-bg-raised: light-dark(#fffaf3, #1f1d2e);
+    --kv-color-bg-selected: light-dark(#f2e9e1, #26233a);
+    --kv-color-bg-track: light-dark(#dfdad9, #403d52);
 
-    --kv-color-highlight-low: #21202e;
-    --kv-color-highlight-med: #403d52;
-    --kv-color-highlight-high: #524f67;
+    --kv-color-fg: light-dark(#575279, #e0def4);
+    --kv-color-fg-dim: light-dark(#797593, #908caa);
+    --kv-color-fg-faint: light-dark(#9893a5, #6e6a86);
+
+    --kv-color-accent: light-dark(#907aa9, #c4a7e7);
+    --kv-color-accent-alt: light-dark(#56949f, #9ccfd8);
+    --kv-color-warning: light-dark(#ea9d34, #f6c177);
+    --kv-color-danger: light-dark(#b4637a, #eb6f92);
+
+    --kv-color-border: light-dark(#cecacd, #26233a);
+    /* Dark in both schemes: Dawn's accents are too light for light text. */
+    --kv-color-on-accent: #191724;
+    --kv-color-shadow: light-dark(rgb(87 82 121 / 25%), rgb(0 0 0 / 50%));
+    /* The lit side of a soft, two-sided shadow. */
+    --kv-color-glint: light-dark(rgb(255 255 255 / 80%), rgb(255 255 255 / 6%));
 
     /* ---- metrics ------------------------------------------------------- */
     --kv-font-family: "JetBrainsMono Nerd Font", monospace;
     --kv-font-size: 14px;
+    --kv-font-weight: 400;
+    --kv-font-weight-strong: 600;
+
+    /* Scales control heights and panel padding: 0.85 is compact, 1.2 roomy. */
+    --kv-density: 1;
+    --kv-control-height: calc(28px * var(--kv-density));
 
     --kv-space: 8px;
-    --kv-radius: 0;
+    --kv-space-sm: 4px;
+    --kv-gap: 1ch;
+
     --kv-border-width: 2px;
-    --kv-border-color: var(--kv-color-overlay);
+    --kv-border-style: solid;
+    --kv-border-color: var(--kv-color-border);
+    --kv-separator-width: 1px;
+
+    /* Containers (panels, menus) and the controls inside them (tabs, rows). */
+    --kv-radius: 0;
+    --kv-radius-control: 0;
+
+    --kv-shadow-raised: none;
+    --kv-shadow-pressed: none;
+    --kv-shadow-inset: none;
+    --kv-shadow-overlay: 0 8px 32px var(--kv-color-shadow);
+
+    --kv-focus-outline: none;
+    --kv-disabled-opacity: 0.3;
 
     /* Gap around and between the chrome panels; 0 sits everything flush. */
     --kv-chrome-inset: var(--kv-space);
 
-    --kv-tabstrip-height: 28px;
+    --kv-tabstrip-height: var(--kv-control-height);
     --kv-sidebar-width: 26ch;
-    --kv-omnibox-height: 28px;
+    --kv-omnibox-height: var(--kv-control-height);
     --kv-tab-width: 22ch;
     /* What an auto-hidden tab strip leaves behind to hover over. */
     --kv-tabstrip-edge-size: 4px;
 
     /* ---- parts --------------------------------------------------------- */
-    --kv-chrome-bg: var(--kv-color-base);
+    --kv-chrome-bg: var(--kv-color-bg);
 
     /* the framed box every chrome region is built from */
-    --kv-panel-bg: var(--kv-color-base);
-    --kv-panel-border: var(--kv-border-color);
-    --kv-panel-padding: var(--kv-space);
+    --kv-panel-bg: var(--kv-color-bg);
+    --kv-panel-border-color: var(--kv-border-color);
+    --kv-panel-border: var(--kv-border-width) var(--kv-border-style) var(--kv-panel-border-color);
+    --kv-panel-radius: var(--kv-radius);
+    --kv-panel-shadow: var(--kv-shadow-raised);
+    --kv-panel-focus-outline: var(--kv-focus-outline);
+    --kv-panel-padding: calc(var(--kv-space) * var(--kv-density));
     --kv-panel-label-bg: var(--kv-chrome-bg);
-    --kv-panel-label-fg: var(--kv-color-subtle);
+    --kv-panel-label-fg: var(--kv-color-fg-dim);
     --kv-panel-label-display: block;
-    --kv-panel-label-size: 14px;
+    --kv-panel-label-size: var(--kv-font-size);
     --kv-panel-label-horizontal-offset: 2ch;
     --kv-panel-label-vertical-offset: -60%;
     --kv-panel-label-padding: 0 0.5ch;
     --kv-panel-label-max-width: 50ch;
 
-    --kv-tab-fg: var(--kv-color-muted);
+    --kv-tab-fg: var(--kv-color-fg-faint);
     --kv-tab-bg: transparent;
-    --kv-tab-active-fg: var(--kv-color-text);
-    --kv-tab-active-bg: var(--kv-color-overlay);
+    --kv-tab-radius: var(--kv-radius-control);
+    --kv-tab-shadow: none;
+    --kv-tab-weight: var(--kv-font-weight);
+    --kv-tab-active-fg: var(--kv-color-fg);
+    --kv-tab-active-bg: var(--kv-color-bg-selected);
+    --kv-tab-active-shadow: var(--kv-shadow-pressed);
+    --kv-tab-active-weight: var(--kv-font-weight-strong);
     --kv-tab-marker-fg: var(--kv-color-accent);
-    --kv-tab-hover-bg: var(--kv-color-surface);
+    --kv-tab-hover-bg: var(--kv-color-bg-raised);
     --kv-tab-hover-fg: var(--kv-color-accent);
     --kv-tab-hover-close: var(--kv-color-danger);
     --kv-tabstrip-edge-bg: var(--kv-border-color);
 
-    --kv-mode-fg: var(--kv-color-base);
+    --kv-mode-fg: var(--kv-color-on-accent);
     --kv-mode-bg: var(--kv-color-accent);
+    --kv-mode-radius: var(--kv-radius-control);
     --kv-mode-insert-bg: var(--kv-color-accent-alt);
     --kv-mode-command-bg: var(--kv-color-warning);
     --kv-mode-find-bg: var(--kv-color-warning);
     --kv-mode-prompt-bg: var(--kv-color-warning);
 
-    --kv-cmdline-fg: var(--kv-color-text);
+    --kv-cmdline-fg: var(--kv-color-fg);
     --kv-cmdline-prompt-fg: var(--kv-color-warning);
 
-    --kv-find-fg: var(--kv-color-text);
+    --kv-find-fg: var(--kv-color-fg);
     --kv-find-prompt-fg: var(--kv-color-warning);
-    --kv-find-count-fg: var(--kv-color-muted);
+    --kv-find-count-fg: var(--kv-color-fg-faint);
 
-    --kv-message-fg: var(--kv-color-subtle);
-    --kv-location-fg: var(--kv-color-subtle);
+    --kv-message-fg: var(--kv-color-fg-dim);
+    --kv-location-fg: var(--kv-color-fg-dim);
     --kv-message-prompt-fg: var(--kv-color-accent-alt);
     --kv-message-error-fg: var(--kv-color-danger);
 
-    --kv-permission-fg: var(--kv-color-text);
-    --kv-permission-prompt-fg: var(--kv-color-warning);
-    --kv-permission-hint-fg: var(--kv-color-muted);
-    --kv-permission-allow-fg: var(--kv-color-accent-alt);
-    --kv-permission-allow-hover-fg: var(--kv-color-accent);
-    --kv-permission-deny-fg: var(--kv-color-muted);
-    --kv-permission-deny-hover-fg: var(--kv-color-danger);
+    --kv-prompt-fg: var(--kv-color-fg);
+    --kv-prompt-prompt-fg: var(--kv-color-warning);
+    --kv-prompt-hint-fg: var(--kv-color-fg-faint);
+    --kv-prompt-allow-fg: var(--kv-color-accent-alt);
+    --kv-prompt-allow-hover-fg: var(--kv-color-accent);
+    --kv-prompt-deny-fg: var(--kv-color-fg-faint);
+    --kv-prompt-deny-hover-fg: var(--kv-color-danger);
 
-    --kv-downloads-fg: var(--kv-color-text);
-    --kv-downloads-muted-fg: var(--kv-color-muted);
+    --kv-downloads-fg: var(--kv-color-fg);
+    --kv-downloads-muted-fg: var(--kv-color-fg-faint);
     /* One colour per state, shared by the marker, the meta text and the bar. */
     --kv-downloads-active-fg: var(--kv-color-warning);
-    --kv-downloads-paused-fg: var(--kv-color-subtle);
+    --kv-downloads-paused-fg: var(--kv-color-fg-dim);
     --kv-downloads-done-fg: var(--kv-color-accent-alt);
     --kv-downloads-failed-fg: var(--kv-color-danger);
     /* Sized in ch and em so the bar keeps to the character grid. */
     --kv-downloads-bar-width: 14ch;
     --kv-downloads-bar-height: 1em;
-    --kv-downloads-bar-radius: var(--kv-radius);
-    --kv-downloads-bar-track: var(--kv-color-highlight-med);
+    --kv-downloads-bar-radius: var(--kv-radius-control);
+    --kv-downloads-bar-track: var(--kv-color-bg-track);
     /* Column widths for the numbers, so digits changing cannot shift the row. */
     --kv-downloads-percent-width: 5ch;
     --kv-downloads-size-width: 18ch;
     --kv-downloads-rate-width: 11ch;
     --kv-downloads-eta-width: 8ch;
-    --kv-downloads-cancel-fg: var(--kv-color-muted);
+    --kv-downloads-cancel-fg: var(--kv-color-fg-faint);
     --kv-downloads-cancel-hover-fg: var(--kv-color-danger);
     /* Rows scroll past this; the panel is a strip, not a page. */
     --kv-downloads-max-height: 8lh;
 
-    --kv-bookmarks-fg: var(--kv-color-text);
-    --kv-bookmarks-muted-fg: var(--kv-color-muted);
+    --kv-bookmarks-fg: var(--kv-color-fg);
+    --kv-bookmarks-muted-fg: var(--kv-color-fg-faint);
     --kv-bookmarks-prompt-fg: var(--kv-color-accent);
-    --kv-bookmarks-selected-bg: var(--kv-color-overlay);
+    --kv-bookmarks-item-radius: var(--kv-radius-control);
+    --kv-bookmarks-selected-bg: var(--kv-color-bg-selected);
     --kv-bookmarks-selected-fg: var(--kv-color-accent);
-    --kv-bookmarks-hover-bg: var(--kv-color-surface);
+    --kv-bookmarks-hover-bg: var(--kv-color-bg-raised);
     --kv-bookmarks-title-width: 40%;
     --kv-bookmarks-date-width: 10ch;
-    --kv-bookmarks-delete-fg: var(--kv-color-muted);
+    --kv-bookmarks-delete-fg: var(--kv-color-fg-faint);
     --kv-bookmarks-delete-hover-fg: var(--kv-color-danger);
     /* Taller than downloads: this is a list to pick from, not a status strip. */
     --kv-bookmarks-max-height: 12lh;
 
     /* the context menu, rendered in the page but themed like the chrome */
     --kv-menu-bg: var(--kv-panel-bg);
-    --kv-menu-fg: var(--kv-color-text);
-    --kv-menu-border: var(--kv-border-color);
-    /* same hairline the newtab page separates with */
-    --kv-menu-separator: var(--kv-color-overlay);
-    --kv-menu-hover-bg: var(--kv-color-surface);
+    --kv-menu-fg: var(--kv-color-fg);
+    --kv-menu-border-color: var(--kv-border-color);
+    --kv-menu-border: var(--kv-border-width) var(--kv-border-style) var(--kv-menu-border-color);
+    --kv-menu-radius: var(--kv-radius);
+    --kv-menu-shadow: var(--kv-shadow-raised);
+    --kv-menu-separator: var(--kv-color-border);
+    --kv-menu-separator-width: var(--kv-separator-width);
+    --kv-menu-item-radius: var(--kv-radius-control);
+    --kv-menu-hover-bg: var(--kv-color-bg-raised);
     --kv-menu-hover-fg: var(--kv-color-accent);
-    --kv-menu-disabled-fg: var(--kv-color-muted);
-    --kv-menu-hint-fg: var(--kv-color-muted);
+    --kv-menu-disabled-fg: var(--kv-color-fg-faint);
+    --kv-menu-hint-fg: var(--kv-color-fg-faint);
     --kv-menu-min-width: 24ch;
-    --kv-menu-item-height: 28px;
-    --kv-menu-padding: 4px;
+    --kv-menu-item-height: var(--kv-control-height);
+    --kv-menu-padding: var(--kv-space-sm);
 
-    --kv-omnibox-fg: var(--kv-color-text);
+    --kv-omnibox-fg: var(--kv-color-fg);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
-    --kv-omnibox-placeholder-fg: var(--kv-color-muted);
-    --kv-omnibox-button-fg: var(--kv-color-muted);
+    --kv-omnibox-placeholder-fg: var(--kv-color-fg-faint);
+    --kv-omnibox-button-fg: var(--kv-color-fg-faint);
     --kv-omnibox-button-hover-fg: var(--kv-color-accent);
-    --kv-omnibox-zoom-fg: var(--kv-color-subtle);
-    --kv-omnibox-zoom-default-fg: var(--kv-color-muted);
-    --kv-omnibox-bookmark-fg: var(--kv-color-muted);
+    --kv-omnibox-zoom-fg: var(--kv-color-fg-dim);
+    --kv-omnibox-zoom-default-fg: var(--kv-color-fg-faint);
+    --kv-omnibox-bookmark-fg: var(--kv-color-fg-faint);
     --kv-omnibox-bookmark-active-fg: var(--kv-color-accent);
 
     /* the command palette, a floating omnibox ([layout.omnibox] region = "floating") */
     --kv-palette-width: 80ch;
     --kv-palette-top: 12vh;
-    --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-base) 40%, transparent);
+    --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-bg) 40%, transparent);
     --kv-palette-bg: var(--kv-panel-bg);
-    --kv-palette-fg: var(--kv-color-text);
-    --kv-palette-placeholder-fg: var(--kv-color-muted);
-    --kv-palette-shadow: 0 8px 32px rgb(0 0 0 / 50%);
+    --kv-palette-fg: var(--kv-color-fg);
+    --kv-palette-placeholder-fg: var(--kv-color-fg-faint);
+    --kv-palette-border: var(--kv-panel-border);
+    --kv-palette-radius: var(--kv-panel-radius);
+    --kv-palette-shadow: var(--kv-shadow-overlay);
     --kv-palette-max-height: 16lh;
 
     /* the candidate dropdown under a text input (command line, omnibox) */
     --kv-completion-bg: var(--kv-panel-bg);
-    --kv-completion-border: var(--kv-border-color);
-    --kv-completion-fg: var(--kv-color-text);
-    --kv-completion-hint-fg: var(--kv-color-muted);
-    --kv-completion-hover-bg: var(--kv-color-surface);
+    --kv-completion-border-color: var(--kv-border-color);
+    --kv-completion-border: var(--kv-border-width) var(--kv-border-style)
+      var(--kv-completion-border-color);
+    --kv-completion-radius: var(--kv-radius);
+    /* None: the list's view is sized to the list, so a shadow would be clipped. */
+    --kv-completion-shadow: none;
+    --kv-completion-item-radius: var(--kv-radius-control);
+    --kv-completion-fg: var(--kv-color-fg);
+    --kv-completion-hint-fg: var(--kv-color-fg-faint);
+    --kv-completion-hover-bg: var(--kv-color-bg-raised);
     --kv-completion-hover-fg: var(--kv-color-accent);
     /* Fallback badge colour for a candidate whose kind has no dedicated
        --kv-completion-kind-<kind>-fg of its own. */
-    --kv-completion-badge-fg: var(--kv-color-muted);
-    --kv-completion-kind-tab-fg: var(--kv-color-text);
+    --kv-completion-badge-fg: var(--kv-color-fg-faint);
+    --kv-completion-kind-tab-fg: var(--kv-color-fg);
     --kv-completion-kind-bookmark-fg: var(--kv-color-warning);
     --kv-completion-kind-history-fg: var(--kv-color-accent-alt);
     --kv-completion-kind-command-fg: var(--kv-color-accent);
@@ -181,6 +234,8 @@
     /* How much of the badge colour bleeds into its own background. */
     --kv-completion-badge-tint: 25%;
     --kv-completion-badge-width: 2ch;
+    --kv-completion-badge-weight: 700;
+    --kv-completion-badge-radius: var(--kv-radius-control);
     --kv-completion-max-height: 12lh;
   }
 }

@@ -13,7 +13,7 @@
   .kv-downloads__item {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
   }
 
   .kv-downloads__marker {

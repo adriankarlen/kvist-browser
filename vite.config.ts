@@ -217,6 +217,9 @@ export default defineConfig({
   build: {
     outDir: "dist/renderer",
     emptyOutDir: true,
+    // Keeps light-dark() native. The polyfill for older targets only hears
+    // color-scheme from our own sheets, so config.css could not switch it.
+    cssTarget: "chrome123",
     // Three documents: chrome HTML can never overlap a tab's native layer,
     // so the completion menu and the command palette each paint in a
     // `WebContentsView` of their own above it.

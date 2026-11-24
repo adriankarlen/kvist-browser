@@ -5,18 +5,19 @@
  * loads before each document's own styles. The order is stated here too, or
  * this would make components the lowest layer.
  */
-@layer kvist.reset, kvist.tokens, kvist.components;
+@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;
 
 @layer kvist.components {
   .kv-completion {
     margin: 0;
-    padding: 4px 0;
+    padding: var(--kv-space-sm) 0;
     list-style: none;
     max-height: var(--kv-completion-max-height);
     overflow-y: auto;
     background: var(--kv-completion-bg);
-    border: var(--kv-border-width) solid var(--kv-completion-border);
-    border-radius: var(--kv-radius);
+    border: var(--kv-completion-border);
+    border-radius: var(--kv-completion-radius);
+    box-shadow: var(--kv-completion-shadow);
     font-family: var(--kv-font-family);
     font-size: var(--kv-font-size);
     color: var(--kv-completion-fg);
@@ -25,8 +26,9 @@
   .kv-completion__item {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     padding: 0 2ch;
+    border-radius: var(--kv-completion-item-radius);
     cursor: default;
     user-select: none;
   }
@@ -41,7 +43,8 @@
     width: var(--kv-completion-badge-width);
     text-align: center;
     text-transform: lowercase;
-    font-weight: bold;
+    font-weight: var(--kv-completion-badge-weight);
+    border-radius: var(--kv-completion-badge-radius);
   }
 
   .kv-completion__label {

@@ -15,12 +15,15 @@
   .kv-tab {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     min-width: 0;
     height: var(--kv-tabstrip-height);
     padding: 0 1ch;
     color: var(--kv-tab-fg);
     background: var(--kv-tab-bg);
+    border-radius: var(--kv-tab-radius);
+    box-shadow: var(--kv-tab-shadow);
+    font-weight: var(--kv-tab-weight);
   }
 
   .kv-tab:hover {
@@ -38,13 +41,14 @@
   .kv-tab.is-active {
     color: var(--kv-tab-active-fg);
     background: var(--kv-tab-active-bg);
-    font-weight: 600;
+    box-shadow: var(--kv-tab-active-shadow);
+    font-weight: var(--kv-tab-active-weight);
   }
 
   .kv-tab__label {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     flex: 1;
     min-width: 0;
   }
@@ -74,7 +78,6 @@
   }
 
   .kv-tabstrip__new {
-    /* font-size: 1rem; */
     display: flex;
     color: var(--kv-tab-fg);
     align-items: center;

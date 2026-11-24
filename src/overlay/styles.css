@@ -3,7 +3,7 @@
  * so the dropdown stays retheme-able. The view is sized to the list;
  * rounded corners show the page through the transparent document.
  */
-@layer kvist.reset, kvist.tokens, kvist.components;
+@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;
 
 @import "../shared/styles/reset.css";
 @import "../shared/styles/tokens.css";

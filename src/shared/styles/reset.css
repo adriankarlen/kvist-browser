@@ -17,10 +17,11 @@
   }
 
   body {
-    background: var(--kv-color-base);
-    color: var(--kv-color-text);
+    background: var(--kv-color-bg);
+    color: var(--kv-color-fg);
     font-family: var(--kv-font-family);
     font-size: var(--kv-font-size);
+    font-weight: var(--kv-font-weight);
   }
 
   button {

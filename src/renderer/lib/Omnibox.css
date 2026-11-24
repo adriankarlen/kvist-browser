@@ -2,7 +2,7 @@
   .kv-omnibox {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     min-height: var(--kv-omnibox-height);
     /* CompletionMenu's dropdown is `position: absolute`, anchored to this. */
     position: relative;
@@ -14,7 +14,7 @@
   }
 
   .kv-omnibox__button:disabled {
-    opacity: 0.3;
+    opacity: var(--kv-disabled-opacity);
     cursor: default;
   }
 

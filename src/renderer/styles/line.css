@@ -7,7 +7,7 @@
   .kv-line {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     min-height: var(--kv-omnibox-height);
   }
 

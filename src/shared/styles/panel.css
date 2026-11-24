@@ -8,9 +8,14 @@
   .kv-panel {
     position: relative;
     background: var(--kv-panel-bg);
-    border: var(--kv-border-width) solid var(--kv-panel-border);
-    border-radius: var(--kv-radius);
+    border: var(--kv-panel-border);
+    border-radius: var(--kv-panel-radius);
+    box-shadow: var(--kv-panel-shadow);
     padding: var(--kv-panel-padding);
+  }
+
+  .kv-panel:focus-within {
+    outline: var(--kv-panel-focus-outline);
   }
 
   .kv-panel[data-label]::before {

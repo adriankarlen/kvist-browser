@@ -22,7 +22,8 @@
   .kv-bookmarks__item {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
+    border-radius: var(--kv-bookmarks-item-radius);
   }
 
   .kv-bookmarks__item:hover {
