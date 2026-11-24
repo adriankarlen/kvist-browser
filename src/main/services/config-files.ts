@@ -8,6 +8,7 @@ import {
   Queue,
   Result,
   Schema,
+  Semaphore,
   Stream,
 } from "effect";
 import {
@@ -124,7 +125,9 @@ export class ConfigFiles extends Context.Service<
             const resolved = resolveRecipe(chosen.name, user.names);
             const source = yield* readRecipe(resolved.name, resolved.origin);
             const recipe = parseRecipe(resolved.name, source.toml);
-            const parsed = parseSettings(toml, last.settings, recipe.base);
+            // Kept settings belong to the recipe that built them; if it is gone, start from this one.
+            const kept = last.settings.recipe === resolved.name ? last.settings : recipe.base;
+            const parsed = parseSettings(toml, kept, recipe.base);
 
             const loaded: LoadedConfig = {
               config: {
@@ -145,8 +148,8 @@ export class ConfigFiles extends Context.Service<
             return [{ settings: parsed.settings, recipe: chosen.name }, [loaded]] as const;
           });
 
-        const watch = (target: string, what: string) =>
-          Stream.unwrap(Effect.as(ensureRecipesDir, fs.watch(target))).pipe(
+        const watch = (ensure: typeof ensureRecipesDir, target: string, what: string) =>
+          Stream.unwrap(Effect.as(ensure, fs.watch(target))).pipe(
             Stream.catchTag("PlatformError", (error) =>
               Stream.fromEffect(Effect.logError(`could not watch ${what}`, error)).pipe(
                 Stream.drain,
@@ -160,12 +163,12 @@ export class ConfigFiles extends Context.Service<
         // Two watches: neither is recursive, and the config directory also holds styles/.
         const saves = Stream.mergeAll(
           [
-            watch(dir, "the config directory").pipe(
+            watch(fs.makeDirectory(dir, { recursive: true }), dir, "the config directory").pipe(
               Stream.filter((event) => event.path === CSS_FILE || event.path === TOML_FILE),
               Stream.as(undefined),
             ),
             // A directory made just before the watch starts reports itself; only recipe files count.
-            watch(recipesDir, "the recipes directory").pipe(
+            watch(ensureRecipesDir, recipesDir, "the recipes directory").pipe(
               Stream.filter((event) => /\.(?:css|toml)$/.test(event.path)),
               Stream.as(undefined),
             ),
@@ -195,7 +198,39 @@ export class ConfigFiles extends Context.Service<
             ),
           );
 
-        // In place, not renamed over: a dotfile repo's symlink must stay a symlink.
+        // Where the bytes live: a dotfile repo's symlink is followed, so the link itself survives.
+        const realTomlPath = fs
+          .realPath(tomlPath)
+          .pipe(
+            Effect.catchTag("PlatformError", (error) =>
+              Predicate.isTagged(error.reason, "NotFound")
+                ? Effect.succeed(tomlPath)
+                : Effect.fail(error),
+            ),
+          );
+
+        /** Written beside the target and renamed over it, so a failed write leaves the old file. */
+        const replaceAtomically = (target: string, text: string) =>
+          Effect.gen(function* () {
+            const temp = path.join(
+              path.dirname(target),
+              `.${path.basename(target)}.kvist-${crypto.randomUUID()}`,
+            );
+
+            const mode = yield* fs.stat(target).pipe(
+              Effect.map((info) => info.mode & 0o777),
+              Effect.orElseSucceed(() => 0o644),
+            );
+
+            yield* fs.writeFileString(temp, text, { mode }).pipe(
+              Effect.andThen(fs.rename(temp, target)),
+              Effect.onError(() => Effect.ignore(fs.remove(temp))),
+            );
+          });
+
+        // One at a time: two quick `:recipe`s must not read the same file and race to write it.
+        const writing = yield* Semaphore.make(1);
+
         const setRecipe = (name: string): Effect.Effect<void, RecipeNotSaved> =>
           Effect.gen(function* () {
             const edited = withRecipe(yield* readForEdit, name);
@@ -203,12 +238,13 @@ export class ConfigFiles extends Context.Service<
             if (Result.isFailure(edited)) return yield* notSaved(edited.failure);
 
             yield* fs.makeDirectory(dir, { recursive: true });
-            yield* fs.writeFileString(tomlPath, edited.success);
+            yield* replaceAtomically(yield* realTomlPath, edited.success);
             yield* Queue.offer(written, undefined);
           }).pipe(
             Effect.catchTag("PlatformError", (error) =>
               Effect.fail(notSaved(`could not write ${TOML_FILE}: ${error.message}`)),
             ),
+            (effect) => writing.withPermit(effect),
           );
 
         return { changes, setRecipe };

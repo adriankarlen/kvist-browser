@@ -2,13 +2,9 @@ import { Effect } from "effect";
 import type { Interpret } from "../../../shared/tea/store";
 import { ConfigApplier } from "../../services/config-applier";
 import { ConfigFiles } from "../../services/config-files";
-import { type Msg as MessagesMsg, warn } from "../messages/messages.program";
 import { Cmd, Msg } from "./config.program";
 
-export const interpret: Interpret<Msg | MessagesMsg, Cmd, never, ConfigApplier | ConfigFiles> = (
-  cmd,
-  dispatch,
-) =>
+export const interpret: Interpret<Msg, Cmd, never, ConfigApplier | ConfigFiles> = (cmd, dispatch) =>
   Cmd.match(cmd, {
     ApplyConfig: ({ config }) =>
       Effect.flatMap(Effect.service(ConfigApplier), (applier) =>
@@ -35,7 +31,7 @@ export const interpret: Interpret<Msg | MessagesMsg, Cmd, never, ConfigApplier |
     WriteRecipe: ({ name }) =>
       Effect.flatMap(Effect.service(ConfigFiles), (files) => files.setRecipe(name)).pipe(
         Effect.catchTag("RecipeNotSaved", ({ reason }) =>
-          Effect.sync(() => dispatch(warn(reason))),
+          Effect.sync(() => dispatch(Msg.cases.RecipeNotSaved.make({ reason }))),
         ),
       ),
   });

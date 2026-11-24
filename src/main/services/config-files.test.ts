@@ -212,4 +212,74 @@ describe("ConfigFiles", () => {
       }),
     ),
   );
+
+  it.live("config.toml still reloads when recipes/ cannot be made", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write("recipes", "a file where the directory should be");
+
+        const loads = yield* subscribe;
+
+        yield* Queue.take(loads);
+        yield* Effect.sleep("20 millis");
+        yield* write("config.toml", "adblock = false");
+
+        const saved = yield* Queue.take(loads).pipe(Effect.timeout("1 second"));
+
+        expect(saved.config.settings.adblock).toBe(false);
+      }),
+    ),
+  );
+
+  it.live("a syntax error does not keep settings from a recipe that is gone", () =>
+    withDir(({ write, dir }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        yield* write("recipes/test.css", "");
+        yield* write("recipes/test.toml", "format = 1\n[input]\nmode = 'standard'");
+        yield* write("config.toml", "recipe = 'test'");
+
+        const loads = yield* subscribe;
+
+        expect((yield* Queue.take(loads)).config.settings.inputMode).toBe("standard");
+        yield* Effect.sleep("20 millis");
+        yield* fs.remove(path.join(dir, "recipes/test.css")).pipe(Effect.orDie);
+        yield* write("config.toml", "recipe = ");
+
+        const broken = yield* Queue.take(loads);
+
+        expect(broken.config.recipe.name).toBe("tui");
+        expect(broken.config.settings.recipe).toBe("tui");
+        expect(broken.config.settings.inputMode).toBe("vim");
+      }),
+    ),
+  );
+
+  it.live("a failed save leaves config.toml and its symlink as they were", () =>
+    withDir(({ dir }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const outside = yield* fs.makeTempDirectoryScoped().pipe(Effect.orDie);
+        const target = path.join(outside, "dotfiles.toml");
+        const link = path.join(dir, "config.toml");
+
+        yield* fs.writeFileString(target, "adblock = false\n").pipe(Effect.orDie);
+        yield* fs.symlink(target, link).pipe(Effect.orDie);
+        // No new file can be made beside the target, so the save fails before touching it.
+        yield* fs.chmod(outside, 0o555).pipe(Effect.orDie);
+
+        const error = yield* Effect.flip(
+          Effect.flatMap(Effect.service(ConfigFiles), ({ setRecipe }) => setRecipe("tui")),
+        ).pipe(Effect.ensuring(Effect.orDie(fs.chmod(outside, 0o755))));
+
+        expect(error.reason).toMatch(/^could not write config\.toml/);
+        expect(yield* fs.readLink(link).pipe(Effect.orDie)).toBe(target);
+        expect(yield* fs.readFileString(target).pipe(Effect.orDie)).toBe("adblock = false\n");
+        expect(yield* fs.readDirectory(outside).pipe(Effect.orDie)).toEqual(["dotfiles.toml"]);
+      }),
+    ),
+  );
 });

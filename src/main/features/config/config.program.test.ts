@@ -115,4 +115,27 @@ describe(":recipe", () => {
   test("another recipe is written to config.toml", () => {
     expect(choose("modern").cmds).toEqual([Cmd.cases.WriteRecipe.make({ name: "modern" })]);
   });
+
+  test("a second :recipe before the first applies compares against the pending one", () => {
+    const pending = choose("modern").model;
+    const back = update(Msg.cases.RecipeChosen.make({ name: "tui" }), pending);
+
+    expect(back.cmds).toEqual([Cmd.cases.WriteRecipe.make({ name: "tui" })]);
+    expect(update(Msg.cases.RecipeChosen.make({ name: "modern" }), pending).cmds).toEqual([]);
+  });
+
+  test("the pending choice ends when it applies, or when the save fails", () => {
+    const pending = choose("modern").model;
+    const modern = { ...config, recipe: { name: "modern", css: "" } };
+
+    expect(update(Msg.cases.ConfigApplied.make({ config }), pending).model.pending).toBe("modern");
+    expect(
+      update(Msg.cases.ConfigApplied.make({ config: modern }), pending).model.pending,
+    ).toBeNull();
+
+    const failed = update(Msg.cases.RecipeNotSaved.make({ reason: "nope" }), pending);
+
+    expect(failed.model.pending).toBeNull();
+    expect(failed.msgs).toEqual(shown("nope", "error"));
+  });
 });

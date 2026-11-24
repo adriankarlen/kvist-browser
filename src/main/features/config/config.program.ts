@@ -25,9 +25,11 @@ export interface Model {
   readonly current: UserConfig | null;
   /** Every recipe `:recipe` may pick, as of the last load. */
   readonly recipes: ReadonlyArray<string>;
+  /** A recipe written to config.toml but not applied yet. A later `:recipe` compares against it. */
+  readonly pending: string | null;
 }
 
-export const init: Model = { current: null, recipes: [] };
+export const init: Model = { current: null, recipes: [], pending: null };
 
 export const Msg = Schema.TaggedUnion({
   /** config.toml or config.css was read: at startup, and after every save. */
@@ -41,6 +43,7 @@ export const Msg = Schema.TaggedUnion({
   StylesApplied: { problems: Schema.Array(StyleProblem) },
   /** `:recipe [name]`. No name asks which recipe is in force. */
   RecipeChosen: { name: Schema.UndefinedOr(Schema.String) },
+  RecipeNotSaved: { reason: Schema.String },
 });
 
 export type Msg = typeof Msg.Type;
@@ -87,7 +90,7 @@ function report(lines: ReadonlyArray<string>, shown: (first: string) => string):
 
 /** What `:recipe` does with a name: report, refuse, or write it to config.toml. */
 function chooseRecipe(name: string | undefined, model: Model): Result {
-  const active = model.current?.recipe.name;
+  const active = model.pending ?? model.current?.recipe.name;
 
   if (name === undefined || name === "") {
     return next(
@@ -101,7 +104,7 @@ function chooseRecipe(name: string | undefined, model: Model): Result {
 
   if (name === active) return next(model, [], [say(`recipe ${name} is already in use`)]);
 
-  return next(model, [Cmd.cases.WriteRecipe.make({ name })]);
+  return next({ ...model, pending: name }, [Cmd.cases.WriteRecipe.make({ name })]);
 }
 
 export function update(msg: Msg, model: Model): Result {
@@ -119,8 +122,10 @@ export function update(msg: Msg, model: Model): Result {
       const scheme = config.settings.inputMode;
       const changed = model.current === null || model.current.settings.inputMode !== scheme;
 
+      const pending = model.pending === config.recipe.name ? null : model.pending;
+
       return next(
-        { ...model, current: config },
+        { ...model, current: config, pending },
         [],
         changed ? [VimMsgs.cases.InputModeChanged.make({ scheme })] : [],
       );
@@ -135,5 +140,6 @@ export function update(msg: Msg, model: Model): Result {
       return next(model, reported.cmds, reported.msgs);
     },
     RecipeChosen: ({ name }) => chooseRecipe(name, model),
+    RecipeNotSaved: ({ reason }) => next({ ...model, pending: null }, [], [warn(reason)]),
   });
 }
