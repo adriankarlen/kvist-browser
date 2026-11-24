@@ -1,81 +1,9 @@
-import type { Mode } from "../../../shared/schema/browser";
-import type { CommandName } from "../../commands";
+import type { KeyToken } from "../../../shared/schema/keymap";
 
-export interface Keybind {
-  /** The mode in which this binding is active. */
-  mode: Mode;
-  /** Key or key sequence, e.g. `"t"`, `"gt"`, `"Escape"`. */
-  keys: string;
-  /** Command to execute (omit for a pure mode transition). */
-  command?: CommandName;
-  /** Passed to the command, as a `:` line would. */
-  arg?: string;
-  /** Mode to enter after the command runs. */
-  enter?: Mode;
-}
-
-export const DEFAULT_KEYBINDS: readonly Keybind[] = [
-  // ── normal mode ──────────────────────────────────────────────
-  { mode: "normal", keys: "t", command: "tab.new" },
-  { mode: "normal", keys: "x", command: "tab.close" },
-  { mode: "normal", keys: "X", command: "tab.reopen" },
-  { mode: "normal", keys: "gt", command: "tab.next" },
-  { mode: "normal", keys: "gT", command: "tab.prev" },
-  { mode: "normal", keys: "H", command: "nav.back" },
-  { mode: "normal", keys: "L", command: "nav.forward" },
-  { mode: "normal", keys: "r", command: "nav.reload" },
-  { mode: "normal", keys: "j", command: "scroll.down" },
-  { mode: "normal", keys: "k", command: "scroll.up" },
-  { mode: "normal", keys: "d", command: "scroll.half-down" },
-  { mode: "normal", keys: "u", command: "scroll.half-up" },
-  { mode: "normal", keys: "G", command: "scroll.bottom" },
-  { mode: "normal", keys: "gg", command: "scroll.top" },
-  { mode: "normal", keys: "n", command: "find.next" },
-  { mode: "normal", keys: "N", command: "find.prev" },
-  { mode: "normal", keys: "Escape", command: "find.clear" },
-  { mode: "normal", keys: "f", command: "hints.show", enter: "hint" },
-  { mode: "normal", keys: "o", command: "focus.omnibox", enter: "insert" },
-  { mode: "normal", keys: "i", enter: "insert" },
-  { mode: "normal", keys: "/", command: "focus.chrome", enter: "find" },
-  { mode: "normal", keys: ":", command: "cmdline.open", enter: "command" },
-  { mode: "normal", keys: "y", command: "clipboard.yank" },
-  { mode: "normal", keys: "p", command: "clipboard.open" },
-  { mode: "normal", keys: "P", command: "clipboard.openNewTab" },
-  { mode: "normal", keys: "zi", command: "zoom.in" },
-  { mode: "normal", keys: "zo", command: "zoom.out" },
-  { mode: "normal", keys: "z0", command: "zoom.reset" },
-  { mode: "normal", keys: "B", command: "bookmark.toggle" },
-  { mode: "normal", keys: "gb", command: "bookmarks.open", enter: "insert" },
-
-  // ── insert mode ──────────────────────────────────────────────
-  { mode: "insert", keys: "Escape", command: "insert.leave", enter: "normal" },
-
-  // ── hint mode ────────────────────────────────────────────────
-  { mode: "hint", keys: "Escape", command: "hints.hide", enter: "normal" },
-
-  // ── prompt mode ──────────────────────────────────────────────
-  // No `enter`: the mode outlives one answer while the queue has another
-  // question behind it, so leaving is driven by the queue draining.
-  { mode: "prompt", keys: "y", command: "prompt.allow" },
-  { mode: "prompt", keys: "n", command: "prompt.deny" },
-  { mode: "prompt", keys: "Escape", command: "prompt.deny" },
-];
-
-/** A standard-mode shortcut. Modifiers are what Electron reports, already resolved for the platform. */
-export interface Chord {
-  /** `KeyboardEvent.key`; a letter is stored lower-case and matched with `shift`. */
+/** A key as `before-input-event` reports it. */
+export interface KeyInput {
   readonly key: string;
-  readonly control: boolean;
-  readonly alt: boolean;
-  readonly meta: boolean;
-  readonly shift: boolean;
-  readonly command: CommandName;
-  readonly arg?: string;
-  readonly enter?: Mode;
-}
-
-export interface ChordInput {
-  readonly key: string;
+  /** The physical key, e.g. `KeyI`. macOS turns Alt+letter into another character. */
   readonly code: string;
   readonly control: boolean;
   readonly alt: boolean;
@@ -83,102 +11,211 @@ export interface ChordInput {
   readonly shift: boolean;
 }
 
-type ChordAction = Pick<Chord, "arg" | "enter">;
-
-/**
- * Reads `"Mod+Shift+T"`. `Mod` is Cmd on macOS and Ctrl elsewhere; `Ctrl`
- * is always Ctrl. A trailing `++` names the plus key itself.
- */
-function chord(spec: string, mac: boolean, command: CommandName, action: ChordAction): Chord {
-  const plusKey = spec.endsWith("++");
-  const parts = (plusKey ? spec.slice(0, -2) : spec).split("+");
-  const key = plusKey ? "+" : (parts.pop() ?? "");
-  const has = (name: string): boolean => parts.includes(name);
-
-  return {
-    key: isLetter(key) ? key.toLowerCase() : key,
-    control: has("Ctrl") || (has("Mod") && !mac),
-    alt: has("Alt"),
-    meta: has("Mod") && mac,
-    shift: has("Shift"),
-    command,
-    ...action,
-  };
+interface Modifiers {
+  readonly control: boolean;
+  readonly alt: boolean;
+  readonly meta: boolean;
+  readonly shift: boolean;
 }
 
 const isLetter = (key: string): boolean => /^[a-z]$/i.test(key);
 
-const TAB_POSITIONS = ["1", "2", "3", "4", "5", "6", "7", "8"];
-
-/** The shortcuts every other browser uses, for `[input] mode = "standard"`. */
-export function standardKeybinds(platform: NodeJS.Platform): ReadonlyArray<Chord> {
-  const mac = platform === "darwin";
-
-  const bind = (spec: string, command: CommandName, action: ChordAction = {}): Chord =>
-    chord(spec, mac, command, action);
-
-  return [
-    bind("Mod+L", "focus.omnibox", { enter: "insert" }),
-    bind("Mod+T", "tab.new"),
-    bind("Mod+W", "tab.close"),
-    bind("Mod+Shift+T", "tab.reopen"),
-    bind("Ctrl+Tab", "tab.next"),
-    bind("Ctrl+Shift+Tab", "tab.prev"),
-    ...TAB_POSITIONS.map((n) => bind(`Mod+${n}`, "tab.select", { arg: n })),
-    bind("Mod+9", "tab.select", { arg: "last" }),
-    bind("Mod+[", "nav.back"),
-    bind("Mod+]", "nav.forward"),
-    // Alt+Left moves by word in a macOS text field, and these chords apply while typing.
-    ...(mac ? [] : [bind("Alt+ArrowLeft", "nav.back"), bind("Alt+ArrowRight", "nav.forward")]),
-    bind("Mod+R", "nav.reload"),
-    bind("F5", "nav.reload"),
-    bind("Mod+F", "focus.chrome", { enter: "find" }),
-    bind("Mod+G", "find.next"),
-    bind("Mod+Shift+G", "find.prev"),
-    bind("Mod+=", "zoom.in"),
-    bind("Mod++", "zoom.in"),
-    bind("Mod+-", "zoom.out"),
-    bind("Mod+0", "zoom.reset"),
-    bind("Mod+D", "bookmark.toggle"),
-    bind("Mod+Shift+O", "bookmarks.open", { enter: "insert" }),
-    bind("Mod+J", "downloads.toggle"),
-    bind("Mod+Shift+P", "cmdline.open", { enter: "command" }),
-    bind("Mod+Alt+I", "app.devtools"),
-    bind("F12", "app.devtools"),
-    bind("Mod+Q", "app.quit"),
-  ];
-}
-
-export const STANDARD_KEYBINDS: ReadonlyArray<Chord> = standardKeybinds(process.platform);
+const isSingle = (key: string): boolean => /^.$/su.test(key);
 
 /** A letter outside a–z, as a Cyrillic or Greek layout types. */
 const isOtherScript = (key: string): boolean => /^\p{L}$/u.test(key) && !isLetter(key);
 
+/** Vim's names for keys, beside the `KeyboardEvent.key` names that work as they are. */
+const KEY_NAMES: ReadonlyMap<string, string> = new Map([
+  ["esc", "Escape"],
+  ["escape", "Escape"],
+  ["cr", "Enter"],
+  ["enter", "Enter"],
+  ["return", "Enter"],
+  ["tab", "Tab"],
+  ["space", " "],
+  ["lt", "<"],
+  ["bar", "|"],
+  ["bslash", "\\"],
+  ["plus", "+"],
+  ["bs", "Backspace"],
+  ["backspace", "Backspace"],
+  ["del", "Delete"],
+  ["delete", "Delete"],
+  ["up", "ArrowUp"],
+  ["down", "ArrowDown"],
+  ["left", "ArrowLeft"],
+  ["right", "ArrowRight"],
+  ["home", "Home"],
+  ["end", "End"],
+  ["pageup", "PageUp"],
+  ["pagedown", "PageDown"],
+  ["insert", "Insert"],
+]);
+
+const FUNCTION_KEY = /^F([1-9]|1\d|2[0-4])$/i;
+
+/** The `KeyboardEvent.key` a written key name means, or undefined when it names nothing. */
+function keyName(name: string): string | undefined {
+  if (isSingle(name)) return name;
+  const known = KEY_NAMES.get(name.toLowerCase());
+
+  if (known !== undefined) return known;
+
+  if (FUNCTION_KEY.test(name)) return name.toUpperCase();
+
+  return /^[A-Z][A-Za-z0-9]+$/.test(name) ? name : undefined;
+}
+
+/** Lower-cases a letter and drops a Shift that a printable non-letter already carries. */
+function token(key: string, modifiers: Modifiers): KeyToken {
+  if (isLetter(key)) return { ...modifiers, key: key.toLowerCase() };
+
+  return { ...modifiers, key, shift: isSingle(key) ? false : modifiers.shift };
+}
+
+const NONE: Modifiers = { control: false, alt: false, meta: false, shift: false };
+
+type Held = { -readonly [K in keyof Modifiers]: boolean };
+
+/** A typed character: its case is its Shift. */
+const typed = (char: string): KeyToken =>
+  token(char, { ...NONE, shift: isLetter(char) && char !== char.toLowerCase() });
+
+const VIM_MODIFIER: ReadonlyMap<string, keyof Modifiers> = new Map([
+  ["c", "control"],
+  ["a", "alt"],
+  ["m", "alt"],
+  ["d", "meta"],
+  ["s", "shift"],
+]);
+
+/** `<C-S-Tab>`, `<Esc>`, `<lt>`. A lone letter between brackets is typed as written. */
+function bracketed(inner: string): KeyToken | undefined {
+  const [, prefix = "", name = ""] = /^((?:[camds]-)*)(.+)$/i.exec(inner) ?? [];
+  const key = keyName(name);
+
+  if (key === undefined) return undefined;
+
+  if (prefix === "") return isSingle(key) ? typed(key) : token(key, NONE);
+  const modifiers: Held = { ...NONE };
+
+  for (const flag of prefix.toLowerCase().split("-")) {
+    const held = VIM_MODIFIER.get(flag);
+
+    if (held !== undefined) modifiers[held] = true;
+  }
+
+  return token(key, modifiers);
+}
+
 /**
- * Modifiers match exactly. A printable non-letter carries Shift in its `key`
- * (`+`, not `=`), so Shift is compared only for letters and named keys. A
- * letter matches its physical key under Alt, where macOS types another
- * character, and on non-Latin layouts.
+ * Reads vim notation: `gt`, `G`, `<C-d>`, `<Esc>`, `g<Tab>`. Undefined when
+ * any part is not a key. A literal `<` is written `<lt>`.
  */
-export function matchesChord(chord: Chord, input: ChordInput): boolean {
-  if (input.control !== chord.control || input.alt !== chord.alt || input.meta !== chord.meta) {
+export function parseKeys(notation: string): ReadonlyArray<KeyToken> | undefined {
+  const tokens: KeyToken[] = [];
+  let rest = notation;
+
+  while (rest !== "") {
+    if (rest.startsWith("<")) {
+      const end = rest.indexOf(">", 2);
+      const parsed = end === -1 ? undefined : bracketed(rest.slice(1, end));
+
+      if (parsed === undefined) return undefined;
+      tokens.push(parsed);
+      rest = rest.slice(end + 1);
+    } else {
+      const [char = ""] = rest;
+
+      tokens.push(typed(char));
+      rest = rest.slice(char.length);
+    }
+  }
+
+  return tokens.length === 0 ? undefined : tokens;
+}
+
+/**
+ * Reads `"Mod+Shift+T"`. `Mod` is Cmd on macOS and Ctrl elsewhere; `Ctrl`
+ * is always Ctrl and `Meta` is always Cmd or Super. A trailing `++` names
+ * the plus key itself.
+ */
+export function parseChord(spec: string, platform: NodeJS.Platform): KeyToken | undefined {
+  const mac = platform === "darwin";
+  const plusKey = spec.endsWith("++");
+  const parts = (plusKey ? spec.slice(0, -2) : spec).split("+");
+  const name = plusKey ? "+" : (parts.pop() ?? "");
+  const key = keyName(name);
+
+  if (key === undefined) return undefined;
+  const modifiers: Held = { ...NONE };
+
+  for (const part of parts) {
+    const flag = part.toLowerCase();
+
+    if (flag === "mod") modifiers[mac ? "meta" : "control"] = true;
+    else if (flag === "ctrl") modifiers.control = true;
+    else if (flag === "alt") modifiers.alt = true;
+    else if (flag === "meta") modifiers.meta = true;
+    else if (flag === "shift") modifiers.shift = true;
+    else return undefined;
+  }
+
+  return token(key, modifiers);
+}
+
+/** One spelling per key, so two notations of the same key compare equal. */
+export function keyId({ key, control, alt, meta, shift }: KeyToken): string {
+  const flags = [control && "C", alt && "A", meta && "D", shift && "S"].filter(Boolean);
+
+  return [...flags, key].join("-");
+}
+
+export const isFunctionKey = (key: string): boolean => FUNCTION_KEY.test(key);
+
+const MODIFIER_KEYS: ReadonlySet<string> = new Set([
+  "Shift",
+  "Control",
+  "Alt",
+  "AltGraph",
+  "Meta",
+  "OS",
+  "Super",
+  "Hyper",
+  "Fn",
+  "CapsLock",
+  "NumLock",
+]);
+
+/** A modifier pressed on its own: on the way to a key, never a key itself. */
+export const isModifierKey = (key: string): boolean => MODIFIER_KEYS.has(key);
+
+export const isModified = (input: Modifiers): boolean => input.control || input.alt || input.meta;
+
+/**
+ * Ctrl, Alt and Meta match exactly. A plain letter is the character typed,
+ * as vim reads it. A held letter falls back to its physical key under Alt
+ * and on non-Latin layouts. Printable non-letters carry Shift in `key`.
+ */
+export function matchesKey(bound: KeyToken, input: KeyInput): boolean {
+  if (input.control !== bound.control || input.alt !== bound.alt || input.meta !== bound.meta) {
     return false;
   }
 
-  if (isLetter(chord.key)) {
-    if (input.shift !== chord.shift) return false;
+  if (isLetter(bound.key)) {
+    if (!isModified(input))
+      return input.key === (bound.shift ? bound.key.toUpperCase() : bound.key);
 
-    const physical = input.code === `Key${chord.key.toUpperCase()}`;
+    if (input.shift !== bound.shift) return false;
+    const physical = input.code === `Key${bound.key.toUpperCase()}`;
 
     if (input.alt) return physical;
 
-    return input.key.toLowerCase() === chord.key || (isOtherScript(input.key) && physical);
+    return input.key.toLowerCase() === bound.key || (isOtherScript(input.key) && physical);
   }
 
-  if (chord.key.length === 1) return input.key === chord.key;
+  if (isSingle(bound.key)) return input.key === bound.key;
 
-  return input.shift === chord.shift && input.key === chord.key;
+  return input.shift === bound.shift && input.key === bound.key;
 }
-
-export const findChord = (chords: ReadonlyArray<Chord>, input: ChordInput): Chord | undefined =>
-  chords.find((bound) => matchesChord(bound, input));
