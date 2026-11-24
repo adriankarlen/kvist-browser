@@ -1,9 +1,11 @@
 import {
   Context,
   Effect,
+  Exit,
   FileSystem,
   Layer,
   Path,
+  PlatformError,
   Predicate,
   Queue,
   Result,
@@ -17,6 +19,7 @@ import {
   type Problem,
   type UserConfig,
 } from "../../shared/config";
+import type { RecipeOption } from "../../shared/setup";
 import { withRecipe } from "../config-edit";
 import { configDir } from "../paths";
 import {
@@ -29,6 +32,7 @@ import {
   type RecipeSource,
 } from "../recipes";
 import { parseSettings, readRecipeName } from "../settings";
+import { recipeOption, type SetupFiles } from "../setup-files";
 
 const CSS_FILE = "config.css";
 const TOML_FILE = "config.toml";
@@ -51,11 +55,27 @@ export class RecipeNotSaved extends Schema.TaggedError<RecipeNotSaved>()("Recipe
   reason: Schema.String,
 }) {}
 
+/** Why the setup wizard wrote nothing. */
+export class SetupNotSaved extends Schema.TaggedError<SetupNotSaved>()("SetupNotSaved", {
+  reason: Schema.String,
+  /** config.toml was there already: the user's own file, which the wizard must give way to. */
+  exists: Schema.Boolean,
+}) {}
+
+/** The two hand-edited files, as text. */
+interface ConfigText {
+  readonly css: string;
+  readonly toml: string;
+}
+
 /** What the last good parse settled on, so a syntax error mid-edit keeps both. */
 interface LastGood {
   readonly settings: UserConfig["settings"];
   readonly recipe: string;
 }
+
+/** Before any load: the defaults, and the recipe a config that names none gets. */
+const FRESH: LastGood = { settings: DEFAULT_SETTINGS, recipe: DEFAULT_RECIPE };
 
 export class ConfigFiles extends Context.Service<
   ConfigFiles,
@@ -64,6 +84,16 @@ export class ConfigFiles extends Context.Service<
     readonly changes: Stream.Stream<LoadedConfig>;
     /** Points config.toml's `recipe` at `name`. The watcher then applies it like any save. */
     readonly setRecipe: (name: string) => Effect.Effect<void, RecipeNotSaved>;
+    /**
+     * The config these files would load as, without writing them. No `css`
+     * keeps config.css as it is on disk.
+     */
+    readonly preview: (files: SetupFiles) => Effect.Effect<LoadedConfig>;
+    /** Every recipe that can be picked, with its name and the settings it brings. */
+    readonly recipeOptions: Effect.Effect<ReadonlyArray<RecipeOption>>;
+    readonly cssExists: Effect.Effect<boolean>;
+    /** Creates config.toml, and config.css when given. Never replaces a file that exists. */
+    readonly writeFirstRun: (files: SetupFiles) => Effect.Effect<void, SetupNotSaved>;
   }
 >()("kvist/ConfigFiles") {
   static layerAt(dir: string): Layer.Layer<ConfigFiles, never, FileSystem.FileSystem | Path.Path> {
@@ -112,14 +142,13 @@ export class ConfigFiles extends Context.Service<
                 toml: readOptional(recipeFile(name, "toml")),
               });
 
-        const load = (last: LastGood): Effect.Effect<readonly [LastGood, [LoadedConfig]]> =>
+        /** The pipeline every config goes through, wherever its text came from. */
+        const loadText = (
+          { css, toml }: ConfigText,
+          last: LastGood,
+        ): Effect.Effect<readonly [LastGood, LoadedConfig]> =>
           Effect.gen(function* () {
-            const { css, toml, entries } = yield* Effect.all({
-              css: read(CSS_FILE),
-              toml: read(TOML_FILE),
-              entries: listRecipes,
-            });
-
+            const entries = yield* listRecipes;
             const chosen = readRecipeName(toml, last.recipe);
             const user = listUserRecipes(entries);
             const resolved = resolveRecipe(chosen.name, user.names);
@@ -145,8 +174,14 @@ export class ConfigFiles extends Context.Service<
               recipes: recipeCatalog(user.names),
             };
 
-            return [{ settings: parsed.settings, recipe: chosen.name }, [loaded]] as const;
+            return [{ settings: parsed.settings, recipe: chosen.name }, loaded] as const;
           });
+
+        const load = (last: LastGood): Effect.Effect<readonly [LastGood, [LoadedConfig]]> =>
+          Effect.all({ css: read(CSS_FILE), toml: read(TOML_FILE) }).pipe(
+            Effect.flatMap((text) => loadText(text, last)),
+            Effect.map(([good, loaded]) => [good, [loaded]] as const),
+          );
 
         const watch = (ensure: typeof ensureRecipesDir, target: string, what: string) =>
           Stream.unwrap(Effect.as(ensure, fs.watch(target))).pipe(
@@ -179,7 +214,7 @@ export class ConfigFiles extends Context.Service<
 
         const changes = Stream.concat(Stream.succeed(undefined), saves).pipe(
           Stream.mapAccumEffect(
-            (): LastGood => ({ settings: DEFAULT_SETTINGS, recipe: DEFAULT_RECIPE }),
+            (): LastGood => FRESH,
             (last) => load(last),
           ),
         );
@@ -247,7 +282,102 @@ export class ConfigFiles extends Context.Service<
             (effect) => writing.withPermit(effect),
           );
 
-        return { changes, setRecipe };
+        const preview = (files: SetupFiles): Effect.Effect<LoadedConfig> =>
+          Effect.map(
+            files.css === undefined ? read(CSS_FILE) : Effect.succeed(files.css),
+            (css) => ({ css, toml: files.toml }),
+          ).pipe(
+            Effect.flatMap((text) => loadText(text, FRESH)),
+            Effect.map(([, loaded]) => loaded),
+          );
+
+        const recipeOptions = Effect.gen(function* () {
+          const user = listUserRecipes(yield* listRecipes);
+
+          return yield* Effect.forEach(recipeCatalog(user.names), (name) => {
+            const { origin } = resolveRecipe(name, user.names);
+
+            return Effect.map(readRecipe(name, origin), (source) =>
+              recipeOption(name, parseRecipe(name, source.toml)),
+            );
+          });
+        });
+
+        const cssExists = fs
+          .exists(path.join(dir, CSS_FILE))
+          .pipe(
+            Effect.catchTag("PlatformError", (error) =>
+              Effect.as(Effect.logError(`could not check ${CSS_FILE}`, error), true),
+            ),
+          );
+
+        /**
+         * Exclusive create: a file made since the wizard opened is the user's,
+         * and wins. A write that fails after the open removes what it started,
+         * so a half-written file never blocks a retry.
+         */
+        const create = (file: string, text: string) =>
+          Effect.gen(function* () {
+            const target = path.join(dir, file);
+
+            const result = yield* Effect.scoped(
+              Effect.flatMap(fs.open(target, { flag: "wx" }), (handle) =>
+                Effect.exit(handle.writeAll(new TextEncoder().encode(text))),
+              ),
+            );
+
+            if (Exit.isFailure(result)) {
+              yield* Effect.ignore(fs.remove(target));
+
+              return yield* Effect.failCause(result.cause);
+            }
+          });
+
+        const notWritten = (file: string, error: PlatformError.PlatformError) =>
+          new SetupNotSaved({ reason: `could not write ${file}: ${error.message}`, exists: false });
+
+        const isAlreadyExists = (error: PlatformError.PlatformError): boolean =>
+          Predicate.isTagged(error.reason, "AlreadyExists");
+
+        // config.toml last: once it exists the setup is done, so nothing may fail after it.
+        const writeFirstRun = (files: SetupFiles): Effect.Effect<void, SetupNotSaved> =>
+          Effect.gen(function* () {
+            yield* fs
+              .makeDirectory(dir, { recursive: true })
+              .pipe(Effect.mapError((error) => notWritten(TOML_FILE, error)));
+
+            const ownCss =
+              files.css === undefined
+                ? false
+                : yield* create(CSS_FILE, files.css).pipe(
+                    Effect.as(true),
+                    Effect.catchTag("PlatformError", (error) =>
+                      isAlreadyExists(error)
+                        ? Effect.succeed(false)
+                        : Effect.fail(notWritten(CSS_FILE, error)),
+                    ),
+                  );
+
+            yield* create(TOML_FILE, files.toml).pipe(
+              Effect.onError(() =>
+                ownCss ? Effect.ignore(fs.remove(path.join(dir, CSS_FILE))) : Effect.void,
+              ),
+              Effect.catchTag("PlatformError", (error) =>
+                Effect.fail(
+                  isAlreadyExists(error)
+                    ? new SetupNotSaved({
+                        reason: `${TOML_FILE} already exists; it was left as it is`,
+                        exists: true,
+                      })
+                    : notWritten(TOML_FILE, error),
+                ),
+              ),
+            );
+
+            yield* Queue.offer(written, undefined);
+          }).pipe((effect) => writing.withPermit(effect));
+
+        return { changes, setRecipe, preview, recipeOptions, cssExists, writeFirstRun };
       }),
     );
   }

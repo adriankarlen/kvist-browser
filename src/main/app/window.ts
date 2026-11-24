@@ -67,6 +67,7 @@ import { acceptOmnibox } from "../../shared/omnibox-action";
 import { resolveUrl } from "../../shared/url";
 import { isPalette } from "../../shared/layout";
 import { serve } from "../services/surface";
+import { mountSetupView } from "./setup-view";
 
 import { mainStore, runtime, useSync } from "./runtime";
 import { nextTurn } from "../../shared/tea/store";
@@ -351,6 +352,7 @@ export function createWindow(saved: SessionState | null): void {
     chrome.config(next);
     completion.applyCss();
     palette.applyCss();
+    setupView.applyCss();
   };
 
   // Throttled: a transfer reports far more often than the panel can show.
@@ -523,6 +525,8 @@ export function createWindow(saved: SessionState | null): void {
       (view) => palette.render(view),
     ),
   );
+
+  const setupView = mountSetupView({ views, onKey, css: () => themeCss(currentConfig()) });
 
   /** The palette's own surface: it can ask for a destination, never drive tabs directly. */
   function servePalette(contents: Electron.WebContents): PaletteSenders {
@@ -802,5 +806,6 @@ export function createWindow(saved: SessionState | null): void {
     releaseBookmarks();
     completion.release();
     palette.release();
+    setupView.release();
   });
 }

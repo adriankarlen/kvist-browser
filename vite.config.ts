@@ -188,6 +188,7 @@ export default defineConfig({
           "src/renderer/**/*.svelte",
           "src/overlay/**/*.svelte",
           "src/palette/**/*.svelte",
+          "src/setup/**/*.svelte",
           "src/shared/**/*.svelte",
         ],
         rules: {
@@ -220,14 +221,15 @@ export default defineConfig({
     // Keeps light-dark() native. The polyfill for older targets only hears
     // color-scheme from our own sheets, so config.css could not switch it.
     cssTarget: "chrome123",
-    // Three documents: chrome HTML can never overlap a tab's native layer,
-    // so the completion menu and the command palette each paint in a
-    // `WebContentsView` of their own above it.
+    // Four documents: chrome HTML can never overlap a tab's native layer,
+    // so the completion menu, the command palette and the setup wizard each
+    // paint in a `WebContentsView` of their own above it.
     rollupOptions: {
       input: {
         index: "index.html",
         overlay: "overlay.html",
         palette: "palette.html",
+        setup: "setup.html",
       },
     },
   },
@@ -250,8 +252,14 @@ export default defineConfig({
         },
       },
       // index is the chrome's bridge; page runs in every tab and exposes
-      // nothing; overlay and palette back their own views.
-      preload: [preload("index"), preload("page"), preload("overlay"), preload("palette")],
+      // nothing; overlay, palette and setup back their own views.
+      preload: [
+        preload("index"),
+        preload("page"),
+        preload("overlay"),
+        preload("palette"),
+        preload("setup"),
+      ],
     }),
   ],
 });

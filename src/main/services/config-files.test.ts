@@ -282,4 +282,168 @@ describe("ConfigFiles", () => {
       }),
     ),
   );
+
+  it.live("preview loads in-memory text over the recipe, and writes nothing", () =>
+    withDir(({ write, dir }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+
+        yield* write("recipes/test.css", ":root { --kv-color-bg: red; }");
+        yield* write("recipes/test.toml", "format = 1\n[layout.tabs]\nregion = 'left'");
+
+        const { preview } = yield* ConfigFiles;
+        const loaded = yield* preview({ toml: 'recipe = "test"', css: ":root{}" });
+
+        expect(loaded.config.recipe).toEqual({
+          name: "test",
+          css: ":root { --kv-color-bg: red; }",
+        });
+        expect(loaded.config.settings.layout.tabs.region).toBe("left");
+        expect(loaded.config.css).toBe(":root{}");
+        expect(loaded.problems).toEqual([]);
+        expect(yield* fs.readDirectory(dir).pipe(Effect.orDie)).toEqual(["recipes"]);
+      }),
+    ),
+  );
+
+  it.live("preview without CSS keeps the config.css on disk", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write("config.css", "/* mine */");
+
+        const { preview } = yield* ConfigFiles;
+        const loaded = yield* preview({ toml: 'recipe = "tui"', css: undefined });
+
+        expect(loaded.config.css).toBe("/* mine */");
+      }),
+    ),
+  );
+
+  it.live("recipeOptions lists every recipe with its name and defaults", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write("recipes/test.css", "");
+        yield* write(
+          "recipes/test.toml",
+          "format = 1\nname = 'Test'\ndescription = 'd'\n[input]\nmode = 'standard'",
+        );
+
+        const options = yield* Effect.flatMap(Effect.service(ConfigFiles), (f) => f.recipeOptions);
+
+        expect(options).toEqual([
+          {
+            id: "test",
+            name: "Test",
+            description: "d",
+            inputMode: "standard",
+            omnibox: "top",
+            tabs: "top",
+          },
+          {
+            id: "tui",
+            name: "tui",
+            description: "",
+            inputMode: "vim",
+            omnibox: "top",
+            tabs: "top",
+          },
+        ]);
+      }),
+    ),
+  );
+
+  it.live("writeFirstRun creates both files, and the watcher picks them up", () =>
+    withDir(({ read }) =>
+      Effect.gen(function* () {
+        const loads = yield* subscribe;
+        const files = yield* ConfigFiles;
+
+        yield* Queue.take(loads);
+        expect(yield* files.cssExists).toBe(false);
+        yield* files.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" });
+
+        const saved = yield* Queue.take(loads).pipe(Effect.timeout("1 second"));
+
+        expect(saved.config.settings.adblock).toBe(false);
+        expect(yield* read("config.toml")).toBe("adblock = false\n");
+        expect(yield* read("config.css")).toBe(":root {}\n");
+        expect(yield* files.cssExists).toBe(true);
+      }),
+    ),
+  );
+
+  it.live("writeFirstRun never replaces a config.toml that appeared meanwhile", () =>
+    withDir(({ write, read }) =>
+      Effect.gen(function* () {
+        yield* write("config.toml", "# mine\n");
+
+        const error = yield* Effect.flip(
+          Effect.flatMap(Effect.service(ConfigFiles), (f) =>
+            f.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" }),
+          ),
+        );
+
+        expect(error.reason).toBe("config.toml already exists; it was left as it is");
+        expect(yield* read("config.toml")).toBe("# mine\n");
+      }),
+    ),
+  );
+
+  it.live("writeFirstRun never replaces config.css", () =>
+    withDir(({ write, read }) =>
+      Effect.gen(function* () {
+        yield* write("config.css", "/* mine */");
+        yield* Effect.flatMap(Effect.service(ConfigFiles), (f) =>
+          f.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" }),
+        );
+
+        expect(yield* read("config.css")).toBe("/* mine */");
+        expect(yield* read("config.toml")).toBe("adblock = false\n");
+      }),
+    ),
+  );
+
+  it.live("a config.toml that appeared meanwhile also takes back the CSS this save made", () =>
+    withDir(({ write, dir }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        yield* write("config.toml", "# mine\n");
+
+        const error = yield* Effect.flip(
+          Effect.flatMap(Effect.service(ConfigFiles), (f) =>
+            f.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" }),
+          ),
+        );
+
+        expect(error.exists).toBe(true);
+        expect(yield* fs.exists(path.join(dir, "config.css")).pipe(Effect.orDie)).toBe(false);
+      }),
+    ),
+  );
+
+  it.live("a failed CSS write saves nothing, so a retry still works", () =>
+    withDir(({ dir, read }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const files = yield* ConfigFiles;
+        const save = files.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" });
+
+        // A read-only directory refuses the new file without it existing already.
+        yield* fs.chmod(dir, 0o555).pipe(Effect.orDie);
+
+        const error = yield* Effect.flip(save).pipe(
+          Effect.ensuring(Effect.orDie(fs.chmod(dir, 0o755))),
+        );
+
+        expect(error).toMatchObject({ exists: false });
+        expect(error.reason).toMatch(/^could not write config\.css/);
+        expect(yield* fs.readDirectory(dir).pipe(Effect.orDie)).toEqual([]);
+
+        yield* save;
+        expect(yield* read("config.toml")).toBe("adblock = false\n");
+      }),
+    ),
+  );
 });

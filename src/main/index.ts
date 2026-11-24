@@ -10,14 +10,17 @@ import { BookmarksRepo } from "./services/bookmarks-repo";
 import { ConfigFiles } from "./services/config-files";
 import { DownloadsGate } from "./services/downloads-gate";
 import { MainStore } from "./app/store";
-import { applyXdgPaths } from "./paths";
+import { applyXdgPaths, configDir, dataDir } from "./paths";
+import { probeFirstRun } from "./first-run";
 import { PromptsGate } from "./services/prompts-gate";
 import { Msg as ConfigMsg } from "./features/config/config.program";
+import { Msg as SetupMsg } from "./features/setup/setup.program";
 import { ConfigApplier } from "./services/config-applier";
 import { StyleFiles } from "./services/style-files";
 import { ZoomRepo } from "./services/zoom-repo";
 import { disposeNow } from "./runtime";
 import { Effect, Exit, Stream } from "effect";
+import { NodeServices } from "@effect/platform-node";
 
 import { mainStore, runtime, useSync } from "./app/runtime";
 import { createWindow, library, loadSession, tabManagers, userStyles } from "./app/window";
@@ -50,6 +53,10 @@ if (!gotTheLock) {
   });
 
   void app.whenReady().then(async () => {
+    const firstRun = await Effect.runPromise(
+      probeFirstRun(configDir, dataDir).pipe(Effect.provide(NodeServices.layer)),
+    );
+
     // A bad migration or a corrupt database is a real failure: log and quit
     // rather than leave the user staring at a window that never appears.
     const built = await runtime.runPromiseExit(Effect.void);
@@ -141,6 +148,8 @@ if (!gotTheLock) {
       }),
     );
     createWindow(loadSession());
+
+    if (firstRun) mainStore().dispatch(SetupMsg.cases.SetupOpened.make({}));
 
     // The config watcher and the zoom store are both acquired once and released
     // on quit. The store additionally holds the quit until its queued write has

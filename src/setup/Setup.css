@@ -1,0 +1,195 @@
+@layer kvist.components {
+  /* The view spans the page; the backdrop dims it so the panel reads as a step, not a page. */
+  .kv-setup {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: var(--kv-setup-top) var(--kv-chrome-inset) var(--kv-chrome-inset);
+    overflow: auto;
+    background: var(--kv-setup-backdrop);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+    color: var(--kv-setup-fg);
+  }
+
+  .kv-setup__panel {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--kv-space) * 2);
+    width: min(var(--kv-setup-width), 100%);
+    padding: calc(var(--kv-space) * 2);
+    background: var(--kv-setup-bg);
+    border: var(--kv-setup-border);
+    border-radius: var(--kv-setup-radius);
+    box-shadow: var(--kv-setup-shadow);
+  }
+
+  .kv-setup__title {
+    margin: 0;
+    font-size: inherit;
+    font-weight: var(--kv-font-weight-strong);
+    color: var(--kv-setup-heading-fg);
+  }
+
+  .kv-setup__body {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--kv-space) * 2);
+  }
+
+  .kv-setup__intro,
+  .kv-setup__note {
+    margin: 0;
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--kv-space-sm);
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  .kv-setup__legend {
+    padding: 0;
+    margin-bottom: var(--kv-space-sm);
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__option {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: var(--kv-gap);
+    align-items: baseline;
+    padding: calc(var(--kv-space-sm) * var(--kv-density)) var(--kv-gap);
+    border-radius: var(--kv-setup-option-radius);
+    cursor: pointer;
+  }
+
+  .kv-setup__option:hover {
+    background: var(--kv-setup-option-hover-bg);
+  }
+
+  .kv-setup__option.is-checked {
+    background: var(--kv-setup-option-checked-bg);
+    color: var(--kv-setup-option-checked-fg);
+  }
+
+  .kv-setup__option:has(:focus-visible) {
+    outline: var(--kv-setup-focus-outline);
+  }
+
+  /* The native control stays for keyboard and screen readers; a text marker shows the state. */
+  .kv-setup__radio {
+    appearance: none;
+    margin: 0;
+    font: inherit;
+    color: var(--kv-setup-marker-fg);
+  }
+
+  .kv-setup__radio::before {
+    content: "( )";
+  }
+
+  .kv-setup__radio:checked::before {
+    content: "(•)";
+  }
+
+  .kv-setup__radio:focus-visible {
+    outline: none;
+  }
+
+  .kv-setup__option-hint {
+    grid-column: 2;
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--kv-space-sm);
+  }
+
+  .kv-setup__field-label {
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__input {
+    min-height: var(--kv-control-height);
+    padding: 0 var(--kv-gap);
+    background: none;
+    border: var(--kv-setup-input-border);
+    border-radius: var(--kv-setup-option-radius);
+    font: inherit;
+    color: var(--kv-setup-fg);
+  }
+
+  .kv-setup__input:focus-visible {
+    outline: var(--kv-setup-focus-outline);
+  }
+
+  .kv-setup__summary {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--kv-space-sm) calc(var(--kv-gap) * 2);
+    margin: 0;
+  }
+
+  .kv-setup__summary dt {
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__summary dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .kv-setup__error {
+    margin: 0;
+    color: var(--kv-setup-error-fg);
+  }
+
+  .kv-setup__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--kv-gap);
+  }
+
+  .kv-setup__keys {
+    margin-left: auto;
+    color: var(--kv-setup-muted-fg);
+  }
+
+  .kv-setup__button {
+    min-height: var(--kv-control-height);
+    padding: 0 calc(var(--kv-gap) * 2);
+    background: none;
+    border: none;
+    border-radius: var(--kv-setup-button-radius);
+    font: inherit;
+    color: var(--kv-setup-button-fg);
+    cursor: pointer;
+  }
+
+  .kv-setup__button:hover:not(:disabled) {
+    color: var(--kv-setup-button-hover-fg);
+  }
+
+  .kv-setup__button:focus-visible {
+    outline: var(--kv-setup-focus-outline);
+  }
+
+  .kv-setup__button:disabled {
+    opacity: var(--kv-disabled-opacity);
+    cursor: default;
+  }
+
+  .kv-setup__button.is-primary {
+    background: var(--kv-setup-primary-bg);
+    color: var(--kv-setup-primary-fg);
+  }
+}

@@ -134,11 +134,11 @@ function parseTimezone(
   return fallback;
 }
 
-const SearchTemplate = Schema.String.check(
+/** A search URL template is only useful with somewhere to put the query. */
+export const SearchTemplate = Schema.String.check(
   Schema.makeFilter((template: string) => template.includes("{q}")),
 );
 
-/** A search URL template is only useful with somewhere to put the query. */
 function parseSearchUrl(value: unknown, fallback: string, problems: Problem[]): string {
   if (value !== undefined && !Schema.is(Schema.String)(value)) {
     problems.push({ field: "search", reason: "not a string" });

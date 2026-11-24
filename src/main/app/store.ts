@@ -10,6 +10,8 @@ import * as Messages from "../features/messages/messages.program";
 import * as MessagesFx from "../features/messages/messages.effects";
 import * as Prompts from "../features/prompts/prompts.program";
 import * as PromptsFx from "../features/prompts/prompts.effects";
+import * as Setup from "../features/setup/setup.program";
+import * as SetupFx from "../features/setup/setup.effects";
 import * as Tabs from "../features/tabs/tabs.program";
 import * as TabsFx from "../features/tabs/tabs.effects";
 import * as Vim from "../features/vim/vim.program";
@@ -62,6 +64,7 @@ const interpret = interpretAll<
   interpreter(Library.Cmd, LibraryFx.interpret),
   interpreter(Messages.Cmd, MessagesFx.interpret),
   interpreter(Prompts.Cmd, PromptsFx.interpret),
+  interpreter(Setup.Cmd, SetupFx.interpret),
   interpreter(Tabs.Cmd, TabsFx.interpret),
   interpreter(Vim.Cmd, VimFx.interpret),
 ]);

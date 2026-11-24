@@ -6,6 +6,7 @@ import * as Library from "../features/library/library.program";
 import * as Messages from "../features/messages/messages.program";
 import * as Palette from "../features/palette/palette.program";
 import * as Prompts from "../features/prompts/prompts.program";
+import * as Setup from "../features/setup/setup.program";
 import * as Tabs from "../features/tabs/tabs.program";
 import * as Vim from "../features/vim/vim.program";
 
@@ -18,6 +19,7 @@ export interface Model {
   readonly messages: Messages.Model;
   readonly palette: Palette.Model;
   readonly prompts: Prompts.Model;
+  readonly setup: Setup.Model;
   readonly tabs: Tabs.Model;
   readonly vim: Vim.Model;
 }
@@ -30,6 +32,7 @@ export type Msg =
   | Messages.Msg
   | Palette.Msg
   | Prompts.Msg
+  | Setup.Msg
   | Tabs.Msg
   | Vim.Msg;
 
@@ -39,6 +42,7 @@ export type Cmd =
   | Library.Cmd
   | Messages.Cmd
   | Prompts.Cmd
+  | Setup.Cmd
   | Tabs.Cmd
   | Vim.Cmd;
 
@@ -53,6 +57,7 @@ export const program: Program<Model, Msg, Cmd> = {
     messages: Messages.init,
     palette: Palette.init,
     prompts: Prompts.init,
+    setup: Setup.init,
     tabs: Tabs.init,
     vim: Vim.init,
   }),
@@ -64,6 +69,7 @@ export const program: Program<Model, Msg, Cmd> = {
     route("messages", Messages.Msg, Messages.update),
     route("palette", Palette.Msg, Palette.update),
     route("prompts", Prompts.Msg, Prompts.update),
+    route("setup", Setup.Msg, Setup.update),
     route("tabs", Tabs.Msg, Tabs.update),
     route("vim", Vim.Msg, Vim.update),
   ]),

@@ -27,9 +27,25 @@ export interface Model {
   readonly recipes: ReadonlyArray<string>;
   /** A recipe written to config.toml but not applied yet. A later `:recipe` compares against it. */
   readonly pending: string | null;
+  /** The latest config read from disk. */
+  readonly loaded: UserConfig | null;
+  /** A config the setup wizard is showing off. It outranks `loaded` until it ends. */
+  readonly preview: Preview | null;
 }
 
-export const init: Model = { current: null, recipes: [], pending: null };
+export interface Preview {
+  readonly config: UserConfig;
+  /** Written to disk: it ends with the next load, which says the same, so nothing flickers. */
+  readonly saved: boolean;
+}
+
+export const init: Model = {
+  current: null,
+  recipes: [],
+  pending: null,
+  loaded: null,
+  preview: null,
+};
 
 export const Msg = Schema.TaggedUnion({
   /** config.toml or config.css was read: at startup, and after every save. */
@@ -44,6 +60,10 @@ export const Msg = Schema.TaggedUnion({
   /** `:recipe [name]`. No name asks which recipe is in force. */
   RecipeChosen: { name: Schema.UndefinedOr(Schema.String) },
   RecipeNotSaved: { reason: Schema.String },
+  /** Applied in place of the files until `PreviewEnded`. Nothing is written. */
+  PreviewLoaded: { config: UserConfig },
+  /** Back to what the files say: now, or once `saved` files have been read back. */
+  PreviewEnded: { saved: Schema.Boolean },
 });
 
 export type Msg = typeof Msg.Type;
@@ -111,10 +131,13 @@ export function update(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
     ConfigLoaded: ({ config, problems, recipes }) => {
       const reported = report(problems.map(describeProblem), (line) => line);
+      // A save during a preview is kept for later, so the preview does not flicker away.
+      const showing = model.preview !== null && !model.preview.saved;
+      const apply = showing ? [] : [Cmd.cases.ApplyConfig.make({ config })];
 
       return next(
-        { ...model, recipes },
-        [...reported.cmds, Cmd.cases.ApplyConfig.make({ config })],
+        { ...model, recipes, loaded: config, preview: showing ? model.preview : null },
+        [...reported.cmds, ...apply],
         reported.msgs,
       );
     },
@@ -141,5 +164,19 @@ export function update(msg: Msg, model: Model): Result {
     },
     RecipeChosen: ({ name }) => chooseRecipe(name, model),
     RecipeNotSaved: ({ reason }) => next({ ...model, pending: null }, [], [warn(reason)]),
+    PreviewLoaded: ({ config }) =>
+      next({ ...model, preview: { config, saved: false } }, [
+        Cmd.cases.ApplyConfig.make({ config }),
+      ]),
+    PreviewEnded: ({ saved }) => {
+      if (model.preview === null) return next(model);
+
+      if (saved) return next({ ...model, preview: { ...model.preview, saved } });
+
+      const restore =
+        model.loaded === null ? [] : [Cmd.cases.ApplyConfig.make({ config: model.loaded })];
+
+      return next({ ...model, preview: null }, restore);
+    },
   });
 }

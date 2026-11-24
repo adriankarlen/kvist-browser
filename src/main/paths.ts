@@ -12,7 +12,8 @@ function xdg(variable: string, fallback: string): string {
 
 /**
  * Hand-edited config lives here. Kvist writes only the `recipe` line in
- * config.toml, for `:recipe`, and never config.css.
+ * config.toml, for `:recipe`. The first-run wizard creates config.toml and
+ * config.css when they are missing, and never replaces either.
  */
 export const configDir = xdg("XDG_CONFIG_HOME", ".config");
 

@@ -233,9 +233,30 @@ to add your own.
 ## Configuration
 
 Kvist reads from `~/.config/kvist/` (or `$XDG_CONFIG_HOME/kvist/`); it's
-yours to hand-edit. Kvist writes one thing there: `:recipe` sets the `recipe`
-line in `config.toml` and leaves the rest of the file as it was. Changes are
-picked up live, no restart needed.
+yours to hand-edit. Kvist writes there in two cases only. `:recipe` sets the
+`recipe` line in `config.toml` and leaves the rest of the file as it was. The
+first-run wizard creates the files when they are missing (see below). Changes
+are picked up live, no restart needed.
+
+### First run
+
+On a new install, Kvist opens a short setup wizard over the first page. It
+asks for a recipe, the keys (vim or standard), where the URL bar goes, where
+tabs go and how dense the chrome is, and a search engine. The chrome around
+the wizard shows each choice as you make it. Nothing is saved until you
+finish.
+
+It works from the keyboard alone: arrow keys pick, Enter moves on, and Escape
+goes back. Going back keeps your choices.
+
+Finish writes a `config.toml` holding the recipe and only the choices that
+differ from it, so a later `:recipe` still changes the rest. Density goes in
+`config.css` as `--kv-density`, and only when that file does not exist yet.
+Skip writes the default recipe alone. Neither ever replaces a file that is
+already there.
+
+The wizard only appears when there is no `config.toml` and no Kvist data
+yet, so an upgrade never shows it.
 
 ### `config.toml`
 
