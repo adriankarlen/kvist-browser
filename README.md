@@ -351,23 +351,82 @@ but are never enforced. Same lists, different engine.
 
 ### `config.css`
 
-Everything Kvist ships lives inside `@layer kvist.reset | tokens |
+Everything Kvist ships lives inside `@layer kvist.reset | tokens | recipe |
 components`. Your `config.css` is injected unlayered, and unlayered styles
 always beat layered ones in CSS regardless of selector specificity. So any
 rule you write there overrides Kvist's own styling, without needing to fight
-it on specificity or reach for `!important`. The theme itself is a
-three-tier token system:
+it on specificity or reach for `!important`. Kvist never writes to
+`config.css`: it is yours. (`recipe` is empty for now. Built-in recipes will
+go there, under your file.)
 
-- **palette**: `--kv-color-*`, what color things are. Swap these to reskin
+#### Theme tokens
+
+The theme is a three-tier token system:
+
+- **palette**: `--kv-color-*`, what colour things are. Swap these to reskin
   the whole browser.
-- **metrics**: sizes and spacing (`--kv-space`, `--kv-tabstrip-height`, and
-  so on). Swap these to restructure the chrome.
+- **metrics**: font, density, spacing, borders, radii, shadows and focus
+  (`--kv-border-width`, `--kv-radius`, `--kv-shadow-raised`, and so on).
+  Swap these to change the style: flat, bordered, hard shadows or soft ones.
 - **parts**: per-component tokens built from the two tiers above
-  (`--kv-tab-fg`, `--kv-panel-border`, and so on). Override one to change a
-  single element without disturbing anything else.
+  (`--kv-tab-active-bg`, `--kv-panel-border`, and so on). Override one to
+  change a single element without disturbing anything else.
 
-Ships with [Rosé Pine](https://rosepinetheme.com/) by default. See
-`src/renderer/styles/tokens.css` for the full token list.
+Ships with [Rosé Pine](https://rosepinetheme.com/) in dark and Rosé Pine Dawn
+in light. See [`src/shared/styles/tokens.css`](src/shared/styles/tokens.css)
+for the full token list.
+
+```css
+:root {
+  color-scheme: light; /* "dark" (the default), "light", or "light dark" to follow the OS */
+  --kv-density: 0.85; /* scales control heights and panel padding */
+  --kv-radius: 6px; /* panels and menus; --kv-radius-control for tabs and rows */
+  --kv-border-width: 3px;
+  --kv-shadow-raised: 4px 4px 0 var(--kv-color-shadow);
+  --kv-color-accent: light-dark(#aa5500, #ff8800); /* light value, dark value */
+}
+```
+
+`color-scheme` picks the light or dark value of every palette colour. It
+changes Kvist's own UI only: websites keep following your OS setting. A plain
+value applies in both schemes; use `light-dark(light, dark)` to set one per
+scheme.
+
+| Metric family   | Tokens                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------- |
+| Font            | `--kv-font-family`, `--kv-font-size`, `--kv-font-weight`, `--kv-font-weight-strong`     |
+| Density         | `--kv-density`, and `--kv-control-height` built from it                                 |
+| Space           | `--kv-space`, `--kv-space-sm`, `--kv-gap`, `--kv-chrome-inset`                          |
+| Border          | `--kv-border-width`, `--kv-border-style`, `--kv-border-color`, `--kv-separator-width`   |
+| Radius          | `--kv-radius` (panels, menus), `--kv-radius-control` (tabs, rows, badges, bars)         |
+| Shadow          | `--kv-shadow-raised`, `--kv-shadow-pressed`, `--kv-shadow-inset`, `--kv-shadow-overlay` |
+| Focus and state | `--kv-focus-outline`, `--kv-disabled-opacity`                                           |
+
+Shadows next to the page only show inside `--kv-chrome-inset`, because the
+page is drawn above the chrome. The completion list does not show a shadow
+yet.
+
+#### Renamed tokens
+
+The palette now names roles instead of Rosé Pine colours. The old names are
+gone, so update a `config.css` that sets them:
+
+| Old                                                     | New                                                         |
+| ------------------------------------------------------- | ----------------------------------------------------------- |
+| `--kv-color-base`                                       | `--kv-color-bg` (text on an accent: `--kv-color-on-accent`) |
+| `--kv-color-surface`                                    | `--kv-color-bg-raised`                                      |
+| `--kv-color-overlay`                                    | `--kv-color-bg-selected` (borders: `--kv-color-border`)     |
+| `--kv-color-highlight-med`                              | `--kv-color-bg-track`                                       |
+| `--kv-color-highlight-low`, `--kv-color-highlight-high` | removed                                                     |
+| `--kv-color-text`                                       | `--kv-color-fg`                                             |
+| `--kv-color-subtle`                                     | `--kv-color-fg-dim`                                         |
+| `--kv-color-muted`                                      | `--kv-color-fg-faint`                                       |
+| `--kv-permission-*`                                     | `--kv-prompt-*`                                             |
+
+`--kv-panel-border`, `--kv-menu-border` and `--kv-completion-border` are now
+whole borders (`2px solid …`). Set the colour alone with
+`--kv-panel-border-color`, `--kv-menu-border-color` or
+`--kv-completion-border-color`.
 
 ### User styles
 
