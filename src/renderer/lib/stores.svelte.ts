@@ -259,16 +259,25 @@ export const contentRect = (node: HTMLElement) => {
   };
 };
 
-/** Any CSS colour as `#rrggbb`, or null when it is see-through. A canvas reads every syntax CSS does. */
-function toHex(color: string): string | null {
-  const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+const swatch = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
 
-  if (context === null) return null;
-  context.fillStyle = color;
-  context.fillRect(0, 0, 1, 1);
-  const [r = 0, g = 0, b = 0, alpha = 0] = context.getImageData(0, 0, 1, 1).data;
+/**
+ * CSS colours painted bottom to top, as one `#rrggbb`. A canvas reads every
+ * syntax CSS does and blends translucent layers. Null while the stack is not
+ * opaque: the window's own colour would show through, and that is unknown.
+ */
+function paintedHex(layers: ReadonlyArray<string>): string | null {
+  if (swatch === null) return null;
+  swatch.clearRect(0, 0, 1, 1);
 
-  if (alpha === 0) return null;
+  for (const color of layers) {
+    swatch.fillStyle = color;
+    swatch.fillRect(0, 0, 1, 1);
+  }
+
+  const [r = 0, g = 0, b = 0, alpha = 0] = swatch.getImageData(0, 0, 1, 1).data;
+
+  if (alpha < 255) return null;
 
   return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -276,13 +285,16 @@ function toHex(color: string): string | null {
 /**
  * Keeps the window's native background the colour the chrome paints, which
  * is what a resize shows before the next frame. Main cannot read CSS, so the
- * chrome measures it whenever a stylesheet or the OS scheme changes.
+ * chrome measures it when a stylesheet, the OS scheme or the viewport changes.
  */
 export const windowBackground = (node: HTMLElement) => {
   let reported: string | null = null;
 
   const report = (): void => {
-    const color = toHex(getComputedStyle(node).backgroundColor);
+    const color = paintedHex([
+      getComputedStyle(document.body).backgroundColor,
+      getComputedStyle(node).backgroundColor,
+    ]);
 
     if (color === null || color === reported) return;
     reported = color;
@@ -294,12 +306,14 @@ export const windowBackground = (node: HTMLElement) => {
 
   styles.observe(document.head, { childList: true, subtree: true, characterData: true });
   scheme.addEventListener("change", report);
+  window.addEventListener("resize", report);
   report();
 
   return {
     destroy() {
       styles.disconnect();
       scheme.removeEventListener("change", report);
+      window.removeEventListener("resize", report);
     },
   };
 };
