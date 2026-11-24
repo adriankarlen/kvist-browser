@@ -139,3 +139,53 @@ describe(":recipe", () => {
     expect(failed.msgs).toEqual(shown("nope", "error"));
   });
 });
+
+describe("preview", () => {
+  const previewed = { ...config, recipe: { name: "test", css: ":root{}" } };
+  const onDisk = { ...config, css: "/* saved */" };
+  const apply = (c: typeof config) => Cmd.cases.ApplyConfig.make({ config: c });
+
+  const loaded = update(Msg.cases.ConfigLoaded.make({ config, problems: [], recipes }), init).model;
+
+  test("is applied in place of the files", () => {
+    const shown = update(Msg.cases.PreviewLoaded.make({ config: previewed }), loaded);
+
+    expect(shown.cmds).toEqual([apply(previewed)]);
+  });
+
+  test("a save during a preview is kept, not applied over it", () => {
+    const shown = update(Msg.cases.PreviewLoaded.make({ config: previewed }), loaded).model;
+
+    const saved = update(
+      Msg.cases.ConfigLoaded.make({ config: onDisk, problems: [], recipes }),
+      shown,
+    );
+
+    expect(saved.cmds).toEqual([]);
+    expect(saved.model.loaded).toEqual(onDisk);
+
+    const ended = update(Msg.cases.PreviewEnded.make({ saved: false }), saved.model);
+
+    expect(ended.model.preview).toBeNull();
+    expect(ended.cmds).toEqual([apply(onDisk)]);
+  });
+
+  test("a saved preview stays up until the files are read back", () => {
+    const shown = update(Msg.cases.PreviewLoaded.make({ config: previewed }), loaded).model;
+    const saved = update(Msg.cases.PreviewEnded.make({ saved: true }), shown);
+
+    expect(saved.cmds).toEqual([]);
+
+    const reread = update(
+      Msg.cases.ConfigLoaded.make({ config: previewed, problems: [], recipes }),
+      saved.model,
+    );
+
+    expect(reread.model.preview).toBeNull();
+    expect(reread.cmds).toEqual([apply(previewed)]);
+  });
+
+  test("ending no preview does nothing", () => {
+    expect(update(Msg.cases.PreviewEnded.make({ saved: false }), loaded).cmds).toEqual([]);
+  });
+});
