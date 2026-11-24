@@ -56,12 +56,12 @@ test("at the side, a completion list opens towards the larger half of the window
   expect(completionGrow("right", { y: 800, height: 20 }, 1000)).toBe("up");
 });
 
-test("the omnibox goes on top or floats, and the others go to any edge", () => {
+test("the omnibox goes on top, at the bottom or floats, and the others go to any edge", () => {
   for (const id of ["tabs", "bookmarks", "downloads", "status", "find"] as const) {
     expect(SUPPORT[id].regions).toEqual(["top", "bottom", "left", "right"]);
   }
 
-  expect(SUPPORT.omnibox.regions).toEqual(["top", "floating"]);
+  expect(SUPPORT.omnibox.regions).toEqual(["top", "bottom", "floating"]);
   expect(SUPPORT.completion.regions).toEqual(["overlay"]);
 });
 

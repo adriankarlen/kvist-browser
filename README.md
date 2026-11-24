@@ -321,21 +321,26 @@ and below the page, between them. Leave a field out to keep its default.
 An element you move keeps its default order, so you rarely need `order`.
 Changes apply as soon as you save the file.
 
-| Element      | Default | Can go        | `visible = false` means                           |
-| ------------ | ------- | ------------- | ------------------------------------------------- |
-| `tabs`       | top     | any edge      | no tab strip                                      |
-| `omnibox`    | top     | top, floating | shown only while you use it (`o`)                 |
-| `bookmarks`  | bottom  | any edge      | no change: it only shows while open (`gb`)        |
-| `downloads`  | bottom  | any edge      | no popup while downloading; `:downloads` shows it |
-| `status`     | bottom  | any edge      | command line, prompts and errors only             |
-| `find`       | bottom  | any edge      | shown while you type; `n` and `N` still work      |
-| `completion` | overlay | overlay       | no completion lists                               |
+| Element      | Default | Can go                | `visible = false` means                           |
+| ------------ | ------- | --------------------- | ------------------------------------------------- |
+| `tabs`       | top     | any edge              | no tab strip                                      |
+| `omnibox`    | top     | top, bottom, floating | shown only while you use it (`o`)                 |
+| `bookmarks`  | bottom  | any edge              | no change: it only shows while open (`gb`)        |
+| `downloads`  | bottom  | any edge              | no popup while downloading; `:downloads` shows it |
+| `status`     | bottom  | any edge              | command line, prompts and errors only             |
+| `find`       | bottom  | any edge              | shown while you type; `n` and `N` still work      |
+| `completion` | overlay | overlay               | no completion lists                               |
 
 `status` is the row that the command line, prompts and messages share.
 Hidden, it drops info messages but still shows errors. The tab strip, and
 every panel and line, runs vertically at the left or right and horizontally
 at the top or bottom. `tabs.orientation` is gone: use `[layout.tabs] region`
 instead.
+
+A completion list opens away from the window edge its input sits on. With
+the omnibox at the bottom, its list opens upwards, with the first match
+nearest the bar, and the arrow keys follow the rows: Up moves away from the
+bar.
 
 #### Command palette
 
