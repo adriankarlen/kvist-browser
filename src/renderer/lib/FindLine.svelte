@@ -41,7 +41,10 @@
     vim.toNormal();
   }
 
-  function onblur(): void {
+  // A chord can move focus to another chrome input, which claims its own mode.
+  // Dropping to normal there would send focus to the page behind it.
+  function onblur(event: FocusEvent): void {
+    if (event.relatedTarget instanceof HTMLInputElement) return;
     vim.toNormal();
   }
 

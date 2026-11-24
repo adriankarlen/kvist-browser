@@ -1,15 +1,17 @@
-import { beforeEach, expect, test, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Mode } from "../../../shared/schema/browser";
 import type { Next } from "../../../shared/tea/program";
-import { DEFAULT_KEYBINDS, type Keybind } from "./keybinds";
+import { DEFAULT_KEYBINDS, type Keybind, standardKeybinds } from "./keybinds";
 import {
-  type Cmd,
+  Cmd,
   init,
   type KeyInput,
   type KeySource,
   type Model,
   Msg,
+  resolveKey,
   step,
+  stepStandard,
   update,
 } from "./vim.program";
 
@@ -89,7 +91,10 @@ let modes: Mode[];
 const from =
   (source: KeySource) =>
   (k: string, modifiers: Partial<KeyInput> = {}): boolean =>
-    vim.handleKey({ key: k, control: false, alt: false, meta: false, ...modifiers }, source);
+    vim.handleKey(
+      { key: k, code: "", control: false, alt: false, meta: false, shift: false, ...modifiers },
+      source,
+    );
 
 const key = from("page");
 const chromeKey = from("chrome");
@@ -496,4 +501,111 @@ test("a chrome input closing leaves its typing mode without moving focus", () =>
     update(Msg.cases.ChromeInputClosed.make({}), { ...init, mode: "insert", promptPending: true })
       .model.mode,
   ).toBe("prompt");
+});
+
+test("a keybind's argument reaches its command", () => {
+  const bound: Keybind = { mode: "normal", keys: "q", command: "zoom.set", arg: "2" };
+  const input = { key: "q", code: "KeyQ", control: false, alt: false, meta: false, shift: false };
+
+  expect(step(init, input, "page", [bound]).cmds).toEqual([
+    Cmd.cases.RunCommand.make({ name: "zoom.set", arg: "2" }),
+  ]);
+});
+
+describe("standard mode", () => {
+  const chords = standardKeybinds("linux");
+  const standard: Model = { ...init, scheme: "standard" };
+
+  const press = (k: string, modifiers: Partial<KeyInput> = {}): KeyInput => ({
+    key: k,
+    code: "",
+    control: false,
+    alt: false,
+    meta: false,
+    shift: false,
+    ...modifiers,
+  });
+
+  const modTab = press("t", { control: true });
+  // resolveKey reads the table for the platform the tests run on.
+  const hostModTab = press("t", process.platform === "darwin" ? { meta: true } : { control: true });
+
+  test("plain keys pass to the page, in every mode", () => {
+    for (const mode of ["normal", "insert"] as const) {
+      for (const k of ["j", "f", ":", "Escape", "/"]) {
+        expect(stepStandard({ ...standard, mode }, press(k), chords).consumed).toBe(false);
+      }
+    }
+  });
+
+  test("a chord runs its command from any mode and either webContents", () => {
+    for (const mode of ["normal", "insert", "command", "find"] as const) {
+      const stepped = stepStandard({ ...standard, mode }, modTab, chords);
+
+      expect(stepped.consumed).toBe(true);
+      expect(stepped.cmds).toEqual([
+        Cmd.cases.RunCommand.make({ name: "tab.new", arg: undefined }),
+      ]);
+    }
+
+    expect(resolveKey(standard, hostModTab, "page")).toBe(true);
+    expect(resolveKey(standard, hostModTab, "chrome")).toBe(true);
+    expect(resolveKey(standard, press("j"), "page")).toBe(false);
+  });
+
+  test("vim keys do nothing, and vim mode ignores chords", () => {
+    expect(
+      update(Msg.cases.KeyPressed.make({ ...press("t"), source: "page" }), standard).cmds,
+    ).toEqual([]);
+    expect(resolveKey(init, hostModTab, "page")).toBe(false);
+  });
+
+  test("a chord that opens an input enters its mode, and passes its argument", () => {
+    expect(stepStandard(standard, press("f", { control: true }), chords).model.mode).toBe("find");
+    expect(stepStandard(standard, press("3", { control: true }), chords).cmds).toEqual([
+      Cmd.cases.RunCommand.make({ name: "tab.select", arg: "3" }),
+    ]);
+  });
+
+  test("a pending question does not capture the keyboard", () => {
+    const pending = update(Msg.cases.PromptPendingChanged.make({ pending: true }), standard).model;
+
+    expect(pending).toEqual({ ...standard, promptPending: true });
+    expect(resolveKey(pending, press("y"), "page")).toBe(false);
+    expect(update(Msg.cases.ModeRequested.make({ mode: "normal" }), pending).model.mode).toBe(
+      "normal",
+    );
+  });
+
+  const switchTo = (scheme: "vim" | "standard", model: Model) =>
+    update(Msg.cases.InputModeChanged.make({ scheme }), model);
+
+  test("switching to standard hides hints and forgets a pending prefix", () => {
+    const switched = switchTo("standard", { ...init, mode: "hint", pending: "g" });
+
+    expect(switched.model).toEqual({ ...standard, mode: "normal", pending: "" });
+    expect(switched.cmds).toEqual([
+      Cmd.cases.RunCommand.make({ name: "hints.hide", arg: undefined }),
+    ]);
+  });
+
+  test("switching to standard releases a question's hold on the keyboard", () => {
+    const switched = switchTo("standard", { ...init, mode: "prompt", promptPending: true });
+
+    expect(switched.model.mode).toBe("normal");
+    expect(switched.cmds).toEqual([]);
+  });
+
+  test("switching back to vim with a question waiting captures normal mode", () => {
+    expect(switchTo("vim", { ...standard, promptPending: true }).model.mode).toBe("prompt");
+  });
+
+  test("a typing mode survives the switch, because focus did not move", () => {
+    expect(switchTo("standard", { ...init, mode: "insert" }).model.mode).toBe("insert");
+    expect(switchTo("vim", { ...standard, mode: "insert" }).model.mode).toBe("insert");
+  });
+
+  test("the same scheme changes nothing", () => {
+    expect(switchTo("vim", init).model).toBe(init);
+  });
 });

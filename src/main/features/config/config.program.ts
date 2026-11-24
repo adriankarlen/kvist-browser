@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import { UserConfig } from "../../../shared/schema/config";
 import { next, type Next } from "../../../shared/tea/program";
 import { type Msg as MessagesMsg, warn } from "../messages/messages.program";
+import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
 
 const Problem = Schema.Struct({ field: Schema.String, reason: Schema.String });
 
@@ -41,7 +42,7 @@ export const Cmd = Schema.TaggedUnion({
 
 export type Cmd = typeof Cmd.Type;
 
-type Result = Next<Model, MessagesMsg, Cmd>;
+type Result = Next<Model, MessagesMsg | VimMsg, Cmd>;
 
 /** How a config problem reads: which file, which field, and why. */
 export function describeProblem({ field, reason }: typeof Problem.Type): string {
@@ -73,7 +74,16 @@ export function update(msg: Msg, model: Model): Result {
 
       return next(model, [...reported.cmds, Cmd.cases.ApplyConfig.make({ config })], reported.msgs);
     },
-    ConfigApplied: ({ config }) => next({ current: config }),
+    ConfigApplied: ({ config }) => {
+      const scheme = config.settings.inputMode;
+      const changed = model.current === null || model.current.settings.inputMode !== scheme;
+
+      return next(
+        { current: config },
+        [],
+        changed ? [VimMsgs.cases.InputModeChanged.make({ scheme })] : [],
+      );
+    },
     StylesLoaded: ({ sources }) => next(model, [Cmd.cases.ApplyStyles.make({ sources })]),
     StylesApplied: ({ problems }) => {
       const lines = problems.map(({ id, reason }) => `${id}: ${reason}`);

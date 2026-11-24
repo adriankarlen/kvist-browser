@@ -98,6 +98,10 @@ entry point behind every script above.
 
 ## Keybindings
 
+Kvist has two key sets. Vim mode is the default and is described first.
+Set `[input] mode = "standard"` for the shortcuts every other browser uses;
+see [Standard mode](#standard-mode).
+
 Kvist has six modes: **normal** (default, keys are commands), **insert**
 (typing goes to a focused field or the omnibox), **command** (a `:` line at
 the bottom that runs a command on submit), **hint** (labels are shown on the
@@ -145,6 +149,7 @@ prompt mode, where it denies the permission question instead.
 | `:r`, `:reload`           | Reload the active tab                       |
 | `:q`, `:quit`             | Close the active tab                        |
 | `:undo`                   | Reopen the last closed tab                  |
+| `:tab.select <n\|last>`   | Go to tab `n`, or the last tab              |
 | `:downloads`              | Keep the downloads panel open, or let it go |
 | `:bookmark`               | Bookmark the page, or remove its bookmarks  |
 | `:bookmarks`              | Open the bookmarks panel                    |
@@ -186,9 +191,43 @@ Everything not listed above is denied without asking, and fullscreen,
 pointer lock and sanitized clipboard writes are granted without asking, as
 in any other browser.
 
-Both keybindings and commands are early and intentionally minimal. See
-`src/main/vim.ts` and `runCommand` in `src/main/index.ts` if you want to add
-your own.
+### Standard mode
+
+With `[input] mode = "standard"`, there are no modes to learn. Every plain
+key goes to the page, hints are off, and the mode badge is gone. A
+permission question shows Allow and Deny buttons and does not take the
+keyboard. Shortcuts work wherever focus is, even while typing in the
+omnibox.
+
+`Mod` is Cmd on macOS and Ctrl elsewhere.
+
+| Keys                          | Action                           |
+| ----------------------------- | -------------------------------- |
+| `Mod+L`                       | Focus the omnibox                |
+| `Mod+T`                       | New tab                          |
+| `Mod+W`                       | Close active tab                 |
+| `Mod+Shift+T`                 | Reopen the last closed tab       |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab              |
+| `Mod+1` … `Mod+8`             | Go to tab 1 … 8                  |
+| `Mod+9`                       | Go to the last tab               |
+| `Mod+[` / `Mod+]`             | Back / forward                   |
+| `Alt+Left` / `Alt+Right`      | Back / forward (not on macOS)    |
+| `Mod+R`, `F5`                 | Reload                           |
+| `Mod+F`                       | Find in page                     |
+| `Mod+G` / `Mod+Shift+G`       | Next / previous match            |
+| `Mod+=` / `Mod+-` / `Mod+0`   | Zoom in / out / reset            |
+| `Mod+D`                       | Bookmark the page, or remove it  |
+| `Mod+Shift+O`                 | Open the bookmarks panel         |
+| `Mod+J`                       | Show or hide the downloads panel |
+| `Mod+Shift+P`                 | Command line                     |
+| `Mod+Alt+I`, `F12`            | DevTools                         |
+| `Mod+Q`                       | Quit Kvist                       |
+
+Copy, paste, undo and select all work as in any other app.
+
+Both key sets and commands are early and intentionally minimal. See
+`src/main/features/vim/keybinds.ts` and `src/main/commands.ts` if you want
+to add your own.
 
 ## Configuration
 
@@ -208,6 +247,10 @@ adblock = true # ad and tracker blocking
 
 [tabs]
 focus-page = true # hand keyboard focus to the page after a tab switch
+
+# "vim" (the default) or "standard" for the usual browser shortcuts.
+[input]
+mode = "vim"
 
 # Where each part of the chrome sits. See "Layout" below.
 [layout.tabs]

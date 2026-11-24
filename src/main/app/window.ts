@@ -224,6 +224,7 @@ export function createWindow(saved: SessionState | null): void {
     },
     reopen: () => mainStore().dispatch(TabsMsg.cases.TabReopenRequested.make({})),
     step: (offset) => mainStore().dispatch(TabsMsg.cases.TabStepped.make({ offset })),
+    select: (position) => mainStore().dispatch(TabsMsg.cases.TabSelected.make({ position })),
   };
 
   const tabsFiber = runtime.runFork(

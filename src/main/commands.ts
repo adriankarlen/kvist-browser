@@ -23,6 +23,7 @@ const COMMANDS = {
   "tab.reopen": { run: (a) => a.tabs.reopen },
   "tab.next": { run: (a) => a.tabs.next },
   "tab.prev": { run: (a) => a.tabs.prev },
+  "tab.select": { run: (a) => a.tabs.select, arg: "<n|last>" },
 
   "nav.back": { run: (a) => a.nav.back },
   "nav.forward": { run: (a) => a.nav.forward },

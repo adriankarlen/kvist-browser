@@ -43,10 +43,19 @@ export const browser = {
   },
 };
 
+const MOD = navigator.userAgent.includes("Macintosh") ? "Cmd" : "Ctrl";
+
 export const vim = {
   get mode() {
     return app.model.main.mode;
   },
+  /** False under `[input] mode = "standard"`, where modes are never shown. */
+  get enabled() {
+    return app.model.ui.settings.inputMode === "vim";
+  },
+  /** The keys for an action in the live scheme. `Mod` in a standard chord reads as Cmd or Ctrl. */
+  keys: (vimKeys: string, standardChord: string): string =>
+    vim.enabled ? vimKeys : standardChord.replaceAll("Mod", MOD),
   /** Hands control back to the page; main moves focus off the chrome. */
   toNormal: () => ask(I.ModeRequested.make({ mode: "normal" })),
 };

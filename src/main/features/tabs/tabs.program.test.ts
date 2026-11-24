@@ -122,6 +122,19 @@ describe("the collection", () => {
     expect(run([M.TabStepped.make({ offset: -1 })], three).model.activeId).toBe(2);
   });
 
+  test("selecting by position counts from 1, and last is the last tab", () => {
+    const three = run([open("https://a/"), open("https://b/"), open("https://c/")], ready).model;
+
+    const select = (position: number | "last") =>
+      run([M.TabSelected.make({ position })], three).model;
+
+    expect(select(1).activeId).toBe(1);
+    expect(select(2).activeId).toBe(2);
+    expect(run([M.TabSelected.make({ position: "last" })], select(1)).model.activeId).toBe(3);
+    expect(select(4)).toBe(three);
+    expect(select(0)).toBe(three);
+  });
+
   test("activating hands the keyboard back with the page's own editable state", () => {
     const two = run([open("https://a/"), open("https://b/")], ready).model;
 

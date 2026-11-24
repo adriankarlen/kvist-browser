@@ -494,12 +494,17 @@ test("keys reach the mode machine, and a consumed key is swallowed", () => {
   host.emit("before-input-event", event, {
     type: "keyDown",
     key: "j",
+    code: "KeyJ",
     control: false,
     alt: false,
     meta: false,
+    shift: false,
   });
 
-  expect(key).toHaveBeenCalledWith({ key: "j", control: false, alt: false, meta: false }, "page");
+  expect(key).toHaveBeenCalledWith(
+    { key: "j", code: "KeyJ", control: false, alt: false, meta: false, shift: false },
+    "page",
+  );
   expect(event.preventDefault).toHaveBeenCalled();
 });
 

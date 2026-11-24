@@ -23,6 +23,9 @@ test("every field is read", () => {
     [tabs]
     focus-page = false
 
+    [input]
+    mode = "standard"
+
     [layout.tabs]
     region = "left"
     size = "30ch"
@@ -46,6 +49,7 @@ test("every field is read", () => {
       tabs: { region: "left", order: 0, size: "30ch", visible: true, autohide: false },
     },
     tabFocusPage: false,
+    inputMode: "standard",
     downloadDir: "~/dl",
     newtabTimezone: "Europe/Stockholm",
     newtabLinks: [{ name: "docs", url: "https://docs.rs" }],
@@ -132,6 +136,28 @@ test("a section written as something other than a table is reported once", () =>
   expect(settingsOf("homepage = 'https://a.b'\ntabs = 5")).toEqual({
     ...DEFAULT_SETTINGS,
     homepage: "https://a.b",
+  });
+});
+
+describe("input mode", () => {
+  test("is vim when the file says nothing", () => {
+    expect(settingsOf("homepage = 'https://a.b'").inputMode).toBe("vim");
+    expect(problemsOf("[input]")).toEqual([]);
+  });
+
+  test("reads either mode", () => {
+    expect(settingsOf("[input]\nmode = 'standard'").inputMode).toBe("standard");
+    expect(settingsOf("[input]\nmode = 'vim'").inputMode).toBe("vim");
+  });
+
+  test("an unknown mode falls back to vim and is reported", () => {
+    expect(settingsOf("[input]\nmode = 'emacs'").inputMode).toBe("vim");
+    expect(problemsOf("[input]\nmode = 'emacs'")).toEqual(["input.mode"]);
+  });
+
+  test("an unknown key and a non-table are reported", () => {
+    expect(problemsOf("[input]\nmode = 'vim'\nleader = ','")).toEqual(["input.leader"]);
+    expect(problemsOf("input = 'standard'")).toEqual(["input"]);
   });
 });
 

@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import { DEFAULT_SETTINGS } from "../../../shared/config";
 import { Msg as MessagesMsg } from "../messages/messages.program";
+import { Msg as VimMsg } from "../vim/vim.program";
 import { Cmd, init, Msg, update } from "./config.program";
 
 const config = { css: "", settings: DEFAULT_SETTINGS };
@@ -43,5 +44,17 @@ test("a style problem names the file, not its whole path", () => {
 
   expect(msgs).toEqual([
     MessagesMsg.cases.MessageShown.make({ message: { text: "a.css: bad", level: "error" } }),
+  ]);
+});
+
+test("the input mode reaches the mode machine on the first apply, then only when it changes", () => {
+  const standard = { css: "", settings: { ...DEFAULT_SETTINGS, inputMode: "standard" as const } };
+  const switched = VimMsg.cases.InputModeChanged.make({ scheme: "standard" });
+  const first = update(Msg.cases.ConfigApplied.make({ config: standard }), init);
+
+  expect(first.msgs).toEqual([switched]);
+  expect(update(Msg.cases.ConfigApplied.make({ config: standard }), first.model).msgs).toEqual([]);
+  expect(update(Msg.cases.ConfigApplied.make({ config }), first.model).msgs).toEqual([
+    VimMsg.cases.InputModeChanged.make({ scheme: "vim" }),
   ]);
 });
