@@ -32,10 +32,16 @@
   class="kv-completion-slot"
   {@attach reportHeight}
   style:left="{inset?.left ?? 0}px"
-  style:top="{inset?.top ?? 0}px"
+  style:top={inset?.edge === "bottom" ? null : `${inset?.offset ?? 0}px`}
+  style:bottom={inset?.edge === "bottom" ? `${inset.offset}px` : null}
   style:width={inset === null ? null : `${inset.width}px`}
 >
   {#if state}
-    <CompletionMenu candidates={state.candidates} index={state.index} onaccept={accept} />
+    <CompletionMenu
+      candidates={state.candidates}
+      index={state.index}
+      grow={state.grow}
+      onaccept={accept}
+    />
   {/if}
 </div>

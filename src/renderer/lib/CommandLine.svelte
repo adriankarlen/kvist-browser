@@ -11,6 +11,10 @@
 
   const anchor = createAnchor();
 
+  const grow = $derived(
+    anchor.current === null ? "up" : completionGrow(region, anchor.current, window.innerHeight),
+  );
+
   // selectFirst: false — a bare Enter runs what was typed, not the first match.
   const completion = createCompletion((query) => browse.commandCompletions(query), {
     selectFirst: false,
@@ -52,7 +56,7 @@
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
       anchor: box,
-      grow: completionGrow(region, box, window.innerHeight),
+      grow,
     });
   });
 
@@ -70,7 +74,7 @@
   }
 
   function onkeydown(event: KeyboardEvent): void {
-    if (handleCompletionKey(completion, event, accept)) return;
+    if (handleCompletionKey(completion, event, accept, grow)) return;
 
     // Tab only ever completes here; moving focus off the line would strand
     // command mode with nothing to type into.

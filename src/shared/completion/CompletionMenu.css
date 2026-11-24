@@ -9,6 +9,8 @@
 
 @layer kvist.components {
   .kv-completion {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--kv-space-sm) 0;
     list-style: none;
@@ -23,7 +25,13 @@
     color: var(--kv-completion-fg);
   }
 
+  /* Mirrored, so the first match sits next to an input below the list. */
+  .kv-completion.is-up {
+    flex-direction: column-reverse;
+  }
+
   .kv-completion__item {
+    flex: none;
     display: flex;
     align-items: center;
     gap: var(--kv-gap);

@@ -9,14 +9,14 @@ const commandLine: Rect = { x: 20, y: 740, width: 960, height: 30 };
 test("a list grows out of the bottom edge of the input it belongs to", () => {
   expect(placeCompletion(omnibox, 200, "down", content)).toEqual({
     bounds: { x: 20, y: 70, width: 960, height: 200 },
-    inset: { left: 0, top: 0, width: 960 },
+    inset: { left: 0, width: 960, edge: "top", offset: 0 },
   });
 });
 
 test("growing up puts the list's bottom edge on the input's top edge", () => {
   expect(placeCompletion(commandLine, 200, "up", content)).toEqual({
     bounds: { x: 20, y: 540, width: 960, height: 200 },
-    inset: { left: 0, top: 0, width: 960 },
+    inset: { left: 0, width: 960, edge: "bottom", offset: 0 },
   });
 });
 
@@ -31,7 +31,8 @@ test("a fractional anchor keeps its exact edges once the inset is added back", (
 
   expect(bounds.x + inset.left).toBeCloseTo(fractional.x, 10);
   expect(bounds.x + inset.left + inset.width).toBeCloseTo(fractional.x + fractional.width, 10);
-  expect(bounds.y + inset.top).toBeCloseTo(fractional.y + fractional.height, 10);
+  expect(inset.edge).toBe("top");
+  expect(bounds.y + inset.offset).toBeCloseTo(fractional.y + fractional.height, 10);
 });
 
 test("the view is whole pixels, and never smaller than the list inside it", () => {
@@ -43,15 +44,32 @@ test("the view is whole pixels, and never smaller than the list inside it", () =
   expect(Number.isInteger(bounds.width)).toBe(true);
   expect(Number.isInteger(bounds.height)).toBe(true);
   expect(bounds.width).toBeGreaterThanOrEqual(inset.left + inset.width);
-  expect(bounds.height).toBeGreaterThanOrEqual(inset.top + 79);
+  expect(bounds.height).toBeGreaterThanOrEqual(inset.offset + 79);
 });
 
 test("a fractional anchor growing up lands its bottom edge on the input's top", () => {
   const fractional: Rect = { x: 20.25, y: 740.75, width: 960.5, height: 30 };
   const { bounds, inset } = placeCompletion(fractional, 79.4, "up", content);
 
-  expect(bounds.y + inset.top + 79.4).toBeCloseTo(fractional.y, 10);
+  expect(inset.edge).toBe("bottom");
+  expect(bounds.y + bounds.height - inset.offset).toBeCloseTo(fractional.y, 10);
+  expect(bounds.height - inset.offset).toBeGreaterThanOrEqual(79.4);
   expect(bounds.x + inset.left).toBeCloseTo(fractional.x, 10);
+});
+
+/**
+ * The overlay pins an upward list to the view's bottom edge. So whatever
+ * height main last heard, the list's bottom edge must be the input's top.
+ */
+test("an upward list touches its input, measured, unmeasured or stale", () => {
+  const fractional: Rect = { x: 20.25, y: 740.75, width: 960.5, height: 30 };
+
+  for (const height of [79.4, Number.POSITIVE_INFINITY, 300]) {
+    const { bounds, inset } = placeCompletion(fractional, height, "up", content);
+
+    expect(inset.edge).toBe("bottom");
+    expect(bounds.y + bounds.height - inset.offset).toBeCloseTo(fractional.y, 10);
+  }
 });
 
 test("a list taller than the space below it is cut to fit rather than flipped", () => {

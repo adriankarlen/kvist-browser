@@ -201,13 +201,13 @@ describe("layout", () => {
   });
 
   test("a region the element is not built for yet falls back, and says which ones it is", () => {
-    const { settings, problems } = parseSettings("[layout.omnibox]\nregion = 'bottom'");
+    const { settings, problems } = parseSettings("[layout.omnibox]\nregion = 'left'");
 
     expect(settings.layout.omnibox.region).toBe("top");
     expect(problems).toEqual([
       {
         field: "layout.omnibox.region",
-        reason: '"bottom" is not supported for omnibox yet; use "top", "floating"',
+        reason: '"left" is not supported for omnibox yet; use "top", "bottom", "floating"',
       },
     ]);
     expect(problemsOf("[layout.tabs]\nregion = 'floating'")).toEqual(["layout.tabs.region"]);
@@ -215,6 +215,13 @@ describe("layout", () => {
     expect(problemsOf("[layout.downloads]\nregion = 'floating'")).toEqual([
       "layout.downloads.region",
     ]);
+  });
+
+  test("the omnibox can sit below the page", () => {
+    const { settings, problems } = parseSettings("[layout.omnibox]\nregion = 'bottom'");
+
+    expect(settings.layout.omnibox.region).toBe("bottom");
+    expect(problems).toEqual([]);
   });
 
   test("the omnibox can float, as the command palette", () => {

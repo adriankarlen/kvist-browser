@@ -3,7 +3,7 @@
   import type { Attachment } from "svelte/attachments";
   import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
-  import { elementDirection, type Region } from "../../shared/layout";
+  import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { acceptOmnibox, omniboxCandidate } from "../../shared/omnibox-action";
   import { resolveUrl } from "../../shared/url";
   import { browser, completionOverlay, layout, ui, vim, browse } from "./stores.svelte";
@@ -15,6 +15,10 @@
   let draft = $state("");
   let focused = $state(false);
   const anchor = createAnchor();
+
+  const grow = $derived(
+    anchor.current === null ? "down" : completionGrow(region, anchor.current, window.innerHeight),
+  );
 
   $effect(() => {
     const url = browser.active?.url ?? "";
@@ -80,7 +84,7 @@
       candidates: $state.snapshot(completion.candidates),
       index: completion.index,
       anchor: box,
-      grow: "down",
+      grow,
     });
   });
 
@@ -110,7 +114,7 @@
   }
 
   function onkeydown(event: KeyboardEvent): void {
-    if (handleCompletionKey(completion, event, acceptSuggestion)) return;
+    if (handleCompletionKey(completion, event, acceptSuggestion, grow)) return;
 
     if (event.key !== "Escape") return;
     event.preventDefault();

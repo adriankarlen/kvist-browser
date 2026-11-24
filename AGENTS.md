@@ -125,6 +125,12 @@ anchor, the overlay reports how tall it rendered, and main puts the two
 together in `completion-bounds.ts`. Main never learns row heights, so a
 retheme that changes them needs no main-side change.
 
+A list is pinned to the view edge nearest its input: the top when it grows
+down, the bottom when it grows up. So an unmeasured or stale height only adds
+transparent space on the far side, and never pulls the list off its input.
+An upward list is also drawn mirrored (`is-up`), with the first match nearest
+the input, and `handleCompletionKey` flips the arrows to match.
+
 Both measurements travel unrounded, and that is load-bearing. A view's
 bounds are whole device-independent pixels, but the omnibox is not — the
 chrome measures its padding in `ch`, so the panel lands on fractions like

@@ -36,11 +36,10 @@ const EVERY_EDGE: ReadonlyArray<Region> = ["top", "bottom", "left", "right"];
 /**
  * What each element is built to handle today. The model names more on
  * purpose: a placement only renders well once its element is built for it.
- * KVI-58 widens this table.
  */
 export const SUPPORT: Readonly<Record<ElementId, Support>> = {
   tabs: { regions: EVERY_EDGE, autohide: true },
-  omnibox: { regions: ["top", "floating"], autohide: false },
+  omnibox: { regions: ["top", "bottom", "floating"], autohide: false },
   bookmarks: { regions: EVERY_EDGE, autohide: false },
   downloads: { regions: EVERY_EDGE, autohide: false },
   status: { regions: EVERY_EDGE, autohide: false },

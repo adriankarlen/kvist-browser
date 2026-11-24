@@ -2,15 +2,17 @@
   import type { Attachment } from "svelte/attachments";
   import "./CompletionMenu.css";
   import { kindBadge, kindBadgeStyle } from "./badge";
-  import type { CompletionCandidate } from "../schema/completion";
+  import type { CompletionCandidate, CompletionGrow } from "../schema/completion";
 
   let {
     candidates,
     index,
+    grow = "down",
     onaccept,
   }: {
     candidates: CompletionCandidate[];
     index: number;
+    grow?: CompletionGrow;
     onaccept: (candidate: CompletionCandidate) => void;
   } = $props();
 
@@ -32,7 +34,11 @@
     option stays a leaf for screen readers, never focused directly —
     keys are read off the owning input in the chrome.
   -->
-  <ul class="kv-completion" role="listbox" {@attach revealActive(index)}>
+  <ul
+    class={["kv-completion", { "is-up": grow === "up" }]}
+    role="listbox"
+    {@attach revealActive(index)}
+  >
     {#each candidates as candidate, row (row)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <li
