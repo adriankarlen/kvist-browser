@@ -28,13 +28,14 @@ every boundary.
 
 Where things are, with the _why_ living next to the code it constrains.
 
-- **Four loops.** Main (`src/main/app/`, features in `src/main/features/`),
+- **Six loops.** Main (`src/main/app/`, features in `src/main/features/`),
   the chrome (`src/renderer/app/`, `src/renderer/features/`), the overlay
-  (`src/overlay/`) and each tab's page preload (`src/preload/page.ts`). Each
+  (`src/overlay/`), the palette (`src/palette/`), the setup wizard
+  (`src/setup/`) and each tab's page preload (`src/preload/page.ts`). Each
   one is a `Store` from `src/shared/tea/`.
-- **Three preloads, each a port forwarder.** `src/preload/index.ts` and
-  `overlay.ts` expose one function, `window.kvist.connect()`, and forward the
-  port main replies with. `src/preload/page.ts` keeps its port in the
+- **Five preloads, each a port forwarder.** `src/preload/index.ts`,
+  `overlay.ts`, `palette.ts` and `setup.ts` expose one function,
+  `window.kvist.connect()`, and forward the port main replies with. `src/preload/page.ts` keeps its port in the
   isolated world and exposes nothing. Each needs its own entry in
   `vite.config.ts`; the plugin bundles a preload to one file.
 - **Tabs are `WebContentsView`s** made and destroyed by `TabViews` when the
@@ -188,6 +189,32 @@ rendered by `src/palette/`), with its own preload and `PaletteRpcs`.
 - The draft stays in the palette's document, as the omnibox's does. Picked
   rows reuse `CompletionMenu` inline: the palette is already above the page,
   so it needs no second overlay.
+
+## Setup wizard
+
+The first-run wizard (KVI-68) is a third overlay view, built like the
+palette: `src/main/setup-overlay.ts`, wired in `src/main/app/setup-view.ts`,
+rendered by `src/setup/`, with its own preload and `SetupRpcs`.
+
+- **First run means no `config.toml` and no database.** `probeFirstRun`
+  runs before the runtime is built, because building it creates the
+  database. There is no marker: writing `config.toml` ends it.
+- **The real chrome is the preview.** Each choice is rendered to TOML and
+  CSS in main, loaded in memory by `ConfigFiles.preview` through the same
+  pipeline as a save, and applied as `config.preview`. It outranks the
+  files until it ends. A save during a preview is kept, not applied.
+- **A saved preview ends on the next load**, not when the write lands.
+  Ending it at once would flash the old look for the watcher's debounce.
+- **Previews carry a revision.** The main program has no `keyOf`, so a
+  slow preview can land after a newer one. The setup slice drops it.
+- **The files are created, never replaced** (`flag: "wx"`). A
+  `config.toml` that appears meanwhile wins, and the wizard closes.
+  `config.css` is written only for a density other than normal.
+- **Focus asks for insert mode**, so every key reaches the wizard in
+  either input mode. A blur does not close it: clicking the chrome to look
+  at the preview is allowed.
+- Choices and steps live in the wizard's document. Main checks what it is
+  sent (`choicesProblem`) and does not trust the view.
 
 ## In-page vim
 
