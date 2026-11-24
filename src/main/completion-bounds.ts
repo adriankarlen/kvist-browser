@@ -37,14 +37,18 @@ export function placeCompletion(
   const fitted = clamp(height, Math.max(room, 0));
   const top = grow === "down" ? anchor.y + anchor.height : anchor.y - fitted;
   const y = Math.floor(clamp(top, content.height));
+  const viewHeight = Math.min(Math.ceil(top + fitted) - y, content.height - y);
 
   return {
     bounds: {
       x,
       y,
       width: Math.min(Math.ceil(left + width) - x, content.width - x),
-      height: Math.min(Math.ceil(top + fitted) - y, content.height - y),
+      height: viewHeight,
     },
-    inset: { left: left - x, top: top - y, width },
+    inset:
+      grow === "down"
+        ? { left: left - x, width, edge: "top", offset: top - y }
+        : { left: left - x, width, edge: "bottom", offset: y + viewHeight - anchor.y },
   };
 }

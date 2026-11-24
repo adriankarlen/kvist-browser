@@ -16,6 +16,15 @@ test("the rows and the inset are whatever main last sent", () => {
   );
 
   expect(shown.model.state).toEqual(state);
+
+  const inset = { left: 0.25, width: 100, edge: "bottom" as const, offset: 0.5 };
+
+  const placed = program.update(
+    OverlayEvent.cases.CompletionInsetChanged.make({ inset }),
+    shown.model,
+  );
+
+  expect(placed.model.inset).toEqual(inset);
 });
 
 test("a click reports the candidate itself, and a retheme is injected", () => {

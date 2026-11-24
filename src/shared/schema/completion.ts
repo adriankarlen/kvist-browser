@@ -28,7 +28,7 @@ export const CompletionCandidate = Schema.Struct({
 
 export type CompletionCandidate = typeof CompletionCandidate.Type;
 
-/** The omnibox sits above the page and grows down; the command line grows up. */
+/** A list opens away from the window edge its input sits on. */
 export const CompletionGrow = Schema.Literals(["down", "up"]);
 
 export type CompletionGrow = typeof CompletionGrow.Type;
@@ -50,8 +50,14 @@ export type CompletionOverlayState = typeof CompletionOverlayState.Type;
  */
 export const CompletionInset = Schema.Struct({
   left: Schema.Finite,
-  top: Schema.Finite,
   width: Schema.Finite,
+  /**
+   * The view edge the list is pinned to: the one nearest its input. A list
+   * shorter than its view then still touches the input.
+   */
+  edge: Schema.Literals(["top", "bottom"]),
+  /** The distance from that edge to the list. */
+  offset: Schema.Finite,
 });
 
 export type CompletionInset = typeof CompletionInset.Type;
