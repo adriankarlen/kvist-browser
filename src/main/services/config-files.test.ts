@@ -402,4 +402,48 @@ describe("ConfigFiles", () => {
       }),
     ),
   );
+
+  it.live("a config.toml that appeared meanwhile also takes back the CSS this save made", () =>
+    withDir(({ write, dir }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        yield* write("config.toml", "# mine\n");
+
+        const error = yield* Effect.flip(
+          Effect.flatMap(Effect.service(ConfigFiles), (f) =>
+            f.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" }),
+          ),
+        );
+
+        expect(error.exists).toBe(true);
+        expect(yield* fs.exists(path.join(dir, "config.css")).pipe(Effect.orDie)).toBe(false);
+      }),
+    ),
+  );
+
+  it.live("a failed CSS write saves nothing, so a retry still works", () =>
+    withDir(({ dir, read }) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const files = yield* ConfigFiles;
+        const save = files.writeFirstRun({ toml: "adblock = false\n", css: ":root {}\n" });
+
+        // A read-only directory refuses the new file without it existing already.
+        yield* fs.chmod(dir, 0o555).pipe(Effect.orDie);
+
+        const error = yield* Effect.flip(save).pipe(
+          Effect.ensuring(Effect.orDie(fs.chmod(dir, 0o755))),
+        );
+
+        expect(error).toMatchObject({ exists: false });
+        expect(error.reason).toMatch(/^could not write config\.css/);
+        expect(yield* fs.readDirectory(dir).pipe(Effect.orDie)).toEqual([]);
+
+        yield* save;
+        expect(yield* read("config.toml")).toBe("adblock = false\n");
+      }),
+    ),
+  );
 });

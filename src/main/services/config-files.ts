@@ -1,9 +1,11 @@
 import {
   Context,
   Effect,
+  Exit,
   FileSystem,
   Layer,
   Path,
+  PlatformError,
   Predicate,
   Queue,
   Result,
@@ -309,42 +311,71 @@ export class ConfigFiles extends Context.Service<
             ),
           );
 
-        /** Exclusive create: a file made since the wizard opened is the user's, and wins. */
+        /**
+         * Exclusive create: a file made since the wizard opened is the user's,
+         * and wins. A write that fails after the open removes what it started,
+         * so a half-written file never blocks a retry.
+         */
         const create = (file: string, text: string) =>
-          fs.writeFileString(path.join(dir, file), text, { flag: "wx" });
+          Effect.gen(function* () {
+            const target = path.join(dir, file);
 
+            const result = yield* Effect.scoped(
+              Effect.flatMap(fs.open(target, { flag: "wx" }), (handle) =>
+                Effect.exit(handle.writeAll(new TextEncoder().encode(text))),
+              ),
+            );
+
+            if (Exit.isFailure(result)) {
+              yield* Effect.ignore(fs.remove(target));
+
+              return yield* Effect.failCause(result.cause);
+            }
+          });
+
+        const notWritten = (file: string, error: PlatformError.PlatformError) =>
+          new SetupNotSaved({ reason: `could not write ${file}: ${error.message}`, exists: false });
+
+        const isAlreadyExists = (error: PlatformError.PlatformError): boolean =>
+          Predicate.isTagged(error.reason, "AlreadyExists");
+
+        // config.toml last: once it exists the setup is done, so nothing may fail after it.
         const writeFirstRun = (files: SetupFiles): Effect.Effect<void, SetupNotSaved> =>
           Effect.gen(function* () {
-            yield* fs.makeDirectory(dir, { recursive: true });
-            yield* create(TOML_FILE, files.toml);
+            yield* fs
+              .makeDirectory(dir, { recursive: true })
+              .pipe(Effect.mapError((error) => notWritten(TOML_FILE, error)));
 
-            if (files.css !== undefined) {
-              yield* create(CSS_FILE, files.css).pipe(
-                Effect.catchTag("PlatformError", (error) =>
-                  Predicate.isTagged(error.reason, "AlreadyExists")
-                    ? Effect.void
-                    : Effect.logError(`could not write ${CSS_FILE}`, error),
+            const ownCss =
+              files.css === undefined
+                ? false
+                : yield* create(CSS_FILE, files.css).pipe(
+                    Effect.as(true),
+                    Effect.catchTag("PlatformError", (error) =>
+                      isAlreadyExists(error)
+                        ? Effect.succeed(false)
+                        : Effect.fail(notWritten(CSS_FILE, error)),
+                    ),
+                  );
+
+            yield* create(TOML_FILE, files.toml).pipe(
+              Effect.onError(() =>
+                ownCss ? Effect.ignore(fs.remove(path.join(dir, CSS_FILE))) : Effect.void,
+              ),
+              Effect.catchTag("PlatformError", (error) =>
+                Effect.fail(
+                  isAlreadyExists(error)
+                    ? new SetupNotSaved({
+                        reason: `${TOML_FILE} already exists; it was left as it is`,
+                        exists: true,
+                      })
+                    : notWritten(TOML_FILE, error),
                 ),
-              );
-            }
+              ),
+            );
 
             yield* Queue.offer(written, undefined);
-          }).pipe(
-            Effect.catchTag("PlatformError", (error) =>
-              Effect.fail(
-                Predicate.isTagged(error.reason, "AlreadyExists")
-                  ? new SetupNotSaved({
-                      reason: `${TOML_FILE} already exists; it was left as it is`,
-                      exists: true,
-                    })
-                  : new SetupNotSaved({
-                      reason: `could not write ${TOML_FILE}: ${error.message}`,
-                      exists: false,
-                    }),
-              ),
-            ),
-            (effect) => writing.withPermit(effect),
-          );
+          }).pipe((effect) => writing.withPermit(effect));
 
         return { changes, setRecipe, preview, recipeOptions, cssExists, writeFirstRun };
       }),
