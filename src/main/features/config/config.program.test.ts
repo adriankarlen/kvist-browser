@@ -1,10 +1,20 @@
 import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_CONFIG, DEFAULT_SETTINGS } from "../../../shared/config";
+import type { Binding } from "../../../shared/schema/keymap";
 import { Msg as MessagesMsg } from "../messages/messages.program";
 import { Msg as VimMsg } from "../vim/vim.program";
 import { Cmd, init, Msg, update } from "./config.program";
 
 const config = DEFAULT_CONFIG;
+
+/** A chord binding, as buildKeymap would hand it over. */
+const binding = (notation: string, command: string): Binding => ({
+  table: "chords",
+  keys: [],
+  notation,
+  command,
+});
+
 const recipes = ["modern", "tui"];
 
 test("a loaded config is applied, and only published once it has been", () => {
@@ -48,19 +58,31 @@ test("a style problem names the file, not its whole path", () => {
   ]);
 });
 
-test("the input mode reaches the mode machine on the first apply, then only when it changes", () => {
+test("the keymap reaches the mode machine on the first apply, then only when it changes", () => {
+  const keymap = { name: "standard", bindings: [binding("Ctrl+T", "tab.new")] };
+
   const standard = {
     ...config,
-    settings: { ...DEFAULT_SETTINGS, inputMode: "standard" as const },
+    settings: { ...DEFAULT_SETTINGS, inputMode: "standard" as const, keymap },
   };
 
-  const switched = VimMsg.cases.InputModeChanged.make({ scheme: "standard" });
+  const switched = VimMsg.cases.KeymapChanged.make({ scheme: "standard", keymap: keymap.bindings });
   const first = update(Msg.cases.ConfigApplied.make({ config: standard }), init);
 
   expect(first.msgs).toEqual([switched]);
   expect(update(Msg.cases.ConfigApplied.make({ config: standard }), first.model).msgs).toEqual([]);
   expect(update(Msg.cases.ConfigApplied.make({ config }), first.model).msgs).toEqual([
-    VimMsg.cases.InputModeChanged.make({ scheme: "vim" }),
+    VimMsg.cases.KeymapChanged.make({ scheme: "vim", keymap: config.settings.keymap.bindings }),
+  ]);
+});
+
+test("a rebound key reaches the mode machine without an engine change", () => {
+  const first = update(Msg.cases.ConfigApplied.make({ config }), init).model;
+  const keymap = { name: "vim", bindings: [binding("J", "tab.next")] };
+  const rebound = { ...config, settings: { ...config.settings, keymap } };
+
+  expect(update(Msg.cases.ConfigApplied.make({ config: rebound }), first).msgs).toEqual([
+    VimMsg.cases.KeymapChanged.make({ scheme: "vim", keymap: keymap.bindings }),
   ]);
 });
 

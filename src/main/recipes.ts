@@ -1,8 +1,10 @@
 import { Result, Schema } from "effect";
 import { Toml } from "effect/encoding";
-import { DEFAULT_RECIPE, DEFAULT_SETTINGS, type Problem, type Settings } from "../shared/config";
+import { DEFAULT_RECIPE, type Problem, type Settings } from "../shared/config";
 import { RecipeName } from "../shared/schema/config";
-import { parseInputMode, parseLayout, read } from "./settings";
+import { builtInEngine, builtInKeymap } from "./keymaps";
+import { BASE_SETTINGS, parseKeymapName, parseLayout } from "./settings";
+import { read } from "./toml-fields";
 
 /** A recipe as read: the CSS that makes it exist, and the defaults file it may carry. */
 export interface RecipeSource {
@@ -131,6 +133,18 @@ export function resolveRecipe(name: string, user: ReadonlyArray<string>): Resolv
   };
 }
 
+/**
+ * The preset a recipe names. A user preset is only known once config.toml is
+ * read, so until then it keeps the base keys under its own name.
+ */
+function recipeKeys(name: string, base: Settings): Pick<Settings, "inputMode" | "keymap"> {
+  const engine = builtInEngine(name);
+
+  if (engine === undefined) return { inputMode: base.inputMode, keymap: { ...base.keymap, name } };
+
+  return { inputMode: engine, keymap: builtInKeymap(engine) };
+}
+
 /** The recipe format this Kvist reads. Bump it only for a change an older Kvist would misread. */
 const FORMAT = 1;
 
@@ -154,7 +168,7 @@ export interface ParsedRecipe {
  * skips the file, but the recipe's CSS still applies.
  */
 export function parseRecipe(name: string, toml: string | undefined): ParsedRecipe {
-  const base: Settings = { ...DEFAULT_SETTINGS, recipe: name };
+  const base: Settings = { ...BASE_SETTINGS, recipe: name };
   const file = recipeFile(name, "toml");
   const problems: Problem[] = [];
 
@@ -203,7 +217,7 @@ export function parseRecipe(name: string, toml: string | undefined): ParsedRecip
   return result(
     {
       ...base,
-      inputMode: parseInputMode(root.input, base.inputMode, problems),
+      ...recipeKeys(parseKeymapName(root.input, base.keymap.name, problems), base),
       layout: parseLayout(root.layout, base.layout, problems),
     },
     meta,

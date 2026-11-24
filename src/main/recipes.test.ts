@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
-import { DEFAULT_SETTINGS } from "../shared/config";
 import { DEFAULT_LAYOUT } from "../shared/layout";
 import { BUILT_IN, listUserRecipes, parseRecipe, recipeCatalog, resolveRecipe } from "./recipes";
+import { BASE_SETTINGS as DEFAULT_SETTINGS } from "./settings";
 
 const fieldsOf = (toml: string): string[] =>
   parseRecipe("x", toml).problems.map(({ field }) => field);
@@ -69,11 +69,23 @@ describe("parseRecipe", () => {
   test("bad values are reported and default, and the rest still applies", () => {
     const { base, problems } = parseRecipe(
       "x",
-      "format = 1\nname = 3\n[input]\nmode = 'emacs'\n[layout.tabs]\nregion = 'left'",
+      "format = 1\nname = 3\n[input]\nmode = 3\n[layout.tabs]\nregion = 'left'",
     );
 
     expect(problems.map(({ field }) => field)).toEqual(["name", "input.mode"]);
     expect(base.layout.tabs.region).toBe("left");
+  });
+
+  test("a built-in keymap brings its keys; a user one is resolved with config.toml", () => {
+    const standard = parseRecipe("x", "format = 1\n[input]\nmode = 'standard'").base;
+
+    expect(standard.keymap.name).toBe("standard");
+    expect(standard.keymap.bindings.every(({ table }) => table === "chords")).toBe(true);
+
+    const user = parseRecipe("x", "format = 1\n[input]\nmode = 'colemak'").base;
+
+    expect(user.keymap.name).toBe("colemak");
+    expect(user.inputMode).toBe("vim");
   });
 
   test("a syntax error is the file's problem", () => {

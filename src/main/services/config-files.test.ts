@@ -4,6 +4,7 @@ import { Effect, FileSystem, Path, Queue, Stream } from "effect";
 import type { Scope } from "effect";
 import { DEFAULT_CONFIG } from "../../shared/config";
 import { describeProblem } from "../features/config/config.program";
+import { BASE_SETTINGS } from "../settings";
 import { ConfigFiles, type LoadedConfig } from "./config-files";
 
 interface Files {
@@ -52,7 +53,11 @@ describe("ConfigFiles", () => {
         const loads = yield* subscribe;
         const first = yield* Queue.take(loads);
 
-        expect(first).toEqual({ config: DEFAULT_CONFIG, problems: [], recipes: ["tui"] });
+        expect(first).toEqual({
+          config: { ...DEFAULT_CONFIG, settings: BASE_SETTINGS },
+          problems: [],
+          recipes: ["tui"],
+        });
       }),
     ),
   );
@@ -108,6 +113,47 @@ describe("ConfigFiles", () => {
         expect(config.settings.recipe).toBe("test");
         expect(config.settings.inputMode).toBe("standard");
         expect(config.settings.layout.tabs.size).toBe("20ch");
+      }),
+    ),
+  );
+
+  it.live("a user keymap in keymaps/ is the preset [input] mode names", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write(
+          "keymaps/mine.toml",
+          'format = 1\nbase = "vim"\n[keys.normal]\n"J" = "tab.next"',
+        );
+        yield* write("config.toml", "[input]\nmode = 'mine'");
+
+        const loads = yield* subscribe;
+        const { config, problems } = yield* Queue.take(loads);
+        const bound = config.settings.keymap.bindings.find(({ notation }) => notation === "J");
+
+        expect(problems).toEqual([]);
+        expect(config.settings.keymap.name).toBe("mine");
+        expect(bound?.command).toBe("tab.next");
+      }),
+    ),
+  );
+
+  it.live("editing a keymap reloads, and its problems name its file", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write("config.toml", "[input]\nmode = 'mine'");
+        yield* write("keymaps/mine.toml", "format = 1");
+
+        const loads = yield* subscribe;
+
+        yield* Queue.take(loads);
+        yield* Effect.sleep("20 millis");
+        yield* write("keymaps/mine.toml", 'format = 1\n[keys.normal]\n"q" = "nope"');
+
+        const edited = yield* Queue.take(loads);
+
+        expect(edited.problems.map(describeProblem)).toEqual([
+          'keymaps/mine.toml: keys.normal."q": no command "nope"',
+        ]);
       }),
     ),
   );
@@ -301,7 +347,9 @@ describe("ConfigFiles", () => {
         expect(loaded.config.settings.layout.tabs.region).toBe("left");
         expect(loaded.config.css).toBe(":root{}");
         expect(loaded.problems).toEqual([]);
-        expect(yield* fs.readDirectory(dir).pipe(Effect.orDie)).toEqual(["recipes"]);
+        const written = yield* fs.readDirectory(dir).pipe(Effect.orDie);
+
+        expect([...written].sort()).toEqual(["keymaps", "recipes"]);
       }),
     ),
   );

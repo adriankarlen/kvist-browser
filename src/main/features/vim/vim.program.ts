@@ -1,25 +1,13 @@
 import { Schema } from "effect";
 import { Mode } from "../../../shared/schema/browser";
 import { InputMode } from "../../../shared/schema/config";
+import { Binding, type KeyTable } from "../../../shared/schema/keymap";
 import { next, type Next } from "../../../shared/tea/program";
 import { type Msg as MessagesMsg, Msg as MessagesMsgs } from "../messages/messages.program";
-import {
-  type Chord,
-  DEFAULT_KEYBINDS,
-  findChord,
-  type Keybind,
-  STANDARD_KEYBINDS,
-} from "./keybinds";
+import { isModified, isModifierKey, type KeyInput, matchesKey } from "./keybinds";
+import { buildKeymap } from "./keymap";
 
-export interface KeyInput {
-  readonly key: string;
-  /** The physical key, e.g. `KeyI`. macOS turns Alt+letter into another character. */
-  readonly code: string;
-  readonly control: boolean;
-  readonly alt: boolean;
-  readonly meta: boolean;
-  readonly shift: boolean;
-}
+export type { KeyInput } from "./keybinds";
 
 /**
  * Which webContents a key came from. `before-input-event` is per
@@ -31,16 +19,23 @@ export const KeySource = Schema.Literals(["page", "chrome"]);
 export type KeySource = typeof KeySource.Type;
 
 export interface Model {
-  /** Which key set is live, from `[input] mode`. */
+  /** Which engine is live, from the preset `[input] mode` names. */
   readonly scheme: InputMode;
+  readonly keymap: ReadonlyArray<Binding>;
   readonly mode: Mode;
   /** The keys typed so far of a longer binding, like the `g` of `gt`. */
-  readonly pending: string;
+  readonly pending: ReadonlyArray<KeyInput>;
   /** A question waiting for an answer owns normal mode while it lasts. */
   readonly promptPending: boolean;
 }
 
-export const init: Model = { scheme: "vim", mode: "normal", pending: "", promptPending: false };
+export const init: Model = {
+  scheme: "vim",
+  keymap: buildKeymap("vim", []).bindings,
+  mode: "normal",
+  pending: [],
+  promptPending: false,
+};
 
 export const Msg = Schema.TaggedUnion({
   KeyPressed: {
@@ -61,7 +56,7 @@ export const Msg = Schema.TaggedUnion({
   PromptPendingChanged: { pending: Schema.Boolean },
   /** A chrome input closed but kept the keyboard, e.g. the window lost focus. */
   ChromeInputClosed: {},
-  InputModeChanged: { scheme: InputMode },
+  KeymapChanged: { scheme: InputMode, keymap: Schema.Array(Binding) },
 });
 
 export type Msg = typeof Msg.Type;
@@ -85,7 +80,7 @@ function enter(model: Model, mode: Mode): Model {
   const capture = mode === "normal" && model.promptPending && model.scheme === "vim";
   const target = capture ? "prompt" : mode;
 
-  return target === model.mode ? model : { ...model, mode: target, pending: "" };
+  return target === model.mode ? model : { ...model, mode: target, pending: [] };
 }
 
 /** Modes where a chrome text input is open and owns every key it can type. */
@@ -97,46 +92,63 @@ interface Dispatched {
   readonly cmds: ReadonlyArray<Cmd>;
 }
 
-function dispatchKey(model: Model, key: string, keybinds: ReadonlyArray<Keybind>): Dispatched {
-  const sequence = model.pending + key;
-  const match = keybinds.find((bind) => bind.mode === model.mode && bind.keys === sequence);
+const passed = (model: Model): Dispatched => ({ model, consumed: false, cmds: [] });
 
-  if (match !== undefined) {
-    const cleared = { ...model, pending: "" };
-    const entered = match.enter === undefined ? cleared : enter(cleared, match.enter);
+const tableOf = (model: Model, table: KeyTable | Mode): ReadonlyArray<Binding> =>
+  model.keymap.filter((binding) => binding.table === table);
 
-    return {
-      model: entered,
-      consumed: true,
-      cmds: match.command ? [run(match.command, match.arg)] : [],
-    };
-  }
+const matchesFrom = (binding: Binding, sequence: ReadonlyArray<KeyInput>): boolean =>
+  sequence.every((input, i) => {
+    const key = binding.keys[i];
 
-  const isPrefix = keybinds.some(
-    (bind) =>
-      bind.mode === model.mode &&
-      bind.keys.startsWith(sequence) &&
-      bind.keys.length > sequence.length,
-  );
+    return key !== undefined && matchesKey(key, input);
+  });
 
-  if (isPrefix) return { model: { ...model, pending: sequence }, consumed: true, cmds: [] };
+function fire(model: Model, binding: Binding): Dispatched {
+  const cleared = { ...model, pending: [] };
+  const entered = binding.enter === undefined ? cleared : enter(cleared, binding.enter);
+
+  return { model: entered, consumed: true, cmds: [run(binding.command, binding.arg)] };
+}
+
+function dispatchKey(model: Model, input: KeyInput, table: ReadonlyArray<Binding>): Dispatched {
+  const sequence = [...model.pending, input];
+  const reached = table.filter((binding) => matchesFrom(binding, sequence));
+  const match = reached.find((binding) => binding.keys.length === sequence.length);
+
+  if (match !== undefined) return fire(model, match);
+
+  if (reached.length > 0)
+    return { model: { ...model, pending: sequence }, consumed: true, cmds: [] };
+
+  // A held key nothing here wants belongs to the page or the menu, and leaves a prefix waiting.
+  if (isModified(input)) return passed(model);
 
   // An unknown sequence following a prefix is swallowed rather than leaked.
-  if (model.pending !== "") return { model: { ...model, pending: "" }, consumed: true, cmds: [] };
+  if (model.pending.length > 0)
+    return { model: { ...model, pending: [] }, consumed: true, cmds: [] };
 
-  return { model, consumed: false, cmds: [] };
+  return passed(model);
+}
+
+/** A chord runs its command from any mode and either webContents, so it works while typing. */
+function dispatchChord(model: Model, input: KeyInput): Dispatched | undefined {
+  const chord = tableOf(model, "chords").find((binding) => matchesFrom(binding, [input]));
+
+  return chord === undefined ? undefined : fire(model, chord);
 }
 
 /** One key against the mode machine. Pure, so the interceptor can ask it on the same tick. */
-export function step(
-  model: Model,
-  input: KeyInput,
-  source: KeySource,
-  keybinds: ReadonlyArray<Keybind> = DEFAULT_KEYBINDS,
-): Dispatched {
-  const passed = { model, consumed: false, cmds: [] };
+export function step(model: Model, input: KeyInput, source: KeySource): Dispatched {
+  const chord = dispatchChord(model, input);
 
-  if (input.control || input.alt || input.meta) return passed;
+  if (chord !== undefined) return chord;
+
+  // Every key belongs to a question or to hinting while it is up, but a bare
+  // modifier is only on its way to one: it must not break a `g` before `T`.
+  if (isModifierKey(input.key)) {
+    return { model, consumed: model.mode === "hint" || model.mode === "prompt", cmds: [] };
+  }
 
   // Chrome inputs own every key they can type, and their own Escape.
   if (
@@ -145,15 +157,16 @@ export function step(
     model.mode !== "hint" &&
     model.mode !== "prompt"
   ) {
-    return passed;
+    return passed(model);
   }
 
   // The prompts live in the chrome, so a page that still has focus must not steal from them.
-  if (source === "page" && prompting(model)) return passed;
+  if (source === "page" && prompting(model)) return passed(model);
 
-  const dispatched = dispatchKey(model, input.key, keybinds);
+  const table = tableOf(model, model.mode);
+  const dispatched = dispatchKey(model, input, table);
 
-  if (dispatched.consumed) return dispatched;
+  if (dispatched.consumed || isModified(input)) return dispatched;
 
   // Every key belongs to hinting while it is up; the page decides when a label matched.
   if (model.mode === "hint") return { model, consumed: true, cmds: [run("hints.key", input.key)] };
@@ -161,25 +174,12 @@ export function step(
   // A question owns every other key until it is answered.
   if (model.mode === "prompt") return { model, consumed: true, cmds: [] };
 
-  return passed;
+  return dispatched;
 }
 
-/**
- * Standard mode: a chord runs its command from any mode and either
- * webContents, so Mod+T works while typing. Every other key is left alone.
- */
-export function stepStandard(
-  model: Model,
-  input: KeyInput,
-  chords: ReadonlyArray<Chord> = STANDARD_KEYBINDS,
-): Dispatched {
-  const chord = findChord(chords, input);
-
-  if (chord === undefined) return { model, consumed: false, cmds: [] };
-  const entered = chord.enter === undefined ? model : enter(model, chord.enter);
-
-  return { model: entered, consumed: true, cmds: [run(chord.command, chord.arg)] };
-}
+/** Standard mode: chords only. Every other key is left alone. */
+export const stepStandard = (model: Model, input: KeyInput): Dispatched =>
+  dispatchChord(model, input) ?? passed(model);
 
 const stepScheme = (model: Model, input: KeyInput, source: KeySource): Dispatched =>
   model.scheme === "vim" ? step(model, input, source) : stepStandard(model, input);
@@ -189,10 +189,12 @@ export const resolveKey = (model: Model, input: KeyInput, source: KeySource): bo
   stepScheme(model, input, source).consumed;
 
 /** Hint and prompt exist only in vim; the typing modes follow focus, so they stay. */
-function switchScheme(model: Model, scheme: InputMode): Result {
-  if (scheme === model.scheme) return next(model);
+function changeKeymap(model: Model, scheme: InputMode, keymap: ReadonlyArray<Binding>): Result {
+  const rebound = { ...model, keymap, pending: [] };
+
+  if (scheme === model.scheme) return next(rebound);
   const modal = model.mode === "hint" || model.mode === "prompt";
-  const switched = enter({ ...model, scheme, pending: "" }, modal ? "normal" : model.mode);
+  const switched = enter({ ...rebound, scheme }, modal ? "normal" : model.mode);
 
   return next(switched, model.mode === "hint" ? [run("hints.hide")] : []);
 }
@@ -220,7 +222,7 @@ export function update(msg: Msg, model: Model): Result {
     // Its typing mode ends with it, but focus stays where the user put it.
     ChromeInputClosed: () =>
       next(prompting(model) || model.mode === "insert" ? enter(model, "normal") : model),
-    InputModeChanged: ({ scheme }) => switchScheme(model, scheme),
+    KeymapChanged: ({ scheme, keymap }) => changeKeymap(model, scheme, keymap),
     PromptPendingChanged: ({ pending }) => {
       const flagged = { ...model, promptPending: pending };
 
