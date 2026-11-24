@@ -6,7 +6,7 @@
   import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { acceptOmnibox, omniboxCandidate } from "../../shared/omnibox-action";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, layout, ui, vim, browse } from "./stores.svelte";
+  import { browser, completionOverlay, keys, layout, ui, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "../../shared/completion/completion.svelte";
 
@@ -178,7 +178,7 @@
       class="kv-omnibox__button"
       type="button"
       onmousedown={keepSummoned}
-      title="Back"
+      title={keys.title("Back", "nav.back")}
       disabled={!browser.active?.canGoBack}
       onclick={() => browse.goBack()}>&lt;</button
     >
@@ -186,7 +186,7 @@
       class="kv-omnibox__button"
       type="button"
       onmousedown={keepSummoned}
-      title="Forward"
+      title={keys.title("Forward", "nav.forward")}
       disabled={!browser.active?.canGoForward}
       onclick={() => browse.goForward()}>&gt;</button
     >
@@ -194,7 +194,7 @@
       class="kv-omnibox__button"
       type="button"
       onmousedown={keepSummoned}
-      title="Reload"
+      title={keys.title("Reload", "nav.reload")}
       onclick={() => browse.reload()}>r</button
     >
 
@@ -216,18 +216,18 @@
       class:is-bookmarked={browser.active?.bookmarked}
       type="button"
       onmousedown={keepSummoned}
-      title={`${browser.active?.bookmarked ? "Remove bookmark" : "Bookmark this page"} (${vim.keys("B", "Mod+D")})`}
+      title={keys.title(browser.active?.bookmarked ? "Remove bookmark" : "Bookmark this page", "bookmark.toggle")}
       aria-label="Bookmark this page"
       aria-pressed={browser.active?.bookmarked ?? false}
       onclick={() => browse.runCommand("bookmark.toggle")}>*</button
     >
-    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title={`zoom (${vim.keys("zi / zo / z0", "Mod+= / Mod+- / Mod+0")})`}>{zoom}%</span>
+    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title={keys.title("zoom", "zoom.in", "zoom.out", "zoom.reset")}>{zoom}%</span>
 
     <button
       class="kv-omnibox__button"
       type="button"
       onmousedown={keepSummoned}
-      title="DevTools"
+      title={keys.title("DevTools", "app.devtools")}
       onclick={() => browse.toggleDevTools()}>d</button
     >
   </form>

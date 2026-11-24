@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import "./TabStrip.css";
-  import { browser, browse, layout } from "./stores.svelte";
+  import { browser, browse, keys, layout } from "./stores.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
 
   let { region }: { region: Region } = $props();
@@ -74,7 +74,7 @@
       </div>
     {/each}
 
-    <button class="kv-tabstrip__new" title="New tab" onclick={() => browse.createTab()}>
+    <button class="kv-tabstrip__new" title={keys.title("New tab", "tab.new")} onclick={() => browse.createTab()}>
       +
     </button>
     <div class="kv-tabstrip__drag"></div>
