@@ -1,11 +1,19 @@
 import type { BrowserWindow } from "electron";
 import { Schema } from "effect";
-import { afterEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import { CompletionCandidate } from "../shared/schema/completion";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
-import { completeCommand, createCommands, modeAfter } from "./commands";
+import {
+  bindableCommand,
+  completeCommand,
+  createCommands,
+  type DefaultKey,
+  defaultKeys,
+  describeCommands,
+  modeAfter,
+} from "./commands";
 import type { Messenger as Messages } from "./messenger";
 import type { TabsAccess } from "./actions";
 
@@ -856,4 +864,117 @@ test("every completion crosses the wire, including commands that take no argumen
 
   expect(candidates.some(({ hint }) => hint === undefined)).toBe(true);
   expect(() => encode(candidates)).not.toThrow();
+});
+
+describe("the registry", () => {
+  test("every command says what it does", () => {
+    for (const { name, description } of describeCommands()) {
+      expect(description.trim(), name).not.toBe("");
+    }
+  });
+
+  test("names commands and aliases, and refuses the one only the engine can run", () => {
+    expect(bindableCommand("tab.next")).toEqual({ name: "tab.next" });
+    expect(bindableCommand("bookmarks")).toEqual({ name: "bookmarks.open", enter: "insert" });
+    expect(bindableCommand("hints.key")).toBe("unbindable");
+    expect(bindableCommand("tab.qiut")).toBeUndefined();
+    expect(bindableCommand("toString")).toBeUndefined();
+  });
+
+  /** Each key as `table keys command[ arg][ > mode]`, sorted, so a table compares as a set. */
+  const flatten = (keys: ReadonlyArray<DefaultKey>): string[] =>
+    keys
+      .map(({ table, notation, command, arg }) => {
+        const found = bindableCommand(command);
+
+        const enter =
+          found !== undefined && found !== "unbindable" && found.enter ? ` > ${found.enter}` : "";
+
+        return `${table} ${notation} ${command}${arg === undefined ? "" : ` ${arg}`}${enter}`;
+      })
+      .sort();
+
+  // The tables as they were before the registry: TUI users must see no change.
+  const VIM_BEFORE = [
+    "normal t tab.new",
+    "normal x tab.close",
+    "normal X tab.reopen",
+    "normal gt tab.next",
+    "normal gT tab.prev",
+    "normal H nav.back",
+    "normal L nav.forward",
+    "normal r nav.reload",
+    "normal j scroll.down",
+    "normal k scroll.up",
+    "normal d scroll.half-down",
+    "normal u scroll.half-up",
+    "normal G scroll.bottom",
+    "normal gg scroll.top",
+    "normal n find.next",
+    "normal N find.prev",
+    "normal <Esc> find.clear",
+    "normal f hints.show > hint",
+    "normal o focus.omnibox > insert",
+    "normal i insert.enter > insert",
+    "normal / find.open > find",
+    "normal : cmdline.open > command",
+    "normal y clipboard.yank",
+    "normal p clipboard.open",
+    "normal P clipboard.openNewTab",
+    "normal zi zoom.in",
+    "normal zo zoom.out",
+    "normal z0 zoom.reset",
+    "normal B bookmark.toggle",
+    "normal gb bookmarks.open > insert",
+    "insert <Esc> insert.leave > normal",
+    "hint <Esc> hints.hide > normal",
+    "prompt y prompt.allow",
+    "prompt n prompt.deny",
+    "prompt <Esc> prompt.deny",
+  ];
+
+  const standardBefore = (mac: boolean) => [
+    "chords Mod+L focus.omnibox > insert",
+    "chords Mod+T tab.new",
+    "chords Mod+W tab.close",
+    "chords Mod+Shift+T tab.reopen",
+    "chords Ctrl+Tab tab.next",
+    "chords Ctrl+Shift+Tab tab.prev",
+    ..."12345678".split("").map((n) => `chords Mod+${n} tab.select ${n}`),
+    "chords Mod+9 tab.select last",
+    "chords Mod+[ nav.back",
+    "chords Mod+] nav.forward",
+    ...(mac ? [] : ["chords Alt+ArrowLeft nav.back", "chords Alt+ArrowRight nav.forward"]),
+    "chords Mod+R nav.reload",
+    "chords F5 nav.reload",
+    "chords Mod+F find.open > find",
+    "chords Mod+G find.next",
+    "chords Mod+Shift+G find.prev",
+    "chords Mod+= zoom.in",
+    "chords Mod++ zoom.in",
+    "chords Mod+- zoom.out",
+    "chords Mod+0 zoom.reset",
+    "chords Mod+D bookmark.toggle",
+    "chords Mod+Shift+O bookmarks.open > insert",
+    "chords Mod+J downloads.toggle",
+    "chords Mod+Shift+P cmdline.open > command",
+    "chords Mod+Alt+I app.devtools",
+    "chords F12 app.devtools",
+    "chords Mod+Q app.quit",
+  ];
+
+  test("the vim preset is the vim key set as it was", () => {
+    expect(flatten(defaultKeys("vim", "linux"))).toEqual([...VIM_BEFORE].sort());
+  });
+
+  test("the standard preset is the standard key set as it was, on each platform", () => {
+    expect(flatten(defaultKeys("standard", "darwin"))).toEqual(standardBefore(true).sort());
+    expect(flatten(defaultKeys("standard", "linux"))).toEqual(standardBefore(false).sort());
+  });
+
+  test("a : line ends in normal mode for a command only a key can use", () => {
+    expect(modeAfter("bookmarks")).toBe("insert");
+    expect(modeAfter("hints.show")).toBe("normal");
+    expect(modeAfter("tab.new")).toBe("normal");
+  });
 });

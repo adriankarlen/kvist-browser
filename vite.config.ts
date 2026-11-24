@@ -103,7 +103,7 @@ export default defineConfig({
       {
         // The config.toml parser is the boundary decoder these rules ask for;
         // its inputs are `unknown` and its intermediate tables open by nature.
-        files: ["src/main/settings.ts"],
+        files: ["src/main/settings.ts", "src/main/toml-fields.ts"],
         rules: {
           "anti-slop/no-unknown-parameters": "off",
           "anti-slop/no-unsafe-dictionary-type": "off",
