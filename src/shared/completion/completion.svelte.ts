@@ -79,6 +79,14 @@ export function createCompletion(source: CompletionSource, options: CompletionOp
           ? state.candidates.length - 1
           : (state.index - 1 + state.candidates.length) % state.candidates.length;
     },
+    /**
+     * The query changed. Drop the selection and any answer still on its way,
+     * but keep the rows up until the new ones land, so typing does not flash.
+     */
+    invalidate(): void {
+      latest++;
+      state.index = -1;
+    },
     close(): void {
       latest++;
       state.candidates = [];

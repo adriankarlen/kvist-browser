@@ -110,6 +110,36 @@ test("close clears the list and invalidates any in-flight query", async () => {
   expect(completion.candidates).toEqual([]);
 });
 
+test("invalidate drops the selection and any in-flight answer, but keeps the rows", async () => {
+  let resolve: (candidates: Candidate[]) => void = () => {};
+  let calls = 0;
+
+  const completion = createCompletion(() => {
+    calls++;
+
+    if (calls === 1) return candidates("a", "b");
+
+    return new Promise<Candidate[]>((r) => {
+      resolve = r;
+    });
+  });
+
+  await completion.update("q");
+  completion.next();
+
+  const update = completion.update("qu");
+  completion.invalidate();
+  resolve(candidates("stale"));
+  await update;
+
+  expect(completion.candidates).toEqual(candidates("a", "b"));
+  expect(completion.index).toBe(-1);
+  expect(completion.active).toBeNull();
+
+  completion.next();
+  expect(completion.index).toBe(0);
+});
+
 test("a newer update supersedes an older, still in-flight one", async () => {
   let resolveFirst: (candidates: Candidate[]) => void = () => {};
 

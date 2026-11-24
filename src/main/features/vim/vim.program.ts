@@ -45,6 +45,8 @@ export const Msg = Schema.TaggedUnion({
   /** The page reporting that hinting ended. */
   HintsEnded: {},
   PromptPendingChanged: { pending: Schema.Boolean },
+  /** A chrome input closed but kept the keyboard, e.g. the window lost focus. */
+  ChromeInputClosed: {},
 });
 
 export type Msg = typeof Msg.Type;
@@ -165,6 +167,9 @@ export function update(msg: Msg, model: Model): Result {
     },
     // Selecting a field focuses it, which enters insert first; only hint mode unwinds here.
     HintsEnded: () => next(model.mode === "hint" ? enter(model, "normal") : model),
+    // Its typing mode ends with it, but focus stays where the user put it.
+    ChromeInputClosed: () =>
+      next(prompting(model) || model.mode === "insert" ? enter(model, "normal") : model),
     PromptPendingChanged: ({ pending }) => {
       const flagged = { ...model, promptPending: pending };
 

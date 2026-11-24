@@ -50,9 +50,11 @@
       startOver(start.text, field);
 
   // Commands are listed locally and answer at once; history is a database
-  // query, so it waits for a pause in the typing.
+  // query, so it waits for a pause in the typing. Until the new rows land, a
+  // row picked for the old text is no longer picked.
   function oninput(): void {
     clearTimeout(pending);
+    completion.invalidate();
     const query = draft;
 
     if (query.trim() === "") {
@@ -69,6 +71,8 @@
 
     pending = setTimeout(() => void completion.update(query), 75);
   }
+
+  $effect(() => () => clearTimeout(pending));
 
   function dismiss(): void {
     clearTimeout(pending);

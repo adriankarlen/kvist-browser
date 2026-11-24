@@ -21,7 +21,7 @@ test("summoning an open palette replaces its text and counts as a new opening", 
   expect(summon(":", again).seq).toBe(3);
 });
 
-test("dismissing closes it, and hands the keyboard back only when asked", () => {
+test("dismissing closes it and ends typing, but hands the keyboard back only when asked", () => {
   const open = summon(":");
   const handedBack = update(Msg.cases.PaletteDismissed.make({ handBack: true }), open);
 
@@ -31,7 +31,7 @@ test("dismissing closes it, and hands the keyboard back only when asked", () => 
   const kept = update(Msg.cases.PaletteDismissed.make({ handBack: false }), open);
 
   expect(kept.model.open).toBe(false);
-  expect(kept.msgs).toEqual([]);
+  expect(kept.msgs).toEqual([VimMsg.cases.ChromeInputClosed.make({})]);
 });
 
 test("dismissing a closed palette does nothing", () => {
