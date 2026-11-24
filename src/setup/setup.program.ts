@@ -127,7 +127,24 @@ function opened(model: Model, seq: number, options: SetupOptions): Result {
   });
 }
 
+/** What a save in flight would not see. The choices stay as they were sent. */
+const isEdit = Schema.is(
+  Schema.Union([
+    Msg.cases.RecipePicked,
+    Msg.cases.InputModePicked,
+    Msg.cases.OmniboxPicked,
+    Msg.cases.TabsPicked,
+    Msg.cases.DensityPicked,
+    Msg.cases.EnginePicked,
+    Msg.cases.CustomSearchChosen,
+    Msg.cases.SearchTyped,
+    Msg.cases.BackRequested,
+  ]),
+);
+
 function update(msg: Msg, model: Model): Result {
+  if (model.saving && isEdit(msg)) return next(model);
+
   return Msg.match(msg, {
     Opened: ({ seq, options }) => opened(model, seq, options),
     Status: ({ saving, error }) =>

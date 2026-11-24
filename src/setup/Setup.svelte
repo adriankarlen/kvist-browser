@@ -77,6 +77,9 @@
 
   // The document is only the wizard. Enter moves on from anywhere but a button, which it presses.
   function onkeydown(event: KeyboardEvent): void {
+    // Enter and Escape belong to an input method while it is composing.
+    if (event.isComposing) return;
+
     if (event.key === "Escape") {
       event.preventDefault();
       send(Msg.cases.BackRequested.make({}));
@@ -115,6 +118,7 @@
             name="recipe"
             legend="Recipe"
             choices={recipes}
+            disabled={model.saving}
             value={choices.recipe}
             onpick={(id) => send(Msg.cases.RecipePicked.make({ id }))}
           />
@@ -123,6 +127,7 @@
             name="input"
             legend="Keys"
             choices={INPUT_MODES}
+            disabled={model.saving}
             value={choices.inputMode}
             onpick={(mode) => send(Msg.cases.InputModePicked.make({ mode }))}
           />
@@ -131,6 +136,7 @@
             name="urlbar"
             legend="URL bar"
             choices={urlBarChoices(options.omniboxRegions)}
+            disabled={model.saving}
             value={choices.omnibox}
             onpick={(region) => send(Msg.cases.OmniboxPicked.make({ region }))}
           />
@@ -139,6 +145,7 @@
             name="tabs"
             legend="Tabs"
             choices={tabChoices(options.tabsRegions)}
+            disabled={model.saving}
             value={choices.tabs}
             onpick={(region) => send(Msg.cases.TabsPicked.make({ region }))}
           />
@@ -147,6 +154,7 @@
               name="density"
               legend="Density"
               choices={DENSITY_CHOICES}
+              disabled={model.saving}
               value={choices.density}
               onpick={(density) => send(Msg.cases.DensityPicked.make({ density }))}
             />
@@ -160,6 +168,7 @@
             name="search"
             legend="Search with"
             choices={engines}
+            disabled={model.saving}
             value={model.customSearch ? CUSTOM : choices.searchUrl}
             onpick={pickEngine}
           />
@@ -169,6 +178,7 @@
               <input
                 class="kv-setup__input"
                 type="url"
+                disabled={model.saving}
                 value={choices.searchUrl}
                 spellcheck="false"
                 autocomplete="off"

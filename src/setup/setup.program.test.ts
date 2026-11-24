@@ -125,10 +125,24 @@ describe("setup wizard", () => {
     ]);
   });
 
-  test("nothing finishes or skips while a save is in flight", () => {
-    const saving = run(open(), Msg.cases.Status.make({ saving: true, error: undefined })).model;
+  test("nothing finishes, skips, goes back or changes while a save is in flight", () => {
+    const atInput = run(open(), nextStep).model;
+    const saving = run(atInput, Msg.cases.Status.make({ saving: true, error: undefined })).model;
 
-    expect(run(saving, Msg.cases.SkipRequested.make({})).cmds).toEqual([]);
+    const after = run(
+      saving,
+      Msg.cases.SkipRequested.make({}),
+      back,
+      Msg.cases.InputModePicked.make({ mode: "standard" }),
+      Msg.cases.RecipePicked.make({ id: "test" }),
+    );
+
+    expect(after.cmds).toEqual([]);
+    expect(after.model).toEqual(saving);
+
+    const failed = run(saving, Msg.cases.Status.make({ saving: false, error: "disk full" }));
+
+    expect(run(failed.model, back).model.step).toBe(0);
   });
 
   test("a new opening starts over; a replay of the same one keeps the choices", () => {

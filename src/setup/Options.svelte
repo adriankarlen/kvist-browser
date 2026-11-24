@@ -6,17 +6,19 @@
     legend,
     choices,
     value,
+    disabled = false,
     onpick,
   }: {
     name: string;
     legend: string;
     choices: ReadonlyArray<Choice<V>>;
     value: V;
+    disabled?: boolean;
     onpick: (value: V) => void;
   } = $props();
 </script>
 
-<fieldset class="kv-setup__options">
+<fieldset class="kv-setup__options" {disabled}>
   <legend class="kv-setup__legend">{legend}</legend>
   {#each choices as choice (choice.value)}
     <label class={["kv-setup__option", { "is-checked": choice.value === value }]}>

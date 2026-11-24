@@ -41,9 +41,13 @@ const URL_BAR: Partial<Record<Region, Choice<Region>>> = {
   },
 };
 
+const capitalized = (region: Region): string => region[0]!.toUpperCase() + region.slice(1);
+
 /** Only the regions this Kvist supports are offered, so a new one shows up by itself. */
 export const urlBarChoices = (regions: ReadonlyArray<Region>): ReadonlyArray<Choice<Region>> =>
-  regions.flatMap((region) => URL_BAR[region] ?? []);
+  regions.map(
+    (region) => URL_BAR[region] ?? { value: region, label: capitalized(region), hint: "" },
+  );
 
 const EDGE_HINTS: Partial<Record<Region, string>> = {
   top: "A row across the top.",
@@ -55,7 +59,7 @@ const EDGE_HINTS: Partial<Record<Region, string>> = {
 export const tabChoices = (regions: ReadonlyArray<Region>): ReadonlyArray<Choice<Region>> =>
   regions.map((region) => ({
     value: region,
-    label: region[0]!.toUpperCase() + region.slice(1),
+    label: capitalized(region),
     hint: EDGE_HINTS[region] ?? "",
   }));
 
@@ -66,4 +70,4 @@ export const DENSITY_CHOICES: ReadonlyArray<Choice<Density>> = [
 ];
 
 export const regionLabel = (region: Region): string =>
-  URL_BAR[region]?.label ?? region[0]!.toUpperCase() + region.slice(1);
+  URL_BAR[region]?.label ?? capitalized(region);
