@@ -258,3 +258,48 @@ export const contentRect = (node: HTMLElement) => {
     },
   };
 };
+
+/** Any CSS colour as `#rrggbb`, or null when it is see-through. A canvas reads every syntax CSS does. */
+function toHex(color: string): string | null {
+  const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+
+  if (context === null) return null;
+  context.fillStyle = color;
+  context.fillRect(0, 0, 1, 1);
+  const [r = 0, g = 0, b = 0, alpha = 0] = context.getImageData(0, 0, 1, 1).data;
+
+  if (alpha === 0) return null;
+
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Keeps the window's native background the colour the chrome paints, which
+ * is what a resize shows before the next frame. Main cannot read CSS, so the
+ * chrome measures it whenever a stylesheet or the OS scheme changes.
+ */
+export const windowBackground = (node: HTMLElement) => {
+  let reported: string | null = null;
+
+  const report = (): void => {
+    const color = toHex(getComputedStyle(node).backgroundColor);
+
+    if (color === null || color === reported) return;
+    reported = color;
+    ask(I.ChromeBackgroundMeasured.make({ color }));
+  };
+
+  const styles = new MutationObserver(report);
+  const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+  styles.observe(document.head, { childList: true, subtree: true, characterData: true });
+  scheme.addEventListener("change", report);
+  report();
+
+  return {
+    destroy() {
+      styles.disconnect();
+      scheme.removeEventListener("change", report);
+    },
+  };
+};

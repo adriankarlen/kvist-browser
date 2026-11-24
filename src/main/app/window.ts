@@ -140,7 +140,8 @@ export function createWindow(saved: SessionState | null): void {
     x: saved?.x ?? undefined,
     y: saved?.y ?? undefined,
     frame: false,
-    backgroundColor: "#1d1d1d",
+    // The default theme's --kv-color-bg, shown until the chrome reports what it painted.
+    backgroundColor: "#191724",
     icon: iconPath,
     webPreferences: { preload },
   });
@@ -749,6 +750,7 @@ export function createWindow(saved: SessionState | null): void {
               ChromeIntent.match(message, {
                 ContentRectMeasured: ({ rect }) =>
                   mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect })),
+                ChromeBackgroundMeasured: ({ color }) => win.setBackgroundColor(color),
                 TabRequested: ({ url }) => tabs.create(url),
                 TabCloseRequested: ({ id }) =>
                   mainStore().dispatch(TabsMsg.cases.TabCloseRequested.make({ id })),

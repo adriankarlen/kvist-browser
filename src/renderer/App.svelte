@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./App.css";
-  import { browser, contentRect, prompts } from "./lib/stores.svelte";
+  import { browser, contentRect, prompts, windowBackground } from "./lib/stores.svelte";
   import Region from "./features/layout/Region.svelte";
 
   /**
@@ -20,7 +20,7 @@
 
 <svelte:window {onWindowClick} />
 
-<div class="kv-shell">
+<div class="kv-shell" use:windowBackground>
   <Region name="left" />
   <div class="kv-main">
     <Region name="top" />
