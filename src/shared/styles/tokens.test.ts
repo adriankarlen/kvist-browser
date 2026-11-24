@@ -26,12 +26,14 @@ const read = (...patterns: string[]): Promise<Source[]> =>
   }).pipe(Effect.provide(NodeServices.layer), Effect.runPromise);
 
 const TOKENS = "src/shared/styles/tokens.css";
+const RECIPES = "src/main/recipes/";
 const stylesheets = await read("src/**/*.css", "public/*/style.css");
 const components = await read("src/**/*.svelte");
 const scripts = (await read("src/**/*.ts")).filter(({ path }) => !path.endsWith(".test.ts"));
 
 test("the inventory found the stylesheets it checks", () => {
   expect(stylesheets.map(({ path }) => path)).toContain(TOKENS);
+  expect(stylesheets.map(({ path }) => path)).toContain(`${RECIPES}tui.css`);
   expect(components.length).toBeGreaterThan(0);
 });
 
@@ -65,7 +67,24 @@ function withoutVars(value: string): string {
   return rest.trim();
 }
 
-const outsideTokens = stylesheets.filter(({ path }) => path !== TOKENS);
+// A built-in recipe is token values, like tokens.css, so it may hold literals.
+const isRecipe = (path: string): boolean => path.startsWith(RECIPES);
+const outsideTokens = stylesheets.filter(({ path }) => path !== TOKENS && !isRecipe(path));
+
+test("built-in recipes set only tokens tokens.css declares, and the colour scheme", () => {
+  const tokens = stylesheets.find(({ path }) => path === TOKENS)?.text ?? "";
+  const declared = new Set(declarations(tokens).map(([property]) => property));
+
+  const found = stylesheets
+    .filter(({ path }) => isRecipe(path))
+    .flatMap(({ path, text }) =>
+      declarations(text)
+        .filter(([property]) => property !== "color-scheme" && !declared.has(property))
+        .map(([property]) => `${path}: ${property}`),
+    );
+
+  expect(found).toEqual([]);
+});
 
 test("stylesheets outside tokens.css carry no colour literals", () => {
   const found = outsideTokens.flatMap(({ path, text }) =>

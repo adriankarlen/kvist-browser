@@ -1,5 +1,6 @@
 import type { ContextMenuParams } from "electron";
 import type { ContextMenuItem } from "../shared/schema/context-menu";
+import { LAYER_ORDER } from "../shared/theme-css";
 
 /**
  * What a right-click gets, decided in main from the `context-menu` params.
@@ -70,17 +71,14 @@ export function buildContextMenuItems(
     .flatMap((section, index) => (index === 0 ? section : [separator(), ...section]));
 }
 
-/** The same order every other surface declares, so a recipe layer lands in the same place here. */
-const LAYER_ORDER = "@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;";
-
 /**
  * The menu lives in a shadow root, where `:root` matches nothing — the
  * shadow host is the root there, so token blocks (ours and the user's) are
- * retargeted at it. User CSS stays unlayered and last, so unlayered beats
- * every layer.
+ * retargeted at it. `themeCss` comes last, so config.css stays unlayered and
+ * beats every layer.
  */
-export function composeContextMenuCss(userCss: string): string {
+export function composeContextMenuCss(themeCss: string): string {
   const host = (css: string): string => css.replaceAll(":root", ":host");
 
-  return `${LAYER_ORDER}\n${host(tokensCss)}\n${menuCss}\n${host(userCss)}`;
+  return `${LAYER_ORDER}\n${host(tokensCss)}\n${menuCss}\n${host(themeCss)}`;
 }

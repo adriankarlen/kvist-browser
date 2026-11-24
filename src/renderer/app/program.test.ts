@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { DEFAULT_SETTINGS } from "../../shared/config";
+import { DEFAULT_CONFIG, DEFAULT_SETTINGS } from "../../shared/config";
 import { ChromeEvent, ChromeIntent } from "../../shared/rpc/chrome";
 import type { DownloadState } from "../../shared/schema/downloads";
 import { Msg as DownloadsMsg, panelVisible } from "../features/downloads/downloads.program";
@@ -55,13 +55,15 @@ describe("events from main are Msgs", () => {
       tabs: { ...DEFAULT_SETTINGS.layout.tabs, region: "left" as const },
     };
 
-    const config = { css: "a{}", settings: { ...DEFAULT_SETTINGS, layout } };
+    const config = { ...DEFAULT_CONFIG, css: "a{}", settings: { ...DEFAULT_SETTINGS, layout } };
 
     const { model, cmds } = run([E.ConfigChanged.make({ config })]);
 
     expect(regions(model.ui).left).toEqual(["tabs"]);
     expect(regions(model.ui).top).toEqual(["omnibox"]);
-    expect(cmds).toContainEqual(LinkCmd.cases.InjectCss.make({ css: "a{}" }));
+    expect(cmds).toContainEqual(
+      LinkCmd.cases.InjectCss.make({ css: "@layer kvist.recipe {\n\n}\na{}" }),
+    );
   });
 
   test("main asking for the omnibox focuses it, and summons it in case it is hidden", () => {

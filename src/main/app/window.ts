@@ -29,7 +29,8 @@ import {
 import { PromptsGate } from "../services/prompts-gate";
 import { LegacyWindow, type WindowHooks } from "../services/legacy-window";
 import { TabViews } from "../tab-views";
-import { DEFAULT_SETTINGS } from "../../shared/config";
+import { DEFAULT_CONFIG } from "../../shared/config";
+import { themeCss } from "../../shared/theme-css";
 import { Msg as CompletionMsg } from "../features/completion/completion.program";
 import {
   activeFind,
@@ -129,9 +130,7 @@ export const tabManagers = new Set<TabViews>();
 export const loadSession = (): SessionState | null => useSync(SessionRepo, (repo) => repo.load);
 
 /** The config in force; startup has applied one before any window opens. */
-const currentConfig = (): UserConfig => mainStore().get().config.current ?? defaultConfig;
-
-const defaultConfig: UserConfig = { css: "", settings: DEFAULT_SETTINGS };
+const currentConfig = (): UserConfig => mainStore().get().config.current ?? DEFAULT_CONFIG;
 
 export function createWindow(saved: SessionState | null): void {
   const win = new BrowserWindow({
@@ -300,7 +299,7 @@ export function createWindow(saved: SessionState | null): void {
       };
     },
     () => win.getContentBounds(),
-    () => currentConfig().css,
+    () => themeCss(currentConfig()),
     () => {
       runtime.runFork(
         nextTurn.pipe(
@@ -335,7 +334,7 @@ export function createWindow(saved: SessionState | null): void {
   }
 
   const configureTabs = (config: UserConfig): void => {
-    tabViews.applyCss(config.css);
+    tabViews.applyCss(themeCss(config));
     mainStore().dispatch(
       TabsMsg.cases.TabsConfigured.make({
         homepage: config.settings.homepage,
@@ -507,7 +506,7 @@ export function createWindow(saved: SessionState | null): void {
         },
       };
     },
-    () => currentConfig().css,
+    () => themeCss(currentConfig()),
   );
 
   const paletteFiber = runtime.runFork(

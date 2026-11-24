@@ -1,7 +1,13 @@
 import { extname, join, normalize, sep } from "node:path";
 import { app, protocol } from "electron";
 import { readText } from "./platform";
-import { DEFAULT_SETTINGS, type NewtabLink, type Settings } from "../shared/config";
+import {
+  DEFAULT_SETTINGS,
+  type NewtabLink,
+  type Settings,
+  type UserConfig,
+} from "../shared/config";
+import { LAYER_ORDER, themeCss } from "../shared/theme-css";
 
 /** Config-driven data for the newtab page, served as config.json. */
 export interface NewtabConfig {
@@ -25,9 +31,9 @@ const MIME_TYPES = new Map([
 
 /**
  * The local pages `kvist://` serves: newtab is the homepage, error the
- * failure page. Each is a static directory under public/, given the shared
- * reset and tokens plus the user's config.css appended to its style.css —
- * reset and themed like the chrome.
+ * failure page. Each is a static directory under public/. Its style.css gets
+ * the shared reset, tokens, recipe and config.css appended, so it themes
+ * like the chrome.
  */
 const PAGES = ["newtab", "error"] as const;
 
@@ -51,14 +57,16 @@ export function registerKvistScheme(): void {
 }
 
 /**
- * What the local pages take from the config: the user's stylesheet, and the
- * clock and links the new tab page shows. Picked up on the next page load.
+ * What the local pages take from the config: the recipe, the user's
+ * stylesheet, and the clock and links the new tab page shows. Picked up on
+ * the next page load.
  */
-export function applySettings(config: {
-  css: string;
-  settings: Pick<Settings, "newtabLinks" | "newtabTimezone">;
-}): void {
-  currentCss = config.css;
+export function applySettings(
+  config: Pick<UserConfig, "css" | "recipe"> & {
+    settings: Pick<Settings, "newtabLinks" | "newtabTimezone">;
+  },
+): void {
+  currentCss = themeCss(config);
   currentConfig = {
     links: config.settings.newtabLinks,
     timezone: config.settings.newtabTimezone,
@@ -111,7 +119,8 @@ export function registerKvistProtocol(): void {
     }
 
     if (pathname === "/style.css") {
-      body += `\n${resetCss}\n${tokensCss}\n${currentCss}\n`;
+      // First, as on every surface, so the layer order never rests on which sheet is appended first.
+      body = `${LAYER_ORDER}\n${body}\n${resetCss}\n${tokensCss}\n${currentCss}\n`;
     }
 
     return new Response(body, {

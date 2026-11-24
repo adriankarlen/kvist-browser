@@ -4,7 +4,11 @@ import { next, type Next } from "../../../shared/tea/program";
 import { type Msg as MessagesMsg, warn } from "../messages/messages.program";
 import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
 
-const Problem = Schema.Struct({ field: Schema.String, reason: Schema.String });
+const Problem = Schema.Struct({
+  field: Schema.String,
+  reason: Schema.String,
+  file: Schema.optionalKey(Schema.String),
+});
 
 const StyleSource = Schema.Struct({ id: Schema.String, source: Schema.String });
 
@@ -19,13 +23,19 @@ const StyleProblem = Schema.Struct({ id: Schema.String, reason: Schema.String })
  */
 export interface Model {
   readonly current: UserConfig | null;
+  /** Every recipe that can be picked, as of the last load. */
+  readonly recipes: ReadonlyArray<string>;
 }
 
-export const init: Model = { current: null };
+export const init: Model = { current: null, recipes: [] };
 
 export const Msg = Schema.TaggedUnion({
   /** config.toml or config.css was read: at startup, and after every save. */
-  ConfigLoaded: { config: UserConfig, problems: Schema.Array(Problem) },
+  ConfigLoaded: {
+    config: UserConfig,
+    problems: Schema.Array(Problem),
+    recipes: Schema.Array(Schema.String),
+  },
   ConfigApplied: { config: UserConfig },
   StylesLoaded: { sources: Schema.Array(StyleSource) },
   StylesApplied: { problems: Schema.Array(StyleProblem) },
@@ -45,9 +55,13 @@ export type Cmd = typeof Cmd.Type;
 type Result = Next<Model, MessagesMsg | VimMsg, Cmd>;
 
 /** How a config problem reads: which file, which field, and why. */
-export function describeProblem({ field, reason }: typeof Problem.Type): string {
+export function describeProblem({
+  file = "config.toml",
+  field,
+  reason,
+}: typeof Problem.Type): string {
   // A problem with the file itself names the file as its field; saying so twice reads as a bug.
-  return field === "config.toml" ? `config.toml: ${reason}` : `config.toml: ${field}: ${reason}`;
+  return field === file ? `${file}: ${reason}` : `${file}: ${field}: ${reason}`;
 }
 
 const basename = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
@@ -69,17 +83,21 @@ function report(lines: ReadonlyArray<string>, shown: (first: string) => string):
 
 export function update(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
-    ConfigLoaded: ({ config, problems }) => {
+    ConfigLoaded: ({ config, problems, recipes }) => {
       const reported = report(problems.map(describeProblem), (line) => line);
 
-      return next(model, [...reported.cmds, Cmd.cases.ApplyConfig.make({ config })], reported.msgs);
+      return next(
+        { ...model, recipes },
+        [...reported.cmds, Cmd.cases.ApplyConfig.make({ config })],
+        reported.msgs,
+      );
     },
     ConfigApplied: ({ config }) => {
       const scheme = config.settings.inputMode;
       const changed = model.current === null || model.current.settings.inputMode !== scheme;
 
       return next(
-        { current: config },
+        { ...model, current: config },
         [],
         changed ? [VimMsgs.cases.InputModeChanged.make({ scheme })] : [],
       );

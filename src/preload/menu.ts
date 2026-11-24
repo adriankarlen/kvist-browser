@@ -1,7 +1,7 @@
 /**
  * The context menu lives in the tab's page — its view is a native layer
- * over the chrome. Shadow root for style isolation; main ships tokens and
- * config.css, so it themes like the chrome. Closed root: only trusted
+ * over the chrome. Shadow root for style isolation; main ships tokens, the
+ * recipe and config.css, so it themes like the chrome. Closed root: only trusted
  * clicks.
  */
 
