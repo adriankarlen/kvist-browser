@@ -20,6 +20,11 @@ export interface PaletteAccess {
   summon(text: string): void;
 }
 
+/** What `:recipe` hands its argument to: the config loop decides what the name means. */
+export interface RecipeAccess {
+  choose(name: string | undefined): void;
+}
+
 export interface TabsAccess {
   /** The tab every "do this to the page" verb belongs to, if there is one. */
   readonly active: Tab | undefined;
@@ -163,6 +168,10 @@ export interface Actions {
      */
     open: Action;
   };
+  recipe: {
+    /** Switch to the named recipe by writing it to config.toml; with no name, say which is in force. */
+    use: Action;
+  };
   bookmark: {
     /** Bookmark the active tab's URL, or remove every bookmark it already has. */
     toggle: Action;
@@ -204,6 +213,7 @@ export function createActions(
   quit: () => void,
   getSearchUrl: () => string,
   palette: PaletteAccess,
+  recipes: RecipeAccess,
 ): Actions {
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
@@ -461,6 +471,9 @@ export function createActions(
           });
         }
       },
+    },
+    recipe: {
+      use: (arg) => recipes.choose(arg?.trim()),
     },
     bookmark: {
       toggle: () => {

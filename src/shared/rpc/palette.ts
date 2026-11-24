@@ -11,7 +11,7 @@ export const PaletteEvent = Schema.TaggedUnion({
     /** `[layout.omnibox] size`: the panel's width. Undefined keeps the theme's. */
     size: Schema.UndefinedOr(Schema.String),
   },
-  /** The user's config.css, injected unlayered so a retheme reaches the palette too. */
+  /** `themeCss`: the recipe and config.css, so a retheme reaches the palette too. */
   CssChanged: { css: Schema.String },
 });
 

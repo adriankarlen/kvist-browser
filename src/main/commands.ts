@@ -67,6 +67,8 @@ const COMMANDS = {
 
   "style.open": { run: (a) => a.style.open },
 
+  "recipe.use": { run: (a) => a.recipe.use, arg: "[name]" },
+
   "bookmark.toggle": { run: (a) => a.bookmark.toggle },
   "bookmarks.open": { run: (a) => a.bookmark.open, enter: "insert" },
 
@@ -101,6 +103,7 @@ const ALIASES = {
   z0: "zoom.reset",
   zoom: "zoom.set",
   style: "style.open",
+  recipe: "recipe.use",
   bookmark: "bookmark.toggle",
   bookmarks: "bookmarks.open",
 } satisfies Record<string, CommandName>;

@@ -93,10 +93,8 @@ if (!gotTheLock) {
     // applied and the first style scan to be in.
     const configFiber = runtime.runFork(
       Effect.flatMap(Effect.service(ConfigFiles), ({ changes }) =>
-        Stream.runForEach(changes, ({ config, problems }) =>
-          Effect.sync(() =>
-            mainStore().dispatch(ConfigMsg.cases.ConfigLoaded.make({ config, problems })),
-          ),
+        Stream.runForEach(changes, (loaded) =>
+          Effect.sync(() => mainStore().dispatch(ConfigMsg.cases.ConfigLoaded.make(loaded))),
         ),
       ),
     );

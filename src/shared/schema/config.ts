@@ -10,7 +10,14 @@ export const InputMode = Schema.Literals(["vim", "standard"]);
 
 export type InputMode = typeof InputMode.Type;
 
+/** A recipe's file name without `.css`. The charset also keeps it inside the recipes directory. */
+export const RecipeName = Schema.String.check(
+  Schema.makeFilter((name: string) => /^[a-z0-9][a-z0-9-]*$/.test(name)),
+);
+
 export const Settings = Schema.Struct({
+  /** The recipe in force, named by `recipe` in config.toml: the base look and defaults. */
+  recipe: Schema.String,
   homepage: Schema.String,
   /** Where a non-URL omnibox input goes; `{q}` is replaced with the encoded query. */
   searchUrl: Schema.String,
@@ -36,9 +43,15 @@ export const Settings = Schema.Struct({
 
 export type Settings = typeof Settings.Type;
 
+/** The recipe in force: its name, and the CSS that goes in `@layer kvist.recipe`. */
+export const RecipeStyle = Schema.Struct({ name: Schema.String, css: Schema.String });
+
+export type RecipeStyle = typeof RecipeStyle.Type;
+
 export const UserConfig = Schema.Struct({
   /** Contents of config.css, injected unlayered so it outranks everything Kvist ships. */
   css: Schema.String,
+  recipe: RecipeStyle,
   settings: Settings,
 });
 

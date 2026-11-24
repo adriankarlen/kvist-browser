@@ -7,7 +7,7 @@ export const OverlayEvent = Schema.TaggedUnion({
   CompletionStateChanged: { state: CompletionOverlayState },
   /** Where to draw the list inside the view main has sized for it. */
   CompletionInsetChanged: { inset: CompletionInset },
-  /** The user's config.css, injected unlayered so a retheme reaches the menu too. */
+  /** `themeCss`: the recipe and config.css, so a retheme reaches the menu too. */
   CompletionCssChanged: { css: Schema.String },
 });
 

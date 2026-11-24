@@ -10,7 +10,10 @@ function xdg(variable: string, fallback: string): string {
   return join(base && base !== "" ? base : join(homedir(), fallback), APP_DIR);
 }
 
-/** Hand-edited config lives here; Kvist only ever reads from it. */
+/**
+ * Hand-edited config lives here. Kvist writes only the `recipe` line in
+ * config.toml, for `:recipe`, and never config.css.
+ */
 export const configDir = xdg("XDG_CONFIG_HOME", ".config");
 
 /**

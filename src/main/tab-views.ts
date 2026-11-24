@@ -73,9 +73,9 @@ export class TabViews {
     hooks.dispatch(Msg.cases.WindowResized.make({ rect: this.#windowRect() }));
   }
 
-  /** The context menu is themed from the user's config.css. */
-  applyCss(css: string): void {
-    this.#menuCss = composeContextMenuCss(css);
+  /** The context menu is themed like the chrome: `themeCss` is the recipe plus config.css. */
+  applyCss(themeCss: string): void {
+    this.#menuCss = composeContextMenuCss(themeCss);
   }
 
   tab(id: TabId | null): Tab | undefined {

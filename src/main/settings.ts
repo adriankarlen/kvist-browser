@@ -1,15 +1,15 @@
 import { Result, Schema } from "effect";
 import { Toml } from "effect/encoding";
 import {
+  DEFAULT_RECIPE,
   DEFAULT_SETTINGS,
   type InputMode,
   type NewtabLink,
   type Problem,
   type Settings,
 } from "../shared/config";
-import { InputMode as InputModeSchema } from "../shared/schema/config";
+import { InputMode as InputModeSchema, RecipeName } from "../shared/schema/config";
 import {
-  DEFAULT_LAYOUT,
   ELEMENT_IDS,
   type ElementId,
   type Layout,
@@ -29,10 +29,10 @@ export interface ParsedSettings {
   problems: Problem[];
 }
 
-type Table = Readonly<Record<string, unknown>>;
+export type Table = Readonly<Record<string, unknown>>;
 
 /** Anything claiming to be a TOML table: a plain, non-list object. */
-function isTable(value: unknown): value is Table {
+export function isTable(value: unknown): value is Table {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -41,7 +41,7 @@ function isTable(value: unknown): value is Table {
  * value is the default, not a problem: only something the user wrote and we
  * could not use is worth telling them about.
  */
-function read<A, F>(
+export function read<A, F>(
   value: unknown,
   field: string,
   schema: Schema.Codec<A, unknown>,
@@ -63,7 +63,7 @@ function read<A, F>(
  * to read, so it is reported once rather than as every child of it quietly
  * defaulting.
  */
-function section(value: unknown, field: string, problems: Problem[]): Table {
+export function section(value: unknown, field: string, problems: Problem[]): Table {
   if (value === undefined) return {};
 
   if (isTable(value)) return value;
@@ -75,12 +75,14 @@ function section(value: unknown, field: string, problems: Problem[]): Table {
 const Link = Schema.Struct({ name: Schema.String, url: Schema.String });
 
 /**
- * All-or-nothing: one malformed entry falls back to the defaults rather than
+ * All-or-nothing: one malformed entry falls back to the base list rather than
  * silently dropping a link the user can still see in their file.
  */
-function parseLinks(value: unknown, problems: Problem[]): ReadonlyArray<NewtabLink> {
-  const fallback = DEFAULT_SETTINGS.newtabLinks;
-
+function parseLinks(
+  value: unknown,
+  fallback: ReadonlyArray<NewtabLink>,
+  problems: Problem[],
+): ReadonlyArray<NewtabLink> {
   if (value === undefined) return fallback;
 
   if (!Array.isArray(value)) {
@@ -116,16 +118,20 @@ function isTimezone(name: string): boolean {
   }
 }
 
-function parseTimezone(value: unknown, problems: Problem[]): string | undefined {
+function parseTimezone(
+  value: unknown,
+  fallback: string | undefined,
+  problems: Problem[],
+): string | undefined {
   const named = read(value, "newtab.timezone", Schema.String, "not a string", undefined, problems);
 
-  if (named === undefined) return undefined;
+  if (named === undefined) return fallback;
   const timezone = named.trim();
 
   if (isTimezone(timezone)) return timezone;
   problems.push({ field: "newtab.timezone", reason: `not a timezone: "${timezone}"` });
 
-  return undefined;
+  return fallback;
 }
 
 const SearchTemplate = Schema.String.check(
@@ -133,21 +139,14 @@ const SearchTemplate = Schema.String.check(
 );
 
 /** A search URL template is only useful with somewhere to put the query. */
-function parseSearchUrl(value: unknown, problems: Problem[]): string {
+function parseSearchUrl(value: unknown, fallback: string, problems: Problem[]): string {
   if (value !== undefined && !Schema.is(Schema.String)(value)) {
     problems.push({ field: "search", reason: "not a string" });
 
-    return DEFAULT_SETTINGS.searchUrl;
+    return fallback;
   }
 
-  return read(
-    value,
-    "search",
-    SearchTemplate,
-    'no "{q}" placeholder',
-    DEFAULT_SETTINGS.searchUrl,
-    problems,
-  );
+  return read(value, "search", SearchTemplate, 'no "{q}" placeholder', fallback, problems);
 }
 
 const quoted = (names: ReadonlyArray<string>): string => names.map((n) => `"${n}"`).join(", ");
@@ -158,7 +157,7 @@ const CssLength = Schema.String.check(
 
 const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible", "autohide"];
 
-function reportUnknownKeys(
+export function reportUnknownKeys(
   table: Table,
   field: string,
   known: ReadonlyArray<string>,
@@ -176,7 +175,11 @@ function reportUnknownKeys(
 
 const INPUT_MODES: ReadonlyArray<InputMode> = InputModeSchema.literals;
 
-function parseInputMode(value: unknown, problems: Problem[]): InputMode {
+export function parseInputMode(
+  value: unknown,
+  fallback: InputMode,
+  problems: Problem[],
+): InputMode {
   const table = section(value, "input", problems);
 
   reportUnknownKeys(table, "input", ["mode"], problems);
@@ -186,14 +189,13 @@ function parseInputMode(value: unknown, problems: Problem[]): InputMode {
     "input.mode",
     InputModeSchema,
     `not one of ${quoted(INPUT_MODES)}`,
-    DEFAULT_SETTINGS.inputMode,
+    fallback,
     problems,
   );
 }
 
-function parseRegion(id: ElementId, value: unknown, problems: Problem[]): Region {
+function parseRegion(id: ElementId, value: unknown, fallback: Region, problems: Problem[]): Region {
   const field = `layout.${id}.region`;
-  const fallback = DEFAULT_LAYOUT[id].region;
   const { regions } = SUPPORT[id];
   const named = read(value, field, Region, `not one of ${quoted(REGIONS)}`, fallback, problems);
 
@@ -206,9 +208,13 @@ function parseRegion(id: ElementId, value: unknown, problems: Problem[]): Region
   return fallback;
 }
 
-function parseAutohide(id: ElementId, value: unknown, problems: Problem[]): boolean {
+function parseAutohide(
+  id: ElementId,
+  value: unknown,
+  fallback: boolean,
+  problems: Problem[],
+): boolean {
   const field = `layout.${id}.autohide`;
-  const fallback = DEFAULT_LAYOUT[id].autohide;
   const autohide = read(value, field, Schema.Boolean, "not true or false", fallback, problems);
 
   if (!autohide || SUPPORT[id].autohide) return autohide;
@@ -217,14 +223,18 @@ function parseAutohide(id: ElementId, value: unknown, problems: Problem[]): bool
   return fallback;
 }
 
-function parsePlacement(id: ElementId, value: unknown, problems: Problem[]): Placement {
+function parsePlacement(
+  id: ElementId,
+  value: unknown,
+  fallback: Placement,
+  problems: Problem[],
+): Placement {
   const field = `layout.${id}`;
-  const fallback = DEFAULT_LAYOUT[id];
   const table = section(value, field, problems);
 
   reportUnknownKeys(table, field, PLACEMENT_KEYS, problems);
 
-  const region = parseRegion(id, table.region, problems);
+  const region = parseRegion(id, table.region, fallback.region, problems);
 
   const order = read(
     table.order,
@@ -258,11 +268,12 @@ function parsePlacement(id: ElementId, value: unknown, problems: Problem[]): Pla
     order,
     size: size?.trim(),
     visible,
-    autohide: parseAutohide(id, table.autohide, problems),
+    autohide: parseAutohide(id, table.autohide, fallback.autohide, problems),
   };
 }
 
-function parseLayout(value: unknown, problems: Problem[]): Layout {
+/** `[layout]`, field by field over `base`: a table that sets only `size` keeps the base's region. */
+export function parseLayout(value: unknown, base: Layout, problems: Problem[]): Layout {
   const table = section(value, "layout", problems);
   const isElement = Schema.is(ElementIdSchema);
 
@@ -275,7 +286,7 @@ function parseLayout(value: unknown, problems: Problem[]): Layout {
     }
   }
 
-  const placement = (id: ElementId): Placement => parsePlacement(id, table[id], problems);
+  const placement = (id: ElementId): Placement => parsePlacement(id, table[id], base[id], problems);
 
   return {
     tabs: placement("tabs"),
@@ -289,15 +300,46 @@ function parseLayout(value: unknown, problems: Problem[]): Layout {
 }
 
 /**
- * Reads config.toml. Pure: the previous settings come in as an argument, so a
- * syntax error mid-edit can keep them without anything holding state between
- * calls.
+ * The recipe config.toml names. Read on its own, ahead of `parseSettings`,
+ * because the recipe supplies the base those settings are parsed over. A
+ * file that does not parse keeps `previous`; `parseSettings` reports why.
+ */
+export function readRecipeName(source: string, previous: string): ParsedRecipeName {
+  if (source.trim() === "") return { name: DEFAULT_RECIPE, problems: [] };
+
+  const parsed = Toml.parse(source);
+
+  if (Result.isFailure(parsed)) return { name: previous, problems: [] };
+  const problems: Problem[] = [];
+
+  const name = read(
+    parsed.success.recipe,
+    "recipe",
+    RecipeName,
+    'not a recipe name: lowercase letters, digits and "-"',
+    DEFAULT_RECIPE,
+    problems,
+  );
+
+  return { name, problems };
+}
+
+export interface ParsedRecipeName {
+  name: string;
+  problems: Problem[];
+}
+
+/**
+ * Reads config.toml over `base`, the defaults with the recipe's applied.
+ * Pure: the previous settings come in as an argument, so a syntax error
+ * mid-edit can keep them without anything holding state between calls.
  */
 export function parseSettings(
   source: string,
   previous: Settings = DEFAULT_SETTINGS,
+  base: Settings = DEFAULT_SETTINGS,
 ): ParsedSettings {
-  if (source.trim() === "") return { settings: DEFAULT_SETTINGS, problems: [] };
+  if (source.trim() === "") return { settings: base, problems: [] };
 
   const parsed = Toml.parse(source);
 
@@ -326,37 +368,32 @@ export function parseSettings(
   }
 
   const settings: Settings = {
-    homepage: read(
-      root.homepage,
-      "homepage",
-      string,
-      "not a string",
-      DEFAULT_SETTINGS.homepage,
-      problems,
-    ),
-    searchUrl: parseSearchUrl(root.search, problems),
-    newtabLinks: parseLinks(newtab.links, problems),
-    newtabTimezone: parseTimezone(newtab.timezone, problems),
-    adblock: read(
-      root.adblock,
-      "adblock",
-      boolean,
-      "not true or false",
-      DEFAULT_SETTINGS.adblock,
-      problems,
-    ),
-    layout: parseLayout(root.layout, problems),
+    // Already resolved: `readRecipeName` reported a bad name, and an unknown one falls back.
+    recipe: base.recipe,
+    homepage: read(root.homepage, "homepage", string, "not a string", base.homepage, problems),
+    searchUrl: parseSearchUrl(root.search, base.searchUrl, problems),
+    newtabLinks: parseLinks(newtab.links, base.newtabLinks, problems),
+    newtabTimezone: parseTimezone(newtab.timezone, base.newtabTimezone, problems),
+    adblock: read(root.adblock, "adblock", boolean, "not true or false", base.adblock, problems),
+    layout: parseLayout(root.layout, base.layout, problems),
     tabFocusPage: read(
       tabs["focus-page"],
       "tabs.focus-page",
       boolean,
       "not true or false",
-      DEFAULT_SETTINGS.tabFocusPage,
+      base.tabFocusPage,
       problems,
     ),
-    inputMode: parseInputMode(root.input, problems),
+    inputMode: parseInputMode(root.input, base.inputMode, problems),
     // Undefined falls back to the XDG download directory; `downloads.ts` resolves it.
-    downloadDir: read(downloads.dir, "downloads.dir", string, "not a string", undefined, problems),
+    downloadDir: read(
+      downloads.dir,
+      "downloads.dir",
+      string,
+      "not a string",
+      base.downloadDir,
+      problems,
+    ),
   };
 
   return { settings, problems };

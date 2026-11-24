@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
 import { DEFAULT_LAYOUT, ELEMENT_IDS } from "../shared/layout";
-import { parseSettings } from "./settings";
+import { parseSettings, readRecipeName } from "./settings";
 
 const settingsOf = (source: string, previous?: Settings): Settings =>
   parseSettings(source, previous).settings;
@@ -41,6 +41,7 @@ test("every field is read", () => {
   `);
 
   expect(settings).toEqual({
+    recipe: "tui",
     homepage: "https://example.com",
     searchUrl: "https://search.example/?q={q}",
     adblock: false,
@@ -261,4 +262,70 @@ test("nothing is carried between calls", () => {
   parseSettings("homepage = 'unterminated", first);
   // The bad parse above must not have become anyone's previous settings.
   expect(settingsOf("homepage = 'unterminated").homepage).toBe(DEFAULT_SETTINGS.homepage);
+});
+
+describe("over a recipe's base", () => {
+  const base: Settings = {
+    ...DEFAULT_SETTINGS,
+    recipe: "modern",
+    inputMode: "standard",
+    layout: {
+      ...DEFAULT_LAYOUT,
+      tabs: { ...DEFAULT_LAYOUT.tabs, region: "top", size: "12ch" },
+    },
+  };
+
+  test("an empty file is the base", () => {
+    expect(parseSettings("", DEFAULT_SETTINGS, base).settings).toEqual(base);
+  });
+
+  test("a layout table merges field by field: the user's size, the recipe's region", () => {
+    const { settings } = parseSettings("[layout.tabs]\nsize = '30ch'", DEFAULT_SETTINGS, base);
+
+    expect(settings.layout.tabs).toEqual({ ...base.layout.tabs, size: "30ch" });
+    expect(settings.inputMode).toBe("standard");
+    expect(settings.recipe).toBe("modern");
+  });
+
+  test("what the user wrote wins over the recipe", () => {
+    const { settings } = parseSettings(
+      "[input]\nmode = 'vim'\n[layout.tabs]\nregion = 'left'",
+      DEFAULT_SETTINGS,
+      base,
+    );
+
+    expect(settings.inputMode).toBe("vim");
+    expect(settings.layout.tabs.region).toBe("left");
+  });
+
+  test("a bad value falls back to the recipe, not the defaults", () => {
+    const { settings, problems } = parseSettings("[input]\nmode = 'emacs'", DEFAULT_SETTINGS, base);
+
+    expect(settings.inputMode).toBe("standard");
+    expect(problems.map(({ field }) => field)).toEqual(["input.mode"]);
+  });
+});
+
+describe("readRecipeName", () => {
+  test("names the recipe, and an empty file is the default one", () => {
+    expect(readRecipeName("recipe = 'modern'", "tui")).toEqual({ name: "modern", problems: [] });
+    expect(readRecipeName("", "modern")).toEqual({ name: "tui", problems: [] });
+    expect(readRecipeName("homepage = 'x'", "modern")).toEqual({ name: "tui", problems: [] });
+  });
+
+  test("a broken file keeps the recipe it had, and leaves the reporting to parseSettings", () => {
+    expect(readRecipeName("recipe = 'unterminated", "modern")).toEqual({
+      name: "modern",
+      problems: [],
+    });
+  });
+
+  test("a name that could not be a file is reported", () => {
+    for (const bad of ["'../etc'", "'Modern'", "'-x'", "3"]) {
+      const { name, problems } = readRecipeName(`recipe = ${bad}`, "modern");
+
+      expect(name).toBe("tui");
+      expect(problems.map(({ field }) => field)).toEqual(["recipe"]);
+    }
+  });
 });

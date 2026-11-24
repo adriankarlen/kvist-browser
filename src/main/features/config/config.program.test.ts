@@ -1,13 +1,14 @@
-import { expect, test } from "vite-plus/test";
-import { DEFAULT_SETTINGS } from "../../../shared/config";
+import { describe, expect, test } from "vite-plus/test";
+import { DEFAULT_CONFIG, DEFAULT_SETTINGS } from "../../../shared/config";
 import { Msg as MessagesMsg } from "../messages/messages.program";
 import { Msg as VimMsg } from "../vim/vim.program";
 import { Cmd, init, Msg, update } from "./config.program";
 
-const config = { css: "", settings: DEFAULT_SETTINGS };
+const config = DEFAULT_CONFIG;
+const recipes = ["modern", "tui"];
 
 test("a loaded config is applied, and only published once it has been", () => {
-  const loaded = update(Msg.cases.ConfigLoaded.make({ config, problems: [] }), init);
+  const loaded = update(Msg.cases.ConfigLoaded.make({ config, problems: [], recipes }), init);
 
   expect(loaded.model.current).toBeNull();
   expect(loaded.cmds).toEqual([Cmd.cases.ApplyConfig.make({ config })]);
@@ -22,7 +23,7 @@ test("the first problem is shown with a count, and the rest go to the log", () =
     { field: "config.toml", reason: "Expected a value at line 1, column 5" },
   ];
 
-  const { msgs, cmds } = update(Msg.cases.ConfigLoaded.make({ config, problems }), init);
+  const { msgs, cmds } = update(Msg.cases.ConfigLoaded.make({ config, problems, recipes }), init);
 
   expect(msgs).toEqual([
     MessagesMsg.cases.MessageShown.make({
@@ -48,7 +49,11 @@ test("a style problem names the file, not its whole path", () => {
 });
 
 test("the input mode reaches the mode machine on the first apply, then only when it changes", () => {
-  const standard = { css: "", settings: { ...DEFAULT_SETTINGS, inputMode: "standard" as const } };
+  const standard = {
+    ...config,
+    settings: { ...DEFAULT_SETTINGS, inputMode: "standard" as const },
+  };
+
   const switched = VimMsg.cases.InputModeChanged.make({ scheme: "standard" });
   const first = update(Msg.cases.ConfigApplied.make({ config: standard }), init);
 
@@ -57,4 +62,80 @@ test("the input mode reaches the mode machine on the first apply, then only when
   expect(update(Msg.cases.ConfigApplied.make({ config }), first.model).msgs).toEqual([
     VimMsg.cases.InputModeChanged.make({ scheme: "vim" }),
   ]);
+});
+
+test("a recipe problem names its own file", () => {
+  const { msgs } = update(
+    Msg.cases.ConfigLoaded.make({
+      config,
+      recipes,
+      problems: [{ file: "recipes/x.toml", field: "input.mode", reason: "bad" }],
+    }),
+    init,
+  );
+
+  expect(msgs).toEqual([
+    MessagesMsg.cases.MessageShown.make({
+      message: { text: "recipes/x.toml: input.mode: bad", level: "error" },
+    }),
+  ]);
+});
+
+describe(":recipe", () => {
+  const loaded = update(
+    Msg.cases.ConfigApplied.make({ config }),
+    update(Msg.cases.ConfigLoaded.make({ config, problems: [], recipes }), init).model,
+  ).model;
+
+  const choose = (name: string | undefined) =>
+    update(Msg.cases.RecipeChosen.make({ name }), loaded);
+
+  const shown = (text: string, level: "info" | "error") => [
+    MessagesMsg.cases.MessageShown.make({ message: { text, level } }),
+  ];
+
+  test("with no name, says which recipe is in force and what else there is", () => {
+    expect(choose(undefined).msgs).toEqual(shown("recipe tui (available: modern, tui)", "info"));
+  });
+
+  test("an unknown name is refused, and nothing is written", () => {
+    const { msgs, cmds } = choose("nope");
+
+    expect(cmds).toEqual([]);
+    expect(msgs).toEqual(shown("no recipe named nope", "error"));
+  });
+
+  test("the recipe in force is not written again", () => {
+    expect(choose("tui")).toMatchObject({
+      cmds: [],
+      msgs: shown("recipe tui is already in use", "info"),
+    });
+  });
+
+  test("another recipe is written to config.toml", () => {
+    expect(choose("modern").cmds).toEqual([Cmd.cases.WriteRecipe.make({ name: "modern" })]);
+  });
+
+  test("a second :recipe before the first applies compares against the pending one", () => {
+    const pending = choose("modern").model;
+    const back = update(Msg.cases.RecipeChosen.make({ name: "tui" }), pending);
+
+    expect(back.cmds).toEqual([Cmd.cases.WriteRecipe.make({ name: "tui" })]);
+    expect(update(Msg.cases.RecipeChosen.make({ name: "modern" }), pending).cmds).toEqual([]);
+  });
+
+  test("the pending choice ends when it applies, or when the save fails", () => {
+    const pending = choose("modern").model;
+    const modern = { ...config, recipe: { name: "modern", css: "" } };
+
+    expect(update(Msg.cases.ConfigApplied.make({ config }), pending).model.pending).toBe("modern");
+    expect(
+      update(Msg.cases.ConfigApplied.make({ config: modern }), pending).model.pending,
+    ).toBeNull();
+
+    const failed = update(Msg.cases.RecipeNotSaved.make({ reason: "nope" }), pending);
+
+    expect(failed.model.pending).toBeNull();
+    expect(failed.msgs).toEqual(shown("nope", "error"));
+  });
 });

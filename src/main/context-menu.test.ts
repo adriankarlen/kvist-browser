@@ -1,6 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import type { ContextMenuParams } from "electron";
 import type { ContextMenuItem } from "../shared/schema/context-menu";
+import { themeCss } from "../shared/theme-css";
 import { buildContextMenuItems, composeContextMenuCss } from "./context-menu";
 
 // Only the fields the builder reads; the rest of the params are Chromium's
@@ -143,4 +144,12 @@ test("the menu's CSS declares the layer order first and retargets the user's tok
     true,
   );
   expect(css.trimEnd().endsWith(":host { --kv-color-accent: red; }")).toBe(true);
+});
+
+test("a recipe reaches the menu in its layer, retargeted at the shadow host too", () => {
+  const css = composeContextMenuCss(
+    themeCss({ css: "", recipe: { name: "x", css: ":root { --kv-density: 2; }" } }),
+  );
+
+  expect(css).toContain("@layer kvist.recipe {\n:host { --kv-density: 2; }\n}");
 });
