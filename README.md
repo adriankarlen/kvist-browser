@@ -254,21 +254,41 @@ and below the page, between them. Leave a field out to keep its default.
 An element you move keeps its default order, so you rarely need `order`.
 Changes apply as soon as you save the file.
 
-| Element      | Default | Can go   | `visible = false` means                           |
-| ------------ | ------- | -------- | ------------------------------------------------- |
-| `tabs`       | top     | any edge | no tab strip                                      |
-| `omnibox`    | top     | top      | shown only while you use it (`o`)                 |
-| `bookmarks`  | bottom  | any edge | no change: it only shows while open (`gb`)        |
-| `downloads`  | bottom  | any edge | no popup while downloading; `:downloads` shows it |
-| `status`     | bottom  | any edge | command line, prompts and errors only             |
-| `find`       | bottom  | any edge | shown while you type; `n` and `N` still work      |
-| `completion` | overlay | overlay  | no completion lists                               |
+| Element      | Default | Can go        | `visible = false` means                           |
+| ------------ | ------- | ------------- | ------------------------------------------------- |
+| `tabs`       | top     | any edge      | no tab strip                                      |
+| `omnibox`    | top     | top, floating | shown only while you use it (`o`)                 |
+| `bookmarks`  | bottom  | any edge      | no change: it only shows while open (`gb`)        |
+| `downloads`  | bottom  | any edge      | no popup while downloading; `:downloads` shows it |
+| `status`     | bottom  | any edge      | command line, prompts and errors only             |
+| `find`       | bottom  | any edge      | shown while you type; `n` and `N` still work      |
+| `completion` | overlay | overlay       | no completion lists                               |
 
 `status` is the row that the command line, prompts and messages share.
 Hidden, it drops info messages but still shows errors. The tab strip, and
 every panel and line, runs vertically at the left or right and horizontally
 at the top or bottom. `tabs.orientation` is gone: use `[layout.tabs] region`
 instead.
+
+#### Command palette
+
+```toml
+[layout.omnibox]
+region = "floating"
+size = "100ch" # optional: the palette's width
+```
+
+A floating omnibox is a command palette, like Arc's. There is no bar. `o`
+opens a box over the page with the current URL selected. Type a URL, a
+search, or part of an open tab's title, bookmark or history entry, then press
+Enter. `:` opens the same box with a colon, and a leading colon turns it into
+the command line, with command completion. Escape, or a click anywhere
+outside the box, closes it.
+
+While the palette is closed, an idle status line shows the mode and the URL.
+Style the palette with the `--kv-palette-*` tokens. `[layout.completion]
+visible = false` does not hide the palette's rows, because the rows are the
+palette.
 
 With `autohide = true`, the tab strip shrinks to a thin edge. Hover over the
 edge to bring it back. It also shows for a moment when you open, close or
@@ -392,7 +412,9 @@ files with.
 src/main/       Electron main: window, tab manager, vim mode machine, config loading, XDG paths
 src/preload/    contextBridge only; exposes window.kvist to the chrome
 src/renderer/   Svelte chrome (tab strip, omnibox, command line); components in lib/
-src/shared/     Types and IPC channel names imported by all three
+src/overlay/    the completion list's own view, above the page
+src/palette/    the command palette's own view, above the page
+src/shared/     Types and IPC channel names imported by all of them
 ```
 
 There are two preloads. `index.ts` is the chrome's bridge and exposes

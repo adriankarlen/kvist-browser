@@ -12,6 +12,13 @@ import type { Messenger as Messages } from "./messenger";
 import type { Tab } from "./tab";
 
 /** The tab verbs the commands use; the collection itself lives in the store. */
+/** The command palette, as the keybinds reach it. */
+export interface PaletteAccess {
+  /** Whether the omnibox floats. Read at call time, so a config save applies at once. */
+  isOn(): boolean;
+  summon(text: string): void;
+}
+
 export interface TabsAccess {
   /** The tab every "do this to the page" verb belongs to, if there is one. */
   readonly active: Tab | undefined;
@@ -114,6 +121,10 @@ export interface Actions {
     chrome: Action;
     omnibox: Action;
   };
+  cmdline: {
+    /** The `:` line: the status row's, or the palette's when the omnibox floats. */
+    open: Action;
+  };
   insert: {
     /** Leaving insert mode: drop whatever the page focused, take the keyboard back. */
     leave: Action;
@@ -188,6 +199,7 @@ export function createActions(
   userStyles: StyleFileLookup,
   quit: () => void,
   getSearchUrl: () => string,
+  palette: PaletteAccess,
 ): Actions {
   const focusChrome = (): void => {
     if (!win.isDestroyed()) win.webContents.focus();
@@ -307,8 +319,20 @@ export function createActions(
       page: () => tabs.active?.focus(),
       chrome: focusChrome,
       omnibox: () => {
+        if (palette.isOn()) {
+          palette.summon(tabs.active?.snapshot().url ?? "");
+
+          return;
+        }
+
         focusChrome();
         chrome.focusOmnibox();
+      },
+    },
+    cmdline: {
+      open: () => {
+        if (palette.isOn()) palette.summon(":");
+        else focusChrome();
       },
     },
     insert: {

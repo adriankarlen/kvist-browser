@@ -3,7 +3,7 @@
   import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { completionOverlay, layout, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
-  import { createCompletion, handleCompletionKey, type Candidate } from "./completion.svelte";
+  import { createCompletion, handleCompletionKey, type Candidate } from "../../shared/completion/completion.svelte";
 
   let input = $state<HTMLInputElement>();
   let line = $state("");
@@ -15,6 +15,9 @@
   const completion = createCompletion((query) => browse.commandCompletions(query), {
     selectFirst: false,
   });
+
+  // Derived, so showing the list (which dispatches) does not rerun the effect below.
+  const completionShown = $derived(layout.completionShown);
 
   const overlay = completionOverlay.claim(accept);
 
@@ -39,7 +42,7 @@
   $effect(() => {
     const box = anchor.current;
 
-    if (box === null || !completion.open || !layout.completionShown) {
+    if (box === null || !completion.open || !completionShown) {
       overlay.hide();
 
       return;

@@ -82,6 +82,7 @@
     --kv-find-count-fg: var(--kv-color-muted);
 
     --kv-message-fg: var(--kv-color-subtle);
+    --kv-location-fg: var(--kv-color-subtle);
     --kv-message-prompt-fg: var(--kv-color-accent-alt);
     --kv-message-error-fg: var(--kv-color-danger);
 
@@ -152,6 +153,16 @@
     --kv-omnibox-bookmark-fg: var(--kv-color-muted);
     --kv-omnibox-bookmark-active-fg: var(--kv-color-accent);
 
+    /* the command palette, a floating omnibox ([layout.omnibox] region = "floating") */
+    --kv-palette-width: 80ch;
+    --kv-palette-top: 12vh;
+    --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-base) 40%, transparent);
+    --kv-palette-bg: var(--kv-panel-bg);
+    --kv-palette-fg: var(--kv-color-text);
+    --kv-palette-placeholder-fg: var(--kv-color-muted);
+    --kv-palette-shadow: 0 8px 32px rgb(0 0 0 / 50%);
+    --kv-palette-max-height: 16lh;
+
     /* the candidate dropdown under a text input (command line, omnibox) */
     --kv-completion-bg: var(--kv-panel-bg);
     --kv-completion-border: var(--kv-border-color);
@@ -162,6 +173,7 @@
     /* Fallback badge colour for a candidate whose kind has no dedicated
        --kv-completion-kind-<kind>-fg of its own. */
     --kv-completion-badge-fg: var(--kv-color-muted);
+    --kv-completion-kind-tab-fg: var(--kv-color-text);
     --kv-completion-kind-bookmark-fg: var(--kv-color-warning);
     --kv-completion-kind-history-fg: var(--kv-color-accent-alt);
     --kv-completion-kind-command-fg: var(--kv-color-accent);

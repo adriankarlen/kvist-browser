@@ -172,10 +172,10 @@ test("gb opens the bookmarks panel and enters insert, so its filter gets the key
   expect(vim.mode).toBe("insert");
 });
 
-test("colon opens the command line and moves focus to the chrome", () => {
+test("colon enters command mode and opens a command line", () => {
   key(":");
   expect(vim.mode).toBe("command");
-  expect(execute).toHaveBeenCalledWith("focus.chrome");
+  expect(execute).toHaveBeenCalledWith("cmdline.open");
 });
 
 test("command mode leaves keys to the chrome", () => {
@@ -479,4 +479,21 @@ test("a page text field does not steal the permission prompt", () => {
   vim.setPromptPending(true);
   vim.setEditable(true);
   expect(vim.mode).toBe("prompt");
+});
+
+test("a chrome input closing leaves its typing mode without moving focus", () => {
+  for (const mode of ["insert", "command"] as const) {
+    const closed = update(Msg.cases.ChromeInputClosed.make({}), { ...init, mode });
+
+    expect(closed.model.mode).toBe("normal");
+    expect(closed.cmds).toEqual([]);
+  }
+
+  const hinting = { ...init, mode: "hint" as const };
+
+  expect(update(Msg.cases.ChromeInputClosed.make({}), hinting).model).toBe(hinting);
+  expect(
+    update(Msg.cases.ChromeInputClosed.make({}), { ...init, mode: "insert", promptPending: true })
+      .model.mode,
+  ).toBe("prompt");
 });

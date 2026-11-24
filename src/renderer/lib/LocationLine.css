@@ -1,0 +1,16 @@
+@layer kvist.components {
+  .kv-location__url {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--kv-location-fg);
+  }
+
+  /* A side column is too narrow to cut a URL short. */
+  .kv-location.is-vertical .kv-location__url {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

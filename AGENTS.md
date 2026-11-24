@@ -161,6 +161,34 @@ showed the list last. That owner survives `hide()`, because the blur that
 hides the list lands before the pick does. An input that does not own the
 overlay cannot hide it.
 
+## Command palette
+
+`[layout.omnibox] region = "floating"` turns the omnibox into a palette
+(KVI-59). It cannot be chrome HTML for the same reason as the completion
+list: the chrome is the window's own webContents, and every tab view paints
+above it. So it gets a `WebContentsView` of its own (`src/main/palette-overlay.ts`,
+rendered by `src/palette/`), with its own preload and `PaletteRpcs`.
+
+- **Main owns open and closed** (`features/palette`). `o` and `:` summon it
+  through `focus.omnibox` and `cmdline.open`, which check the layout at call
+  time. The view's visibility and bounds are derived from the slice and the
+  content rect, and reconciled.
+- **The view covers the whole page rect** and its document is transparent.
+  A click beside the panel lands on the palette's backdrop, which dismisses.
+  A click on the page or the chrome blurs the palette's webContents, which
+  dismisses too. Only a blur while the window still has focus hands the
+  keyboard back to the page.
+- **Shown before it is told to open.** A hidden view does not render, so
+  main sizes and shows it first, then sends `Opened`, then focuses it.
+- **Its keys go through the mode machine as `chrome` keys**, so insert and
+  command mode let it type, and its own Escape is its own.
+- **It replaces the status-row command line.** `statusLine()` never returns
+  `"command"` while the omnibox floats, or that line would mount and steal
+  focus. An idle row shows the mode and URL instead.
+- The draft stays in the palette's document, as the omnibox's does. Picked
+  rows reuse `CompletionMenu` inline: the palette is already above the page,
+  so it needs no second overlay.
+
 ## In-page vim
 
 Hints live in the preload, mode stays in main. Hint labels are inline-styled
@@ -291,6 +319,17 @@ right now, not a resumed backlog item. Revisit as a fresh initiative later.
 
 - oxlint's `no-unassigned-vars` does not understand Svelte's `bind:this`; use
   `$state<T>()` rather than adding a lint override.
+- **`Schema.optionalKey` rejects a key that is present but undefined.** A
+  candidate built as `{ hint: undefined }` fails to encode, and the whole
+  RPC reply or intent is dropped without a word. Leave the key out instead.
+- **An `$effect` that dispatches must not read `app.model` directly.**
+  `app.model` is one signal, and every dispatch replaces it, so the effect
+  reruns forever. Read the value through a `$derived`, which only changes
+  when the value does.
+- **A stylesheet shared by two documents starts with the layer order.** The
+  build puts it in a chunk that loads before each document's own CSS, and a
+  bare `@layer kvist.components` there would make components the lowest
+  layer. See `src/shared/completion/CompletionMenu.css`.
 - **Kernel dispatch is synchronous and re-entrant.** A Cmd starts on the
   same tick as the Msg that produced it, so an interpreter that dispatches
   synchronously queues its Msg behind the current one. Reading the model

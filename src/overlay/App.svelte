@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
-  import CompletionMenu from "./CompletionMenu.svelte";
+  import CompletionMenu from "../shared/completion/CompletionMenu.svelte";
   import type { CompletionCandidate } from "../shared/schema/completion";
   import { Msg } from "./overlay.program";
   import { overlay } from "./store.svelte";

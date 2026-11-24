@@ -35,7 +35,7 @@ export const DEFAULT_KEYBINDS: readonly Keybind[] = [
   { mode: "normal", keys: "o", command: "focus.omnibox", enter: "insert" },
   { mode: "normal", keys: "i", enter: "insert" },
   { mode: "normal", keys: "/", command: "focus.chrome", enter: "find" },
-  { mode: "normal", keys: ":", command: "focus.chrome", enter: "command" },
+  { mode: "normal", keys: ":", command: "cmdline.open", enter: "command" },
   { mode: "normal", keys: "y", command: "clipboard.yank" },
   { mode: "normal", keys: "p", command: "clipboard.open" },
   { mode: "normal", keys: "P", command: "clipboard.openNewTab" },

@@ -7,8 +7,9 @@
 
 @import "../../shared/styles/reset.css";
 @import "../../shared/styles/tokens.css";
-@import "./panel.css";
+@import "../../shared/styles/panel.css";
 @import "./line.css";
+@import "./mode.css";
 
 @layer kvist.reset {
   /* Chrome text is UI, not content — selecting it is never useful. Local

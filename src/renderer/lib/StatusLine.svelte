@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Region } from "../../shared/layout";
   import CommandLine from "./CommandLine.svelte";
+  import LocationLine from "./LocationLine.svelte";
   import MessageLine from "./MessageLine.svelte";
   import PromptLine from "./PromptLine.svelte";
   import { layout } from "./stores.svelte";
@@ -14,4 +15,6 @@
   <PromptLine {region} />
 {:else if layout.statusLine === "message"}
   <MessageLine {region} />
+{:else if layout.statusLine === "location"}
+  <LocationLine {region} />
 {/if}

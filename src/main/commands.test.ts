@@ -1,5 +1,7 @@
 import type { BrowserWindow } from "electron";
+import { Schema } from "effect";
 import { afterEach, expect, test, vi } from "vite-plus/test";
+import { CompletionCandidate } from "../shared/schema/completion";
 import { DEFAULT_SEARCH_URL } from "../shared/url";
 import { createActions } from "./actions";
 import type { ZoomStoreAccess } from "./zoom";
@@ -27,7 +29,10 @@ function createClipboardStub(readText = "https://clipboard.example") {
  * actions actually use are here; the rest of each module is not this test's
  * business.
  */
-function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
+function createStubs(
+  getSearchUrl: () => string = () => DEFAULT_SEARCH_URL,
+  paletteOn: boolean = false,
+) {
   const active = {
     // SAFETY: cast narrows the literal for the test stub; the object is built right above.
     snapshot: () =>
@@ -91,6 +96,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
   const clipboard = createClipboardStub();
   const opener = { openPath: vi.fn<(path: string) => Promise<string>>(() => Promise.resolve("")) };
   const userStyles = { filesFor: vi.fn<(url: string) => string[]>(() => []) };
+  const palette = { isOn: () => paletteOn, summon: vi.fn<(text: string) => void>() };
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
@@ -111,6 +117,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     userStyles,
     quit,
     getSearchUrl,
+    palette,
   );
 
   return {
@@ -128,6 +135,7 @@ function createStubs(getSearchUrl: () => string = () => DEFAULT_SEARCH_URL) {
     opener,
     userStyles,
     quit,
+    palette,
   };
 }
 
@@ -188,6 +196,7 @@ test("every command reaches the thing it names", () => {
     // Ahead of focus.omnibox below, which is the only other caller of it.
     ["focus.chrome", () => win.webContents.focus.mock.calls.length === 1],
     ["focus.omnibox", () => sent.some(({ channel }) => channel === "focusOmnibox")],
+    ["cmdline.open", () => win.webContents.focus.mock.calls.length === 3],
     ["insert.leave", () => active.blur.mock.calls.length === 1],
     ["downloads.toggle", () => sent.some(({ channel }) => channel === "downloadsToggle")],
     ["downloads.clear", () => downloads.clear.mock.calls.length === 1],
@@ -789,4 +798,34 @@ test("every completed name runs", () => {
   for (const { value } of offered) {
     expect(commands.execute(value), value).toBe(true);
   }
+});
+
+test("with the omnibox at the top, o focuses the bar and : the status row", () => {
+  const { commands, sent, win, palette } = createStubs();
+
+  commands.execute("focus.omnibox");
+  commands.execute("cmdline.open");
+
+  expect(sent.map(({ channel }) => channel)).toEqual(["focusOmnibox"]);
+  expect(win.webContents.focus).toHaveBeenCalledTimes(2);
+  expect(palette.summon).not.toHaveBeenCalled();
+});
+
+test("with the omnibox floating, o and : summon the palette and leave the chrome alone", () => {
+  const { commands, sent, win, palette } = createStubs(undefined, true);
+
+  commands.execute("focus.omnibox");
+  commands.execute("cmdline.open");
+
+  expect(palette.summon.mock.calls).toEqual([["https://active.example"], [":"]]);
+  expect(sent).toEqual([]);
+  expect(win.webContents.focus).not.toHaveBeenCalled();
+});
+
+test("every completion crosses the wire, including commands that take no argument", () => {
+  const encode = Schema.encodeUnknownSync(Schema.Array(CompletionCandidate));
+  const candidates = completeCommand("t");
+
+  expect(candidates.some(({ hint }) => hint === undefined)).toBe(true);
+  expect(() => encode(candidates)).not.toThrow();
 });

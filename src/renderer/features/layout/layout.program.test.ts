@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { DEFAULT_LAYOUT, type Placement } from "../../../shared/layout";
+import { DEFAULT_LAYOUT, type Layout, type Placement } from "../../../shared/layout";
 import { init as mainInit, type Model as MainModel } from "../main/main.program";
 import {
   Cmd,
@@ -113,21 +113,46 @@ describe("the status line", () => {
   const info = { text: "hi", level: "info" } as const;
   const error = { text: "no", level: "error" } as const;
 
-  test("is the command line, a prompt or a message, in that order", () => {
-    const status = DEFAULT_LAYOUT.status;
+  const withStatus = (status: Placement, omnibox: Placement = DEFAULT_LAYOUT.omnibox): Layout => ({
+    ...DEFAULT_LAYOUT,
+    status,
+    omnibox,
+  });
 
-    expect(statusLine(main({}), status)).toBe(null);
-    expect(statusLine(main({ message: info }), status)).toBe("message");
-    expect(statusLine(main({ message: info, prompt }), status)).toBe("prompt");
-    expect(statusLine(main({ message: info, prompt, mode: "command" }), status)).toBe("command");
+  const floating: Placement = { ...DEFAULT_LAYOUT.omnibox, region: "floating" };
+
+  test("is the command line, a prompt or a message, in that order", () => {
+    const layout = withStatus(DEFAULT_LAYOUT.status);
+
+    expect(statusLine(main({}), layout)).toBe(null);
+    expect(statusLine(main({ message: info }), layout)).toBe("message");
+    expect(statusLine(main({ message: info, prompt }), layout)).toBe("prompt");
+    expect(statusLine(main({ message: info, prompt, mode: "command" }), layout)).toBe("command");
   });
 
   test("hidden, it still shows commands, prompts and errors, but not info", () => {
-    const status = hidden(DEFAULT_LAYOUT.status);
+    const layout = withStatus(hidden(DEFAULT_LAYOUT.status));
 
-    expect(statusLine(main({ mode: "command" }), status)).toBe("command");
-    expect(statusLine(main({ prompt }), status)).toBe("prompt");
-    expect(statusLine(main({ message: error }), status)).toBe("message");
-    expect(statusLine(main({ message: info }), status)).toBe(null);
+    expect(statusLine(main({ mode: "command" }), layout)).toBe("command");
+    expect(statusLine(main({ prompt }), layout)).toBe("prompt");
+    expect(statusLine(main({ message: error }), layout)).toBe("message");
+    expect(statusLine(main({ message: info }), layout)).toBe(null);
+  });
+
+  test("with the palette, it never is the command line, and idle it shows where you are", () => {
+    const layout = withStatus(DEFAULT_LAYOUT.status, floating);
+
+    expect(statusLine(main({}), layout)).toBe("location");
+    expect(statusLine(main({ mode: "command" }), layout)).toBe("location");
+    expect(statusLine(main({ mode: "command", prompt }), layout)).toBe("prompt");
+    expect(statusLine(main({ message: info }), layout)).toBe("message");
+  });
+
+  test("with the palette and a hidden row, only prompts and errors show", () => {
+    const layout = withStatus(hidden(DEFAULT_LAYOUT.status), floating);
+
+    expect(statusLine(main({}), layout)).toBe(null);
+    expect(statusLine(main({ message: info }), layout)).toBe(null);
+    expect(statusLine(main({ message: error }), layout)).toBe("message");
   });
 });

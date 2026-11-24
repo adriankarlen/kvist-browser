@@ -1,0 +1,46 @@
+@layer kvist.components {
+  /* The view spans the page; this backdrop is what a click beside the panel lands on. */
+  .kv-palette {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: var(--kv-palette-top) var(--kv-chrome-inset) var(--kv-chrome-inset);
+    background: var(--kv-palette-backdrop);
+    font-family: var(--kv-font-family);
+    font-size: var(--kv-font-size);
+  }
+
+  .kv-palette__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--kv-space);
+    width: min(var(--kv-layout-size, var(--kv-palette-width)), 100%);
+    max-height: 100%;
+    background: var(--kv-palette-bg);
+    box-shadow: var(--kv-palette-shadow);
+    color: var(--kv-palette-fg);
+  }
+
+  .kv-palette__input {
+    min-height: var(--kv-omnibox-height);
+    background: none;
+    border: none;
+    outline: none;
+    font: inherit;
+    color: var(--kv-palette-fg);
+  }
+
+  .kv-palette__input::placeholder {
+    color: var(--kv-palette-placeholder-fg);
+  }
+
+  /* The panel frames the rows already, so the list drops its own box. */
+  .kv-palette .kv-completion {
+    padding: 0;
+    border: none;
+    background: transparent;
+    max-height: var(--kv-palette-max-height);
+  }
+}

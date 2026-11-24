@@ -24,8 +24,8 @@ flowchart LR
   I -- "result Msg" --> S
 ```
 
-There is one loop per process: main, the chrome, the overlay, and each tab's
-page preload.
+There is one loop per process: main, the chrome, the overlay, the palette,
+and each tab's page preload.
 
 ## Five building blocks
 
@@ -137,10 +137,10 @@ DOM.
 
 ## IPC
 
-- One `RpcGroup` per surface: `ChromeRpcs`, `OverlayRpcs`, `PageRpcs`. Each
-  webContents gets a `MessagePort` that serves only its own group. **The
-  port is the capability**: a webContents can only call what its port
-  serves, so there are no sender checks.
+- One `RpcGroup` per surface: `ChromeRpcs`, `OverlayRpcs`, `PaletteRpcs`,
+  `PageRpcs`. Each webContents gets a `MessagePort` that serves only its
+  own group. **The port is the capability**: a webContents can only call
+  what its port serves, so there are no sender checks.
 - Main → renderer is one streaming RPC per surface that returns full
   snapshots. Renderer → main is `dispatch(intent)`, where the intent is a
   Schema union of the Msgs that surface may send. Questions that need an
@@ -179,7 +179,7 @@ src/main/features/<f>/
 src/main/services/<s>.ts     Context.Service + Layer around one capability
 src/renderer/app/            root program, interpreter, store adapter
 src/renderer/features/<f>/   same convention, plus Component.svelte and .css
-src/overlay/, src/preload/page/   same convention, small
+src/overlay/, src/palette/, src/preload/page/   same convention, small
 ```
 
 ## Enforced, not advised

@@ -47,6 +47,7 @@ const COMMANDS = {
   "focus.page": { run: (a) => a.focus.page, keybindOnly: true },
   "focus.chrome": { run: (a) => a.focus.chrome, keybindOnly: true },
   "focus.omnibox": { run: (a) => a.focus.omnibox, keybindOnly: true },
+  "cmdline.open": { run: (a) => a.cmdline.open, keybindOnly: true },
 
   "insert.leave": { run: (a) => a.insert.leave, keybindOnly: true },
 
@@ -157,9 +158,10 @@ export function completeCommand(line: string): CompletionCandidate[] {
       : [],
   );
 
+  // A missing hint is a missing key: the wire schema rejects `hint: undefined`.
   const fromCommands = [...specs].flatMap(([name, spec]): CompletionCandidate[] =>
     !spec.keybindOnly && matches(name)
-      ? [{ label: name, value: name, kind: "command", hint: spec.arg }]
+      ? [{ label: name, value: name, kind: "command", ...(spec.arg && { hint: spec.arg }) }]
       : [],
   );
 

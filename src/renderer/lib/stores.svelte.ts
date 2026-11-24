@@ -148,7 +148,7 @@ export const layout = {
     return findShown(app.model.main, placement("find"));
   },
   get statusLine(): StatusLine | null {
-    return statusLine(app.model.main, placement("status"));
+    return statusLine(app.model.main, app.model.ui.settings.layout);
   },
   get completionShown(): boolean {
     return placement("completion").visible;
