@@ -1,6 +1,13 @@
 import { Result, Schema } from "effect";
 import { Toml } from "effect/encoding";
-import { DEFAULT_SETTINGS, type NewtabLink, type Problem, type Settings } from "../shared/config";
+import {
+  DEFAULT_SETTINGS,
+  type InputMode,
+  type NewtabLink,
+  type Problem,
+  type Settings,
+} from "../shared/config";
+import { InputMode as InputModeSchema } from "../shared/schema/config";
 import {
   DEFAULT_LAYOUT,
   ELEMENT_IDS,
@@ -151,15 +158,37 @@ const CssLength = Schema.String.check(
 
 const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible", "autohide"];
 
-function reportUnknownKeys(table: Table, field: string, problems: Problem[]): void {
+function reportUnknownKeys(
+  table: Table,
+  field: string,
+  known: ReadonlyArray<string>,
+  problems: Problem[],
+): void {
   for (const key of Object.keys(table)) {
-    if (!PLACEMENT_KEYS.includes(key)) {
+    if (!known.includes(key)) {
       problems.push({
         field: `${field}.${key}`,
-        reason: `unknown key; expected ${quoted(PLACEMENT_KEYS)}`,
+        reason: `unknown key; expected ${quoted(known)}`,
       });
     }
   }
+}
+
+const INPUT_MODES: ReadonlyArray<InputMode> = InputModeSchema.literals;
+
+function parseInputMode(value: unknown, problems: Problem[]): InputMode {
+  const table = section(value, "input", problems);
+
+  reportUnknownKeys(table, "input", ["mode"], problems);
+
+  return read(
+    table.mode,
+    "input.mode",
+    InputModeSchema,
+    `not one of ${quoted(INPUT_MODES)}`,
+    DEFAULT_SETTINGS.inputMode,
+    problems,
+  );
 }
 
 function parseRegion(id: ElementId, value: unknown, problems: Problem[]): Region {
@@ -193,7 +222,7 @@ function parsePlacement(id: ElementId, value: unknown, problems: Problem[]): Pla
   const fallback = DEFAULT_LAYOUT[id];
   const table = section(value, field, problems);
 
-  reportUnknownKeys(table, field, problems);
+  reportUnknownKeys(table, field, PLACEMENT_KEYS, problems);
 
   const region = parseRegion(id, table.region, problems);
 
@@ -325,6 +354,7 @@ export function parseSettings(
       DEFAULT_SETTINGS.tabFocusPage,
       problems,
     ),
+    inputMode: parseInputMode(root.input, problems),
     // Undefined falls back to the XDG download directory; `downloads.ts` resolves it.
     downloadDir: read(downloads.dir, "downloads.dir", string, "not a string", undefined, problems),
   };

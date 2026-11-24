@@ -1,4 +1,4 @@
-export type { NewtabLink, Settings, UserConfig } from "./schema/config";
+export type { InputMode, NewtabLink, Settings, UserConfig } from "./schema/config";
 
 import { DEFAULT_LAYOUT } from "./layout";
 import type { Settings } from "./schema/config";
@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   layout: DEFAULT_LAYOUT,
   tabFocusPage: true,
+  inputMode: "vim",
   adblock: true,
   downloadDir: undefined,
 };

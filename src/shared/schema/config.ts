@@ -5,6 +5,11 @@ export const NewtabLink = Schema.Struct({ name: Schema.String, url: Schema.Strin
 
 export type NewtabLink = typeof NewtabLink.Type;
 
+/** Which keys drive the browser: the modal vim set, or the shortcuts every other browser uses. */
+export const InputMode = Schema.Literals(["vim", "standard"]);
+
+export type InputMode = typeof InputMode.Type;
+
 export const Settings = Schema.Struct({
   homepage: Schema.String,
   /** Where a non-URL omnibox input goes; `{q}` is replaced with the encoded query. */
@@ -21,6 +26,8 @@ export const Settings = Schema.Struct({
    * switches leave the keyboard on the chrome.
    */
   tabFocusPage: Schema.Boolean,
+  /** From `[input] mode`. */
+  inputMode: InputMode,
   /** Network and cosmetic filtering, from the prebuilt ads + tracking lists. */
   adblock: Schema.Boolean,
   /** Where downloads are saved. Undefined works it out from the XDG download directory. */
