@@ -61,6 +61,7 @@ import { PageIntent, PageRpcs } from "../../shared/rpc/page";
 import { chromeLink, overlayLink, type OverlaySenders, pageLink, paletteLink } from "../links";
 import { PaletteIntent, PaletteRpcs } from "../../shared/rpc/palette";
 import { PaletteOverlay, type PaletteSenders } from "../palette-overlay";
+import { Msg as ConfigMsg } from "../features/config/config.program";
 import { Msg as PaletteMsg } from "../features/palette/palette.program";
 import { acceptOmnibox } from "../../shared/omnibox-action";
 import { resolveUrl } from "../../shared/url";
@@ -389,6 +390,9 @@ export function createWindow(saved: SessionState | null): void {
     {
       isOn: () => isPalette(currentConfig().settings.layout),
       summon: (text) => mainStore().dispatch(PaletteMsg.cases.PaletteSummoned.make({ text })),
+    },
+    {
+      choose: (name) => mainStore().dispatch(ConfigMsg.cases.RecipeChosen.make({ name })),
     },
   );
 

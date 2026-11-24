@@ -21,7 +21,6 @@ import type { Context } from "effect";
 /** The app scope: closed on `quit`, never on `will-quit`, which can be cancelled. */
 export const runtime = ManagedRuntime.make(
   Layer.mergeAll(
-    ConfigFiles.layer,
     StyleFiles.layer,
     Layer.mergeAll(PromptsGate.layer, DownloadsGate.layer).pipe(
       Layer.provideMerge(MainStore.layer),
@@ -29,6 +28,7 @@ export const runtime = ManagedRuntime.make(
   ).pipe(
     Layer.provideMerge(
       Layer.mergeAll(
+        ConfigFiles.layer,
         Requesters.layer,
         Desktop.layer,
         LegacyWindow.layer,

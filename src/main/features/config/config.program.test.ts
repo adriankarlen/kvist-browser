@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_CONFIG, DEFAULT_SETTINGS } from "../../../shared/config";
 import { Msg as MessagesMsg } from "../messages/messages.program";
 import { Msg as VimMsg } from "../vim/vim.program";
@@ -79,4 +79,40 @@ test("a recipe problem names its own file", () => {
       message: { text: "recipes/x.toml: input.mode: bad", level: "error" },
     }),
   ]);
+});
+
+describe(":recipe", () => {
+  const loaded = update(
+    Msg.cases.ConfigApplied.make({ config }),
+    update(Msg.cases.ConfigLoaded.make({ config, problems: [], recipes }), init).model,
+  ).model;
+
+  const choose = (name: string | undefined) =>
+    update(Msg.cases.RecipeChosen.make({ name }), loaded);
+
+  const shown = (text: string, level: "info" | "error") => [
+    MessagesMsg.cases.MessageShown.make({ message: { text, level } }),
+  ];
+
+  test("with no name, says which recipe is in force and what else there is", () => {
+    expect(choose(undefined).msgs).toEqual(shown("recipe tui (available: modern, tui)", "info"));
+  });
+
+  test("an unknown name is refused, and nothing is written", () => {
+    const { msgs, cmds } = choose("nope");
+
+    expect(cmds).toEqual([]);
+    expect(msgs).toEqual(shown("no recipe named nope", "error"));
+  });
+
+  test("the recipe in force is not written again", () => {
+    expect(choose("tui")).toMatchObject({
+      cmds: [],
+      msgs: shown("recipe tui is already in use", "info"),
+    });
+  });
+
+  test("another recipe is written to config.toml", () => {
+    expect(choose("modern").cmds).toEqual([Cmd.cases.WriteRecipe.make({ name: "modern" })]);
+  });
 });

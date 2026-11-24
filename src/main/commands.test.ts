@@ -98,6 +98,7 @@ function createStubs(
   const opener = { openPath: vi.fn<(path: string) => Promise<string>>(() => Promise.resolve("")) };
   const userStyles = { filesFor: vi.fn<(url: string) => string[]>(() => []) };
   const palette = { isOn: () => paletteOn, summon: vi.fn<(text: string) => void>() };
+  const recipes = { choose: vi.fn<(name: string | undefined) => void>() };
 
   // SAFETY: partial stubs — createActions only reaches the members defined above.
   const actions = createActions(
@@ -119,6 +120,7 @@ function createStubs(
     quit,
     getSearchUrl,
     palette,
+    recipes,
   );
 
   return {
@@ -137,6 +139,7 @@ function createStubs(
     userStyles,
     quit,
     palette,
+    recipes,
   };
 }
 
@@ -167,6 +170,7 @@ test("every command reaches the thing it names", () => {
     userStyles,
     bookmarks,
     quit,
+    recipes,
   } = createStubs();
 
   // One entry per command in the table, so a mapping that points at the wrong
@@ -216,6 +220,7 @@ test("every command reaches the thing it names", () => {
     ["zoom.reset", () => active.setZoomLevel.mock.calls.some(([l]) => l === 0)],
     ["zoom.set", () => true],
     ["style.open", () => userStyles.filesFor.mock.calls.length === 1],
+    ["recipe.use", () => recipes.choose.mock.calls.length === 1],
     ["bookmark.toggle", () => bookmarks.toggle.mock.calls.length === 1],
     ["bookmarks.open", () => sent.some(({ channel }) => channel === "bookmarksOpen")],
     ["app.quit", () => quit.mock.calls.length === 1],
@@ -754,6 +759,15 @@ test("a typed line ends in normal mode unless its command opens something to typ
   expect(modeAfter("nope")).toBe("normal");
   expect(modeAfter("toString")).toBe("normal");
   expect(modeAfter("")).toBe("normal");
+});
+
+test(":recipe hands its trimmed name to the config loop, and nothing when there is none", () => {
+  const { commands, recipes } = createStubs();
+
+  commands.execute("recipe", " modern ");
+  commands.execute("recipe.use");
+
+  expect(recipes.choose.mock.calls).toEqual([["modern"], [undefined]]);
 });
 
 test("completion offers aliases first, then commands, by prefix", () => {

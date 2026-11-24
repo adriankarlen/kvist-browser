@@ -15,6 +15,7 @@ import * as TabsFx from "../features/tabs/tabs.effects";
 import * as Vim from "../features/vim/vim.program";
 import * as VimFx from "../features/vim/vim.effects";
 import type { ConfigApplier } from "../services/config-applier";
+import type { ConfigFiles } from "../services/config-files";
 import type { BookmarksRepo } from "../services/bookmarks-repo";
 import type { Desktop } from "../services/desktop";
 import type { HistoryRepo } from "../services/history-repo";
@@ -34,6 +35,7 @@ const interpreter = interpretersFor<
   | LegacyWindow
   | LiveDownloads
   | ConfigApplier
+  | ConfigFiles
   | HistoryRepo
   | BookmarksRepo
   | SessionRepo
@@ -49,6 +51,7 @@ const interpret = interpretAll<
   | LegacyWindow
   | LiveDownloads
   | ConfigApplier
+  | ConfigFiles
   | HistoryRepo
   | BookmarksRepo
   | SessionRepo

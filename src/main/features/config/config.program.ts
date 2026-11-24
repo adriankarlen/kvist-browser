@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { UserConfig } from "../../../shared/schema/config";
 import { next, type Next } from "../../../shared/tea/program";
-import { type Msg as MessagesMsg, warn } from "../messages/messages.program";
+import { type Msg as MessagesMsg, say, warn } from "../messages/messages.program";
 import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
 
 const Problem = Schema.Struct({
@@ -23,7 +23,7 @@ const StyleProblem = Schema.Struct({ id: Schema.String, reason: Schema.String })
  */
 export interface Model {
   readonly current: UserConfig | null;
-  /** Every recipe that can be picked, as of the last load. */
+  /** Every recipe `:recipe` may pick, as of the last load. */
   readonly recipes: ReadonlyArray<string>;
 }
 
@@ -39,6 +39,8 @@ export const Msg = Schema.TaggedUnion({
   ConfigApplied: { config: UserConfig },
   StylesLoaded: { sources: Schema.Array(StyleSource) },
   StylesApplied: { problems: Schema.Array(StyleProblem) },
+  /** `:recipe [name]`. No name asks which recipe is in force. */
+  RecipeChosen: { name: Schema.UndefinedOr(Schema.String) },
 });
 
 export type Msg = typeof Msg.Type;
@@ -48,6 +50,8 @@ export const Cmd = Schema.TaggedUnion({
   ApplyConfig: { config: UserConfig },
   ApplyStyles: { sources: Schema.Array(StyleSource) },
   LogProblems: { lines: Schema.Array(Schema.String) },
+  /** Points config.toml at a recipe. The save then comes back as a `ConfigLoaded`. */
+  WriteRecipe: { name: Schema.String },
 });
 
 export type Cmd = typeof Cmd.Type;
@@ -81,6 +85,25 @@ function report(lines: ReadonlyArray<string>, shown: (first: string) => string):
   ]);
 }
 
+/** What `:recipe` does with a name: report, refuse, or write it to config.toml. */
+function chooseRecipe(name: string | undefined, model: Model): Result {
+  const active = model.current?.recipe.name;
+
+  if (name === undefined || name === "") {
+    return next(
+      model,
+      [],
+      [say(`recipe ${active ?? "?"} (available: ${model.recipes.join(", ")})`)],
+    );
+  }
+
+  if (!model.recipes.includes(name)) return next(model, [], [warn(`no recipe named ${name}`)]);
+
+  if (name === active) return next(model, [], [say(`recipe ${name} is already in use`)]);
+
+  return next(model, [Cmd.cases.WriteRecipe.make({ name })]);
+}
+
 export function update(msg: Msg, model: Model): Result {
   return Msg.match(msg, {
     ConfigLoaded: ({ config, problems, recipes }) => {
@@ -111,5 +134,6 @@ export function update(msg: Msg, model: Model): Result {
 
       return next(model, reported.cmds, reported.msgs);
     },
+    RecipeChosen: ({ name }) => chooseRecipe(name, model),
   });
 }
