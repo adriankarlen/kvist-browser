@@ -226,9 +226,81 @@ omnibox.
 
 Copy, paste, undo and select all work as in any other app.
 
-Both key sets and commands are early and intentionally minimal. See
-`src/main/features/vim/keybinds.ts` and `src/main/commands.ts` if you want
-to add your own.
+### Rebinding keys
+
+The tables above are the defaults. Every key can be changed in
+`config.toml`, in either mode. Map a key to a command line, as you would
+type it after `:`. Aliases and arguments work. An empty string removes a key.
+
+```toml
+[keys.normal]
+"J" = "tab.next"
+"K" = "tab.prev"
+"<C-d>" = "scroll.half-down"
+"x" = "" # x does nothing now
+
+[keys.chords]
+"Mod+Shift+K" = "tab.close"
+"Mod+1" = "tab.select 1"
+```
+
+The tables are `normal`, `insert`, `hint` and `prompt` for vim's modes, and
+`chords`. A chord works in any mode and wherever focus is, even while you
+type in the omnibox. Standard mode reads `chords` only. In vim mode,
+`chords` is empty by default, and chords are checked before the keys of the
+current mode.
+
+**Notation.** The mode tables use vim notation. A plain character is one
+key, and `G` is Shift+g. Named keys go in angle brackets: `<Esc>`, `<CR>`,
+`<Tab>`, `<Space>`, `<lt>` (for `<`), `<F5>`, or any browser key name such
+as `<ArrowLeft>`. The modifiers are `C-` (Ctrl), `A-` or `M-` (Alt), `D-`
+(Cmd, or Super on Linux) and `S-` (Shift), as in `<C-d>` or `<C-S-Tab>`.
+Chords are written `Mod+Shift+T`. `Mod` is Cmd on macOS and Ctrl elsewhere,
+and the other modifiers are `Ctrl`, `Alt`, `Shift` and `Meta`. A chord
+needs Ctrl, Alt or Meta unless it is a function key, because a plain key
+would be taken from every text field.
+
+**Conflicts.** Kvist names each problem in the echo area, as it does for
+any other config mistake:
+
+- a command that does not exist, or a key it cannot read
+- a key that hides longer ones: `g` alone means `gt` and `gg` can never be
+  typed
+- the same key spelled twice in one file, such as `<C-d>` and `<C-D>`; the
+  later one wins
+- a chord that hides a key of a mode, which then never fires
+
+**Presets.** `[input] mode` names a preset. `vim` and `standard` are built
+in. Put your own in `~/.config/kvist/keymaps/<name>.toml` and set
+`mode = "<name>"`. `base` picks the engine and the default keys the preset
+starts from. A preset with the same name as a built-in one replaces it.
+`[keys]` in `config.toml` still goes on top. A name Kvist does not know
+falls back to the recipe's preset, then to `vim`.
+
+```toml
+format = 1 # required
+name = "Colemak"
+description = "Vim keys moved for Colemak."
+base = "vim"
+
+[keys.normal]
+"n" = "scroll.down"
+"e" = "scroll.up"
+"j" = "find.next"
+"k" = "find.prev"
+```
+
+**Keys that stay fixed.** These are part of the control they belong to, and
+cannot be rebound:
+
+- arrows, Tab, Enter and Escape inside the omnibox, the command line, the
+  find line, the palette, completion lists, the bookmarks panel and the
+  setup wizard
+- the letters hint labels are made of (`asdfghjkl`)
+- Escape leaving a page's fullscreen, as in every browser; it does not stop
+  the key from doing what it is bound to
+
+Every command is listed with its description in `src/main/commands.ts`.
 
 ## Configuration
 
@@ -272,9 +344,14 @@ adblock = true # ad and tracker blocking
 [tabs]
 focus-page = true # hand keyboard focus to the page after a tab switch
 
-# "vim" (the default) or "standard" for the usual browser shortcuts.
+# "vim" (the default), "standard" for the usual browser shortcuts, or a
+# preset of your own. See "Rebinding keys" above.
 [input]
 mode = "vim"
+
+# Your own keys, over the preset's.
+# [keys.normal]
+# "J" = "tab.next"
 
 # Where each part of the chrome sits. See "Layout" below.
 [layout.tabs]
