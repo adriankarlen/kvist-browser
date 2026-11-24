@@ -1,11 +1,11 @@
 import { expect, test } from "vite-plus/test";
 import { themeCss } from "./theme-css";
 
-test("the recipe goes in its layer, and config.css follows it unlayered", () => {
+test("config.css comes first, so its @import stays valid, and the recipe follows in its layer", () => {
   const css = themeCss({
     css: ".a { color: red; }",
     recipe: { name: "x", css: ":root { --b: 1; }" },
   });
 
-  expect(css).toBe("@layer kvist.recipe {\n:root { --b: 1; }\n}\n.a { color: red; }");
+  expect(css).toBe(".a { color: red; }\n@layer kvist.recipe {\n:root { --b: 1; }\n}\n");
 });

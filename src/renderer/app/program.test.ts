@@ -62,7 +62,7 @@ describe("events from main are Msgs", () => {
     expect(regions(model.ui).left).toEqual(["tabs"]);
     expect(regions(model.ui).top).toEqual(["omnibox"]);
     expect(cmds).toContainEqual(
-      LinkCmd.cases.InjectCss.make({ css: "@layer kvist.recipe {\n\n}\na{}" }),
+      LinkCmd.cases.InjectCss.make({ css: "a{}\n@layer kvist.recipe {\n\n}\n" }),
     );
   });
 
