@@ -11,8 +11,9 @@
     min-width: var(--kv-menu-min-width);
     list-style: none;
     background: var(--kv-menu-bg);
-    border: var(--kv-border-width) solid var(--kv-menu-border);
-    border-radius: var(--kv-radius);
+    border: var(--kv-menu-border);
+    border-radius: var(--kv-menu-radius);
+    box-shadow: var(--kv-menu-shadow);
     font-family: var(--kv-font-family);
     font-size: var(--kv-font-size);
     color: var(--kv-menu-fg);
@@ -23,9 +24,10 @@
   .kv-menu__item {
     display: flex;
     align-items: center;
-    gap: 1ch;
+    gap: var(--kv-gap);
     min-height: var(--kv-menu-item-height);
     padding: 0 2ch;
+    border-radius: var(--kv-menu-item-radius);
     white-space: nowrap;
   }
 
@@ -55,7 +57,7 @@
   }
 
   .kv-menu__separator {
-    height: 1px;
+    height: var(--kv-menu-separator-width);
     margin: var(--kv-menu-padding) 0;
     background: var(--kv-menu-separator);
   }

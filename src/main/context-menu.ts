@@ -70,6 +70,9 @@ export function buildContextMenuItems(
     .flatMap((section, index) => (index === 0 ? section : [separator(), ...section]));
 }
 
+/** The same order every other surface declares, so a recipe layer lands in the same place here. */
+const LAYER_ORDER = "@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;";
+
 /**
  * The menu lives in a shadow root, where `:root` matches nothing — the
  * shadow host is the root there, so token blocks (ours and the user's) are
@@ -79,5 +82,5 @@ export function buildContextMenuItems(
 export function composeContextMenuCss(userCss: string): string {
   const host = (css: string): string => css.replaceAll(":root", ":host");
 
-  return `${host(tokensCss)}\n${menuCss}\n${host(userCss)}`;
+  return `${LAYER_ORDER}\n${host(tokensCss)}\n${menuCss}\n${host(userCss)}`;
 }

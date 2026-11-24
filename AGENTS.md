@@ -241,15 +241,22 @@ point: users retheme the chrome from `~/.config/kvist/config.css`.
   component. Reset and tokens live in `src/shared/styles/` — the local pages
   and the context menu are themed from them too, so they are shared, not
   renderer-owned.
-- Everything Kvist ships goes inside `@layer kvist.reset | tokens | components`.
+- Everything Kvist ships goes inside `@layer kvist.reset | tokens | recipe | components`.
   User CSS is injected unlayered, which beats every layer regardless of
   specificity — so never rely on specificity to win, and never use
   `!important`.
 - Classnames are `kv-` prefixed block/element (`.kv-tab__title`) with `is-`
   state classes (`.is-active`).
-- Tokens are two-tier: a `--kv-color-*` palette, and component tokens
-  (`--kv-tab-active-bg`) built from it. Add a component token when a value is
-  something a user might plausibly want to change.
+- Tokens are three-tier: a `--kv-color-*` palette of roles (each a
+  `light-dark()` pair), metrics (border, radius, shadow, density), and part
+  tokens (`--kv-tab-active-bg`) built from both. Components read part tokens
+  only. `src/shared/styles/tokens.test.ts` fails on a colour literal, a
+  literal border or shadow, an undeclared token, or a layer order that
+  differs. Add a part token when a value is something a user might plausibly
+  want to change.
+- The CSS build target keeps `light-dark()` native (`cssTarget` in
+  `vite.config.ts`). The polyfill for older targets ignores a `color-scheme`
+  set in `config.css`.
 
 `src/renderer/styles/index.css` must stay the first import in `main.ts`; layer
 order depends on it being emitted first.

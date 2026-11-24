@@ -13,7 +13,7 @@ body {
 }
 
 #title {
-  color: var(--kv-color-text);
+  color: var(--kv-color-fg);
 }
 
 #dashboard-wrapper {
@@ -42,9 +42,10 @@ body {
 /* ── boxes ───────────────────────────────────────────── */
 
 .box {
-  background-color: var(--kv-color-surface);
-  border: var(--kv-border-width) solid var(--kv-border-color);
+  background-color: var(--kv-color-bg-raised);
+  border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
   border-radius: var(--kv-radius);
+  box-shadow: var(--kv-shadow-raised);
   padding: 15px;
   position: relative;
   overflow: hidden;
@@ -82,12 +83,12 @@ body {
 
 .header {
   font-size: 11px;
-  font-weight: 400;
-  border-bottom: 1px solid var(--kv-color-overlay);
+  font-weight: var(--kv-font-weight);
+  border-bottom: var(--kv-separator-width) var(--kv-border-style) var(--kv-color-border);
   padding-bottom: 4px;
   display: flex;
   justify-content: space-between;
-  color: var(--kv-color-muted);
+  color: var(--kv-color-fg-faint);
   margin-bottom: 10px;
   flex-shrink: 0;
 }
@@ -130,12 +131,12 @@ body {
 
 .link-item:hover,
 .link-item:focus-visible {
-  background-color: var(--kv-color-overlay);
+  background-color: var(--kv-color-bg-selected);
 }
 
 .link-item:active {
   background-color: var(--kv-color-accent);
-  color: var(--kv-color-base);
+  color: var(--kv-color-on-accent);
 }
 
 /* ── scratchpad ──────────────────────────────────────── */
@@ -144,7 +145,7 @@ body {
   flex: 1;
   background: transparent;
   border: none;
-  color: var(--kv-color-muted);
+  color: var(--kv-color-fg-faint);
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
@@ -156,7 +157,7 @@ body {
 }
 
 #scratchpad-area::placeholder {
-  color: var(--kv-color-muted);
+  color: var(--kv-color-fg-faint);
 }
 
 #scratchpad-area::-webkit-scrollbar {
@@ -164,5 +165,5 @@ body {
 }
 
 #scratchpad-area:focus {
-  color: var(--kv-color-text);
+  color: var(--kv-color-fg);
 }

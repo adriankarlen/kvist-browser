@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import type { ContextMenuParams } from "electron";
 import type { ContextMenuItem } from "../shared/schema/context-menu";
-import { buildContextMenuItems } from "./context-menu";
+import { buildContextMenuItems, composeContextMenuCss } from "./context-menu";
 
 // Only the fields the builder reads; the rest of the params are Chromium's
 // business and a cast keeps the fixture honest about that.
@@ -134,4 +134,13 @@ test("separators only ever sit between sections", () => {
       if (list[index] === "separator") expect(list[index - 1]).not.toBe("separator");
     }
   }
+});
+
+test("the menu's CSS declares the layer order first and retargets the user's tokens at the shadow host", () => {
+  const css = composeContextMenuCss(":root { --kv-color-accent: red; }");
+
+  expect(css.startsWith("@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;")).toBe(
+    true,
+  );
+  expect(css.trimEnd().endsWith(":host { --kv-color-accent: red; }")).toBe(true);
 });

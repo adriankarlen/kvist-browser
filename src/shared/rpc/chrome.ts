@@ -11,6 +11,11 @@ import { UserConfig } from "../schema/config";
 import { DownloadState } from "../schema/downloads";
 import { PromptWire } from "../schema/prompts";
 
+/** `#rrggbb`: the one colour format both CSS and `setBackgroundColor` read the same way. */
+const HexColor = Schema.String.check(
+  Schema.makeFilter((color: string) => /^#[0-9a-f]{6}$/.test(color)),
+);
+
 /** What main tells the chrome. State-like events are replayed to a new subscriber. */
 export const ChromeEvent = Schema.TaggedUnion({
   StateChanged: { state: BrowserState },
@@ -37,6 +42,8 @@ export type ChromeEvent = typeof ChromeEvent.Type;
 /** What the chrome asks of main. */
 export const ChromeIntent = Schema.TaggedUnion({
   ContentRectMeasured: { rect: Rect },
+  /** What the chrome painted, so a resize shows the theme's colour before the next frame. */
+  ChromeBackgroundMeasured: { color: HexColor },
   /** A typed `:` line; it ends in normal mode. */
   CommandEntered: { line: Schema.String },
   ModeRequested: { mode: Mode },

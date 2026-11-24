@@ -19,6 +19,8 @@
     width: min(var(--kv-layout-size, var(--kv-palette-width)), 100%);
     max-height: 100%;
     background: var(--kv-palette-bg);
+    border: var(--kv-palette-border);
+    border-radius: var(--kv-palette-radius);
     box-shadow: var(--kv-palette-shadow);
     color: var(--kv-palette-fg);
   }

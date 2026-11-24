@@ -3,7 +3,7 @@
  * unlayered styles beat every layer, so ~/.config/kvist/config.css always wins
  * without needing !important or matching our specificity.
  */
-@layer kvist.reset, kvist.tokens, kvist.components;
+@layer kvist.reset, kvist.tokens, kvist.recipe, kvist.components;
 
 @import "../../shared/styles/reset.css";
 @import "../../shared/styles/tokens.css";
