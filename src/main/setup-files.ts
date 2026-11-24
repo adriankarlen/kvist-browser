@@ -64,8 +64,11 @@ export function choicesProblem(choices: SetupChoices, options: SetupOptions): st
   return undefined;
 }
 
-/** A TOML basic string. JSON's escapes are a subset of TOML's, so JSON's quoting is valid TOML. */
-const tomlString = (value: string): string => JSON.stringify(value);
+/**
+ * A TOML basic string. JSON's escapes are a subset of TOML's. JSON leaves
+ * DEL (U+007F) bare, which TOML forbids, so it is escaped by hand.
+ */
+const tomlString = (value: string): string => JSON.stringify(value).replaceAll("\u007f", "\\u007f");
 
 const TOML_HEADER =
   "# Written by the Kvist setup wizard. Edit it freely; Kvist reloads it on save.";

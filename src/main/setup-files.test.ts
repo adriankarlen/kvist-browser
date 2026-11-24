@@ -127,6 +127,15 @@ describe("renderSetup", () => {
     expect(reload(files.toml, "tui").settings.searchUrl).toBe(searchUrl);
   });
 
+  test("a custom search URL with DEL and other control characters still parses", () => {
+    const searchUrl = "https://example.com/s?q={q}&x=\u007f\u0001\t";
+    const files = renderSetup({ ...defaultsFor("tui"), searchUrl }, optionFor("tui"), false);
+    const back = reload(files.toml, "tui");
+
+    expect(back.problems).toEqual([]);
+    expect(back.settings.searchUrl).toBe(searchUrl);
+  });
+
   test("density writes config.css, except for normal or when config.css exists", () => {
     for (const density of DENSITIES) {
       const css = renderSetup({ ...defaultsFor("tui"), density }, optionFor("tui"), false).css;
