@@ -37,6 +37,11 @@
   style:width={inset === null ? null : `${inset.width}px`}
 >
   {#if state}
-    <CompletionMenu candidates={state.candidates} index={state.index} onaccept={accept} />
+    <CompletionMenu
+      candidates={state.candidates}
+      index={state.index}
+      grow={state.grow}
+      onaccept={accept}
+    />
   {/if}
 </div>

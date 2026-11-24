@@ -178,6 +178,21 @@ test("arrow keys cycle the selection", async () => {
   expect(completion.index).toBe(0);
 });
 
+test("an upward list is mirrored, so Up moves away from the input", async () => {
+  const completion = createCompletion(() => candidates("a", "b"), { selectFirst: false });
+  await completion.update("q");
+  const onAccept = vi.fn();
+
+  expect(handleCompletionKey(completion, key("ArrowUp"), onAccept, "up")).toBe(true);
+  expect(completion.index).toBe(0);
+  handleCompletionKey(completion, key("ArrowUp"), onAccept, "up");
+  expect(completion.index).toBe(1);
+  handleCompletionKey(completion, key("ArrowDown"), onAccept, "up");
+  expect(completion.index).toBe(0);
+  handleCompletionKey(completion, key("Tab"), onAccept, "up");
+  expect(completion.index).toBe(1);
+});
+
 test("Tab cycles forward, shift+Tab cycles back", async () => {
   const completion = createCompletion(() => candidates("a", "b"));
   await completion.update("q");

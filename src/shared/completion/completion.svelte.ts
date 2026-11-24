@@ -3,7 +3,7 @@
  * The caller supplies the source and owns accepting; this module owns the
  * list, the selection, and the keys that drive both.
  */
-import type { CompletionCandidate } from "../schema/completion";
+import type { CompletionCandidate, CompletionGrow } from "../schema/completion";
 
 export type Candidate = CompletionCandidate;
 
@@ -105,18 +105,20 @@ export function handleCompletionKey(
   completion: Completion,
   event: Pick<KeyboardEvent, "key" | "shiftKey" | "preventDefault">,
   onAccept: (candidate: Candidate) => void,
+  grow: CompletionGrow = "down",
 ): boolean {
   if (!completion.open) return false;
 
+  // An upward list is drawn mirrored, so its arrows are too.
+  const towardsEnd = grow === "down" ? "ArrowDown" : "ArrowUp";
+
   switch (event.key) {
     case "ArrowDown":
-      event.preventDefault();
-      completion.next();
-
-      return true;
     case "ArrowUp":
       event.preventDefault();
-      completion.prev();
+
+      if (event.key === towardsEnd) completion.next();
+      else completion.prev();
 
       return true;
     case "Tab":
