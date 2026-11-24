@@ -70,6 +70,14 @@ test("with Alt held, a letter matches on the physical key", () => {
   expect(commandOf(linux, "i", { control: true, alt: true, code: "KeyJ" })).toBeUndefined();
 });
 
+test("a non-Latin layout falls back to the physical key, a Latin one does not", () => {
+  expect(commandOf(linux, "е", { control: true, code: "KeyT" })).toBe("tab.new");
+  expect(commandOf(mac, "Е", { meta: true, shift: true, code: "KeyT" })).toBe("tab.reopen");
+  // Dvorak types "y" on the physical T key, and that is Mod+Y, not Mod+T.
+  expect(commandOf(linux, "y", { control: true, code: "KeyT" })).toBeUndefined();
+  expect(commandOf(linux, "t", { control: true, code: "KeyK" })).toBe("tab.new");
+});
+
 test("Mod+digit selects a tab by position, and 9 is the last tab", () => {
   expect(commandOf(mac, "1", { meta: true })).toBe("tab.select 1");
   expect(commandOf(linux, "8", { control: true })).toBe("tab.select 8");

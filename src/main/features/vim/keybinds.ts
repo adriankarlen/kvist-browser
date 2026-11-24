@@ -151,11 +151,14 @@ export function standardKeybinds(platform: NodeJS.Platform): ReadonlyArray<Chord
 
 export const STANDARD_KEYBINDS: ReadonlyArray<Chord> = standardKeybinds(process.platform);
 
+/** A letter outside a–z, as a Cyrillic or Greek layout types. */
+const isOtherScript = (key: string): boolean => /^\p{L}$/u.test(key) && !isLetter(key);
+
 /**
- * Modifiers match exactly. A printable non-letter already carries Shift in
- * its `key` (`+`, not `=`), so Shift is only compared for letters and named
- * keys. With Alt held, macOS types another character, so letters match on
- * the physical key.
+ * Modifiers match exactly. A printable non-letter carries Shift in its `key`
+ * (`+`, not `=`), so Shift is compared only for letters and named keys. A
+ * letter matches its physical key under Alt, where macOS types another
+ * character, and on non-Latin layouts.
  */
 export function matchesChord(chord: Chord, input: ChordInput): boolean {
   if (input.control !== chord.control || input.alt !== chord.alt || input.meta !== chord.meta) {
@@ -165,9 +168,11 @@ export function matchesChord(chord: Chord, input: ChordInput): boolean {
   if (isLetter(chord.key)) {
     if (input.shift !== chord.shift) return false;
 
-    return input.alt
-      ? input.code === `Key${chord.key.toUpperCase()}`
-      : input.key.toLowerCase() === chord.key;
+    const physical = input.code === `Key${chord.key.toUpperCase()}`;
+
+    if (input.alt) return physical;
+
+    return input.key.toLowerCase() === chord.key || (isOtherScript(input.key) && physical);
   }
 
   if (chord.key.length === 1) return input.key === chord.key;
