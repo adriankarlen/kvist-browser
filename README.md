@@ -142,20 +142,21 @@ prompt mode, where it denies the permission question instead.
 
 ### Commands
 
-| Command                   | Action                                      |
-| ------------------------- | ------------------------------------------- |
-| `:o <url>`, `:open <url>` | Navigate the active tab                     |
-| `:tabnew <url>`           | Open a new tab; homepage if no URL is given |
-| `:r`, `:reload`           | Reload the active tab                       |
-| `:q`, `:quit`             | Close the active tab                        |
-| `:undo`                   | Reopen the last closed tab                  |
-| `:tab.select <n\|last>`   | Go to tab `n`, or the last tab              |
-| `:downloads`              | Keep the downloads panel open, or let it go |
-| `:bookmark`               | Bookmark the page, or remove its bookmarks  |
-| `:bookmarks`              | Open the bookmarks panel                    |
-| `:downloads.clear`        | Forget the downloads that have finished     |
-| `:downloads.cancel [n]`   | Stop row `n`, or the newest live transfer   |
-| `:qa`                     | Quit Kvist                                  |
+| Command                   | Action                                       |
+| ------------------------- | -------------------------------------------- |
+| `:o <url>`, `:open <url>` | Navigate the active tab                      |
+| `:tabnew <url>`           | Open a new tab; homepage if no URL is given  |
+| `:r`, `:reload`           | Reload the active tab                        |
+| `:q`, `:quit`             | Close the active tab                         |
+| `:undo`                   | Reopen the last closed tab                   |
+| `:tab.select <n\|last>`   | Go to tab `n`, or the last tab               |
+| `:downloads`              | Keep the downloads panel open, or let it go  |
+| `:bookmark`               | Bookmark the page, or remove its bookmarks   |
+| `:bookmarks`              | Open the bookmarks panel                     |
+| `:downloads.clear`        | Forget the downloads that have finished      |
+| `:downloads.cancel [n]`   | Stop row `n`, or the newest live transfer    |
+| `:recipe [name]`          | Switch recipe; no name shows the current one |
+| `:qa`                     | Quit Kvist                                   |
 
 ### Hint mode
 
@@ -231,13 +232,15 @@ to add your own.
 
 ## Configuration
 
-Kvist reads from `~/.config/kvist/` (or `$XDG_CONFIG_HOME/kvist/`) and never
-writes to it; it's yours to hand-edit. Changes are picked up live, no restart
-needed.
+Kvist reads from `~/.config/kvist/` (or `$XDG_CONFIG_HOME/kvist/`); it's
+yours to hand-edit. Kvist writes one thing there: `:recipe` sets the `recipe`
+line in `config.toml` and leaves the rest of the file as it was. Changes are
+picked up live, no restart needed.
 
 ### `config.toml`
 
 ```toml
+recipe = "tui" # the look and defaults to start from. See "Recipes" below.
 homepage = "https://example.com"
 adblock = true # ad and tracker blocking
 
@@ -399,8 +402,8 @@ components`. Your `config.css` is injected unlayered, and unlayered styles
 always beat layered ones in CSS regardless of selector specificity. So any
 rule you write there overrides Kvist's own styling, without needing to fight
 it on specificity or reach for `!important`. Kvist never writes to
-`config.css`: it is yours. (`recipe` is empty for now. Built-in recipes will
-go there, under your file.)
+`config.css`: it is yours. A recipe's CSS goes in the `recipe` layer, under
+your file (see [Recipes](#recipes)).
 
 #### Theme tokens
 
@@ -470,6 +473,35 @@ gone, so update a `config.css` that sets them:
 whole borders (`2px solid …`). Set the colour alone with
 `--kv-panel-border-color`, `--kv-menu-border-color` or
 `--kv-completion-border-color`.
+
+### Recipes
+
+A recipe is a starting point: a look, plus defaults for input and layout.
+Pick one with `recipe = "<name>"` in `config.toml`, or switch live with
+`:recipe <name>`. `tui` is built in and is the default.
+
+A recipe is a pair of files in `~/.config/kvist/recipes/`. A user recipe
+with the same name as a built-in one replaces it.
+
+- `<name>.css`, required. It goes in `@layer kvist.recipe` and should only set
+  tokens (see [Theme tokens](#theme-tokens)).
+- `<name>.toml`, optional. It sets defaults for `[input]` and `[layout]`:
+
+```toml
+format = 1 # required
+name = "Modern"
+description = "Familiar shortcuts, tabs on top."
+
+[input]
+mode = "standard"
+
+[layout.tabs]
+region = "top"
+```
+
+Names use lowercase letters, digits and `-`. Your `config.toml` and
+`config.css` sit on top of the recipe, so switching recipes never loses what
+you set yourself. Editing the recipe in use restyles live.
 
 ### User styles
 
