@@ -3,8 +3,8 @@ import { Mode } from "./browser";
 
 /**
  * One key, as either notation reads it. A letter is stored lower-case with
- * `shift` saying which case; a printable non-letter carries Shift in `key`
- * itself, so its `shift` is always false.
+ * `shift` saying which case. A printable non-letter is its glyph, and has
+ * `shift` only when Shift was written, as in `Mod+Shift+1`.
  */
 export const KeyToken = Schema.Struct({
   key: Schema.String,

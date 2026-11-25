@@ -252,13 +252,18 @@ current mode.
 
 **Notation.** The mode tables use vim notation. A plain character is one
 key, and `G` is Shift+g. Named keys go in angle brackets: `<Esc>`, `<CR>`,
-`<Tab>`, `<Space>`, `<lt>` (for `<`), `<F5>`, or any browser key name such
-as `<ArrowLeft>`. The modifiers are `C-` (Ctrl), `A-` or `M-` (Alt), `D-`
-(Cmd, or Super on Linux) and `S-` (Shift), as in `<C-d>` or `<C-S-Tab>`.
-Chords are written `Mod+Shift+T`. `Mod` is Cmd on macOS and Ctrl elsewhere,
-and the other modifiers are `Ctrl`, `Alt`, `Shift` and `Meta`. A chord
-needs Ctrl, Alt or Meta unless it is a function key, because a plain key
-would be taken from every text field.
+`<Tab>`, `<Space>`, `<lt>` (for `<`), `<F5>`, or a browser key name such
+as `<ArrowLeft>`, `<Home>` or `<PageDown>`. The modifiers are `C-` (Ctrl),
+`A-` or `M-` (Alt), `D-` (Cmd, or Super on Linux) and `S-` (Shift), as in
+`<C-d>` or `<C-S-Tab>`. Chords are written `Mod+Shift+T`. `Mod` is Cmd on
+macOS and Ctrl elsewhere, and the other modifiers are `Ctrl`, `Alt`,
+`Shift` and `Meta`. A chord needs Ctrl, Alt or Meta unless it is a function
+key, because a plain key would be taken from every text field. A modifier
+on its own is never a key.
+
+A symbol such as `+` matches whichever key types it, so `Mod++` works on
+any layout. Write Shift only when it must be held: `Mod+Shift+1` is not
+`Mod+1`, and it also matches the physical 1 key.
 
 **Conflicts.** Kvist names each problem in the echo area, as it does for
 any other config mistake:

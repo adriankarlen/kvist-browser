@@ -49,7 +49,7 @@ describe("vim notation", () => {
   });
 
   test("anything that is not a key is rejected", () => {
-    for (const bad of ["", "<C-", "<>", "<nope>", "<X-a>", "g<C-"]) {
+    for (const bad of ["", "<C-", "<>", "<nope>", "<X-a>", "g<C-", "<Escpae>", "<F25>"]) {
       expect(parseKeys(bad)).toBeUndefined();
     }
   });
@@ -76,6 +76,7 @@ describe("chord notation", () => {
 
   test("an unknown modifier or key is rejected", () => {
     expect(parseChord("Hyper+T", "linux")).toBeUndefined();
+    expect(parseChord("Mod+Escpae", "linux")).toBeUndefined();
     expect(parseChord("Mod+Nope!", "linux")).toBeUndefined();
     expect(parseChord("Mod+", "linux")).toBeUndefined();
   });
@@ -84,7 +85,9 @@ describe("chord notation", () => {
     const vim = parseKeys("<C-d>")?.[0];
     const chord = parseChord("Ctrl+D", "linux");
 
-    expect(vim && chord && keyId(vim)).toBe(chord && keyId(chord));
+    expect(vim).toBeDefined();
+    expect(chord).toBeDefined();
+    expect(vim && keyId(vim)).toBe(chord && keyId(chord));
     expect(keyId(key("t", { meta: true }))).not.toBe(keyId(key("t", { control: true })));
   });
 });
@@ -145,6 +148,18 @@ describe("matching", () => {
     // Dvorak types "y" on the physical T key, and that is Mod+Y, not Mod+T.
     expect(matches(modT, input("y", { control: true, code: "KeyT" }))).toBe(false);
     expect(matches(modT, input("t", { control: true, code: "KeyK" }))).toBe(true);
+  });
+
+  test("written Shift with a printable key must be held, and is its own key", () => {
+    const shifted = parseChord("Ctrl+Shift+1", "linux");
+
+    expect(shifted).toEqual(key("1", { control: true, shift: true }));
+    expect(shifted && keyId(shifted)).not.toBe(keyId(key("1", { control: true })));
+    expect(matches(shifted, input("1", { control: true }))).toBe(false);
+    expect(matches(shifted, input("!", { control: true, shift: true, code: "Digit1" }))).toBe(true);
+    expect(matches(parseChord("Ctrl+1", "linux"), input("!", { control: true, shift: true }))).toBe(
+      false,
+    );
   });
 
   test("a named key compares Shift", () => {

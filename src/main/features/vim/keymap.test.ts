@@ -172,6 +172,32 @@ describe("problems", () => {
     expect(problems(mac)).toEqual(['keys.chords."Meta+K": same key as "Mod+K"; this one wins']);
   });
 
+  test("a later spelling that cannot bind does not claim to win", () => {
+    const built = build('[keys.normal]\n"<C-d>" = "tab.new"\n"<C-D>" = "tab.qiut"');
+
+    expect(problems(built)).toEqual(['keys.normal."<C-D>": no command "tab.qiut"']);
+    expect(lines(built)).toContain("normal <C-d> tab.new");
+  });
+
+  test("a later spelling that unbinds does win", () => {
+    const built = build('[keys.normal]\n"<C-d>" = "tab.new"\n"<C-D>" = ""');
+
+    expect(problems(built)).toEqual(['keys.normal."<C-D>": same key as "<C-d>"; this one wins']);
+    expect(lines(built).some((line) => line.startsWith("normal <C-d>"))).toBe(false);
+  });
+
+  test("a modifier on its own is not a key, in any table", () => {
+    const built = build(
+      '[keys.normal]\n"<Shift>" = "tab.new"\n"<C-CapsLock>" = "tab.new"\n[keys.chords]\n"Ctrl+Shift" = "tab.new"',
+    );
+
+    expect(problems(built)).toEqual([
+      'keys.normal."<Shift>": a modifier on its own is not a key',
+      'keys.normal."<C-CapsLock>": a modifier on its own is not a key',
+      'keys.chords."Ctrl+Shift": a modifier on its own is not a key',
+    ]);
+  });
+
   test("a chord hides a modal key it shares a key with", () => {
     const built = build(`
       [keys.normal]

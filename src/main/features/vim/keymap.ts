@@ -9,7 +9,7 @@ import {
 } from "../../../shared/schema/keymap";
 import { bindableCommand, defaultKeys } from "../../commands";
 import { reportUnknownKeys, section, type Table } from "../../toml-fields";
-import { isFunctionKey, isModified, keyId, parseChord, parseKeys } from "./keybinds";
+import { isFunctionKey, isModified, isModifierKey, keyId, parseChord, parseKeys } from "./keybinds";
 
 /** One `[keys]` table, from config.toml or a preset file. */
 export interface KeyLayer {
@@ -103,6 +103,11 @@ function applyLayer(
         continue;
       }
 
+      if (parsed.some((key) => isModifierKey(key.key))) {
+        found.push({ field: at, reason: "a modifier on its own is not a key" });
+        continue;
+      }
+
       const [first] = parsed;
 
       if (table === "chords" && first && !isModified(first) && !isFunctionKey(first.key)) {
@@ -113,35 +118,32 @@ function applyLayer(
         continue;
       }
 
-      const id = sequenceId(parsed);
-      const earlier = seen.get(id);
-
-      if (earlier !== undefined) {
-        found.push({ field: at, reason: `same key as ${JSON.stringify(earlier)}; this one wins` });
-      }
-
-      seen.set(id, notation);
-
       if (!isCommandLine(value)) {
         found.push({ field: at, reason: "not a command line" });
         continue;
       }
 
-      if (value.trim() === "") {
-        entries.delete(id);
-        continue;
-      }
+      const unbind = value.trim() === "";
+      const bound = unbind ? undefined : bind(table, parsed, notation, value);
 
-      const bound = bind(table, parsed, notation, value);
-
-      if (Result.isFailure(bound)) {
+      if (bound !== undefined && Result.isFailure(bound)) {
         found.push({ field: at, reason: bound.failure });
         continue;
       }
 
+      const id = sequenceId(parsed);
+      const earlier = seen.get(id);
+
+      // Only a key that took effect replaces the earlier one.
+      if (earlier !== undefined) {
+        found.push({ field: at, reason: `same key as ${JSON.stringify(earlier)}; this one wins` });
+      }
+
+      seen.set(id, notation);
       // Deleted first, so the key moves to the end, where a later layer's keys belong.
       entries.delete(id);
-      entries.set(id, { binding: bound.success, layer: { file } });
+
+      if (bound !== undefined) entries.set(id, { binding: bound.success, layer: { file } });
     }
   }
 

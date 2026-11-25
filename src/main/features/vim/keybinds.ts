@@ -55,6 +55,43 @@ const KEY_NAMES: ReadonlyMap<string, string> = new Map([
 
 const FUNCTION_KEY = /^F([1-9]|1\d|2[0-4])$/i;
 
+const MODIFIER_KEYS: ReadonlySet<string> = new Set([
+  "Shift",
+  "Control",
+  "Alt",
+  "AltGraph",
+  "Meta",
+  "OS",
+  "Super",
+  "Hyper",
+  "Fn",
+  "CapsLock",
+  "NumLock",
+]);
+
+/** The browser's names for keys that type nothing, beside the modifiers. */
+const NAMED_KEYS: ReadonlySet<string> = new Set([
+  ...MODIFIER_KEYS,
+  "Escape",
+  "Enter",
+  "Tab",
+  "Backspace",
+  "Delete",
+  "Insert",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ContextMenu",
+  "PrintScreen",
+  "ScrollLock",
+  "Pause",
+]);
+
 /** The `KeyboardEvent.key` a written key name means, or undefined when it names nothing. */
 function keyName(name: string): string | undefined {
   if (isSingle(name)) return name;
@@ -64,14 +101,12 @@ function keyName(name: string): string | undefined {
 
   if (FUNCTION_KEY.test(name)) return name.toUpperCase();
 
-  return /^[A-Z][A-Za-z0-9]+$/.test(name) ? name : undefined;
+  return NAMED_KEYS.has(name) ? name : undefined;
 }
 
-/** Lower-cases a letter and drops a Shift that a printable non-letter already carries. */
+/** Lower-cases a letter. Shift is kept only where it was written. */
 function token(key: string, modifiers: Modifiers): KeyToken {
-  if (isLetter(key)) return { ...modifiers, key: key.toLowerCase() };
-
-  return { ...modifiers, key, shift: isSingle(key) ? false : modifiers.shift };
+  return { ...modifiers, key: isLetter(key) ? key.toLowerCase() : key };
 }
 
 const NONE: Modifiers = { control: false, alt: false, meta: false, shift: false };
@@ -174,20 +209,6 @@ export function keyId({ key, control, alt, meta, shift }: KeyToken): string {
 
 export const isFunctionKey = (key: string): boolean => FUNCTION_KEY.test(key);
 
-const MODIFIER_KEYS: ReadonlySet<string> = new Set([
-  "Shift",
-  "Control",
-  "Alt",
-  "AltGraph",
-  "Meta",
-  "OS",
-  "Super",
-  "Hyper",
-  "Fn",
-  "CapsLock",
-  "NumLock",
-]);
-
 /** A modifier pressed on its own: on the way to a key, never a key itself. */
 export const isModifierKey = (key: string): boolean => MODIFIER_KEYS.has(key);
 
@@ -196,7 +217,7 @@ export const isModified = (input: Modifiers): boolean => input.control || input.
 /**
  * Ctrl, Alt and Meta match exactly. A plain letter is the character typed,
  * as vim reads it. A held letter falls back to its physical key under Alt
- * and on non-Latin layouts. Printable non-letters carry Shift in `key`.
+ * and on non-Latin layouts. A printable non-letter is its glyph; see below.
  */
 export function matchesKey(bound: KeyToken, input: KeyInput): boolean {
   if (input.control !== bound.control || input.alt !== bound.alt || input.meta !== bound.meta) {
@@ -215,7 +236,13 @@ export function matchesKey(bound: KeyToken, input: KeyInput): boolean {
     return input.key.toLowerCase() === bound.key || (isOtherScript(input.key) && physical);
   }
 
-  if (isSingle(bound.key)) return input.key === bound.key;
+  // `Mod++` is the glyph, whichever key types it. Written Shift must be held,
+  // and a digit then also matches its physical key, which Shift turns into a symbol.
+  if (isSingle(bound.key)) {
+    if (!bound.shift) return input.key === bound.key;
+
+    return input.shift && (input.key === bound.key || input.code === `Digit${bound.key}`);
+  }
 
   return input.shift === bound.shift && input.key === bound.key;
 }

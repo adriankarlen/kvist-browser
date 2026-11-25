@@ -14,6 +14,7 @@ import {
   describeCommands,
   modeAfter,
 } from "./commands";
+import { buildKeymap } from "./features/vim/keymap";
 import type { Messenger as Messages } from "./messenger";
 import type { TabsAccess } from "./actions";
 
@@ -963,13 +964,26 @@ describe("the registry", () => {
     "chords Mod+Q app.quit",
   ];
 
+  /** What the builder makes of a preset, so a default it drops fails here too. */
+  const built = (engine: "vim" | "standard", platform: NodeJS.Platform): string[] =>
+    buildKeymap(engine, [], platform)
+      .bindings.map(({ table, notation, command, arg, enter }) => {
+        const argument = arg === undefined ? "" : ` ${arg}`;
+
+        return `${table} ${notation} ${command}${argument}${enter ? ` > ${enter}` : ""}`;
+      })
+      .sort();
+
   test("the vim preset is the vim key set as it was", () => {
     expect(flatten(defaultKeys("vim", "linux"))).toEqual([...VIM_BEFORE].sort());
+    expect(built("vim", "linux")).toEqual([...VIM_BEFORE].sort());
   });
 
   test("the standard preset is the standard key set as it was, on each platform", () => {
     expect(flatten(defaultKeys("standard", "darwin"))).toEqual(standardBefore(true).sort());
     expect(flatten(defaultKeys("standard", "linux"))).toEqual(standardBefore(false).sort());
+    expect(built("standard", "darwin")).toEqual(standardBefore(true).sort());
+    expect(built("standard", "linux")).toEqual(standardBefore(false).sort());
   });
 
   test("a : line ends in normal mode for a command only a key can use", () => {
