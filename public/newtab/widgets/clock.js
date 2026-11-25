@@ -1,26 +1,30 @@
 // Intl only accepts IANA names, so "UTC±n" offsets are handled by hand.
 const UTC_RX = /^UTC\s*([+-])\s*(\d+)$/i;
 
-function formatTime(date, timezone) {
+function formatTime(date, timezone, withSeconds = true) {
   const m = timezone.match(UTC_RX);
+  const parts = { hour: "2-digit", minute: "2-digit", ...(withSeconds && { second: "2-digit" }) };
 
   if (m) {
     const offset = (m[1] === "+" ? 1 : -1) * parseInt(m[2]) * 3600000;
 
     return new Date(date.getTime() + offset).toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+      ...parts,
       timeZone: "UTC",
     });
   }
 
-  return date.toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZone: timezone,
-  });
+  return date.toLocaleTimeString("en-GB", { ...parts, timeZone: timezone });
+}
+
+function greeting(hour) {
+  if (hour < 5) return "Good night";
+
+  if (hour < 12) return "Good morning";
+
+  if (hour < 18) return "Good afternoon";
+
+  return "Good evening";
 }
 
 /**
@@ -29,6 +33,8 @@ function formatTime(date, timezone) {
  */
 export async function initClock() {
   const clockEl = document.getElementById("clock");
+  const startClockEl = document.getElementById("start-clock");
+  const greetingEl = document.getElementById("start-greeting");
 
   let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -40,7 +46,12 @@ export async function initClock() {
   }
 
   const tick = () => {
-    clockEl.textContent = formatTime(new Date(), timezone);
+    const now = new Date();
+    const short = formatTime(now, timezone, false);
+
+    clockEl.textContent = formatTime(now, timezone);
+    startClockEl.textContent = short;
+    greetingEl.textContent = greeting(parseInt(short));
   };
 
   setInterval(tick, 1000);

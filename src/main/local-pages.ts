@@ -8,6 +8,7 @@ import {
   type UserConfig,
 } from "../shared/config";
 import { LAYER_ORDER, themeCss } from "../shared/theme-css";
+import { resolveUrl } from "../shared/url";
 
 /** Config-driven data for the newtab page, served as config.json. */
 export interface NewtabConfig {
@@ -47,6 +48,25 @@ let currentConfig: NewtabConfig = {
   timezone: undefined,
 };
 
+let currentSearchUrl = DEFAULT_SETTINGS.searchUrl;
+
+/**
+ * Where the new tab page's search field goes: the same rules as the omnibox,
+ * kept in main so the page does not carry a copy. Blank text goes nowhere.
+ */
+export interface ResolvedSearch {
+  readonly url: string | null;
+}
+
+export function resolveSearch(query: string, searchUrl: string): ResolvedSearch {
+  return { url: query.trim() === "" ? null : resolveUrl(query, searchUrl) };
+}
+
+const json = <T>(body: T): Response =>
+  new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+
 /** Must be called before app.whenReady(). */
 export function registerKvistScheme(): void {
   protocol.registerSchemesAsPrivileged([
@@ -64,10 +84,11 @@ export function registerKvistScheme(): void {
  */
 export function applySettings(
   config: Pick<UserConfig, "css" | "recipe"> & {
-    settings: Pick<Settings, "newtabLinks" | "newtabTimezone">;
+    settings: Pick<Settings, "newtabLinks" | "newtabTimezone" | "searchUrl">;
   },
 ): void {
   currentCss = themeCss(config);
+  currentSearchUrl = config.settings.searchUrl;
   currentConfig = {
     links: config.settings.newtabLinks,
     timezone: config.settings.newtabTimezone,
@@ -98,11 +119,10 @@ export function registerKvistProtocol(): void {
     const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
 
     // Config-driven data, served rather than read from disk.
-    if (url.hostname === "newtab" && pathname === "/config.json") {
-      return new Response(JSON.stringify(currentConfig), {
-        headers: { "content-type": "application/json; charset=utf-8" },
-      });
-    }
+    if (url.hostname === "newtab" && pathname === "/config.json") return json(currentConfig);
+
+    if (url.hostname === "newtab" && pathname === "/resolve")
+      return json(resolveSearch(url.searchParams.get("q") ?? "", currentSearchUrl));
 
     const root = pageDir(url.hostname);
     const file = normalize(join(root, pathname));
