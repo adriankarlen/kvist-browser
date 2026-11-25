@@ -390,7 +390,7 @@ describe("ConfigFiles", () => {
           {
             id: "tui",
             name: "TUI",
-            description: "Textfox look: monospace, framed panels, vim keys.",
+            description: "TUI look: monospace, framed panels, vim keys.",
             inputMode: "vim",
             omnibox: "top",
             tabs: "top",

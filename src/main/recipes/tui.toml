@@ -1,6 +1,6 @@
 format = 1
 name = "TUI"
-description = "Textfox look: monospace, framed panels, vim keys."
+description = "TUI look: monospace, framed panels, vim keys."
 
 [input]
 mode = "vim"

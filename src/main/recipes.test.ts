@@ -18,7 +18,7 @@ describe("the built-in tui recipe", () => {
     expect(problems).toEqual([]);
     expect(meta).toEqual({
       name: "TUI",
-      description: "Textfox look: monospace, framed panels, vim keys.",
+      description: "TUI look: monospace, framed panels, vim keys.",
     });
   });
 
