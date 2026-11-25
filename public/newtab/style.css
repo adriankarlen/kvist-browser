@@ -1,311 +1,316 @@
-:root {
-  --gap: 20px;
-}
-
 /* Reset and theme tokens are served appended to this file — see
  * src/main/local-pages.ts. Only layout lives here. */
-body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  overflow: hidden;
-}
+@layer kvist.components {
+  :root {
+    --gap: 20px;
+  }
 
-#title {
-  color: var(--kv-color-fg);
-}
-
-#dashboard-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  gap: var(--gap);
-  width: 100vw;
-  height: 100vh;
-}
-
-#dashboard-container {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "clock scratch"
-    "links scratch";
-  gap: var(--gap);
-  width: 680px;
-  height: 500px;
-  transform-origin: center;
-}
-
-/* ── boxes ───────────────────────────────────────────── */
-
-.box {
-  background-color: var(--kv-color-bg-raised);
-  border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
-  border-radius: var(--kv-radius);
-  box-shadow: var(--kv-shadow-raised);
-  padding: 15px;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: border-color 0.2s ease;
-}
-
-.box:hover,
-.box:focus-within {
-  border-color: var(--kv-color-accent);
-}
-
-.clock-box {
-  grid-area: clock;
-}
-
-.links-box {
-  grid-area: links;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.links-box::-webkit-scrollbar {
-  display: none;
-}
-
-.scratchpad-box {
-  grid-area: scratch;
-  min-height: 0;
-  overflow: hidden;
-}
-
-/* ── shared component styles ─────────────────────────── */
-
-.header {
-  font-size: 11px;
-  font-weight: var(--kv-font-weight);
-  border-bottom: var(--kv-separator-width) var(--kv-border-style) var(--kv-color-border);
-  padding-bottom: 4px;
-  display: flex;
-  justify-content: space-between;
-  color: var(--kv-color-fg-faint);
-  margin-bottom: 10px;
-  flex-shrink: 0;
-}
-
-/* ── clock ───────────────────────────────────────────── */
-
-.clock-display {
-  font-size: 44px;
-  text-align: left;
-  margin: auto 0;
-  letter-spacing: 2px;
-  color: var(--kv-color-accent);
-}
-
-/* ── quick links ─────────────────────────────────────── */
-
-.links-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 6px;
-  flex: 1;
-  min-height: 0;
-}
-
-.link-item {
-  color: var(--kv-color-accent-alt);
-  text-decoration: none;
-  text-transform: uppercase;
-  font-size: 13px;
-  padding: 4px 5px;
-  transition:
-    background-color 0.2s,
-    color 0.2s,
-    padding-left 0.2s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.link-item:hover,
-.link-item:focus-visible {
-  background-color: var(--kv-color-bg-selected);
-}
-
-.link-item:active {
-  background-color: var(--kv-color-accent);
-  color: var(--kv-color-on-accent);
-}
-
-/* ── scratchpad ──────────────────────────────────────── */
-
-#scratchpad-area {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--kv-color-fg-faint);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: none;
-  outline: none;
-  padding: 4px 0;
-  scrollbar-width: none;
-  min-height: 0;
-}
-
-#scratchpad-area::placeholder {
-  color: var(--kv-color-fg-faint);
-}
-
-#scratchpad-area::-webkit-scrollbar {
-  display: none;
-}
-
-#scratchpad-area:focus {
-  color: var(--kv-color-fg);
-}
-
-/* ── start: a clock, a search field and link tiles ───── */
-
-/* Off unless the theme asks for it; the dashboard above is the default. */
-#start {
-  display: none;
-}
-
-/* Local pages get no component styles, so the icon is drawn here. */
-.kv-icon {
-  display: inline-block;
-  flex: none;
-  inline-size: var(--kv-icon-size);
-  block-size: var(--kv-icon-size);
-  background-color: currentColor;
-  mask: var(--kv-icon-image) center / contain no-repeat;
-}
-
-@container style(--kv-newtab-style: start) {
   body {
-    background:
-      radial-gradient(ellipse 80% 50% at 50% 0%, var(--kv-newtab-glow), transparent),
-      var(--kv-color-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #title {
+    color: var(--kv-color-fg);
   }
 
   #dashboard-wrapper {
-    display: none;
-  }
-
-  #start {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: min(600px, 88vw);
-    margin-bottom: 10vh;
-  }
-
-  #start-greeting {
-    color: var(--kv-newtab-greeting-fg);
-    font-size: 15px;
-  }
-
-  #start-clock {
-    margin: 4px 0 32px;
-    color: var(--kv-newtab-clock-fg);
-    font-size: 72px;
-    font-weight: var(--kv-font-weight-strong);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }
-
-  #start-search {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    height: 48px;
-    padding: 0 20px;
-    color: var(--kv-color-fg-faint);
-    background: var(--kv-newtab-search-bg);
-    border: var(--kv-newtab-search-border);
-    border-radius: var(--kv-newtab-search-radius);
-    box-shadow: var(--kv-newtab-search-shadow);
-    transition:
-      border-color var(--kv-motion-duration),
-      box-shadow var(--kv-motion-duration);
-  }
-
-  #start-search:focus-within {
-    border-color: var(--kv-newtab-search-focus-border-color);
-    box-shadow: var(--kv-newtab-search-focus-shadow);
-  }
-
-  #start-query {
-    flex: 1;
-    min-width: 0;
-    appearance: none;
-    color: var(--kv-color-fg);
-    font: inherit;
-    font-size: 15px;
-    background: none;
-    border: none;
-    outline: none;
-  }
-
-  #start-query::placeholder {
-    color: var(--kv-color-fg-faint);
-  }
-
-  #start-query::-webkit-search-cancel-button {
-    display: none;
-  }
-
-  #start-links {
-    display: flex;
-    flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
-    margin-top: 28px;
+    align-items: center;
+    flex-direction: column;
+    gap: var(--gap);
+    width: 100vw;
+    height: 100vh;
   }
 
-  .start-tile {
+  #dashboard-container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "clock scratch"
+      "links scratch";
+    gap: var(--gap);
+    width: 680px;
+    height: 500px;
+    transform-origin: center;
+  }
+
+  /* ── boxes ───────────────────────────────────────────── */
+
+  .box {
+    background-color: var(--kv-color-bg-raised);
+    border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
+    border-radius: var(--kv-radius);
+    box-shadow: var(--kv-shadow-raised);
+    padding: 15px;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    width: 88px;
-    padding: 12px 4px;
-    color: var(--kv-color-fg-dim);
-    font-size: 12px;
+    transition: border-color 0.2s ease;
+  }
+
+  .box:hover,
+  .box:focus-within {
+    border-color: var(--kv-color-accent);
+  }
+
+  .clock-box {
+    grid-area: clock;
+  }
+
+  .links-box {
+    grid-area: links;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .links-box::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scratchpad-box {
+    grid-area: scratch;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── shared component styles ─────────────────────────── */
+
+  .header {
+    font-size: 11px;
+    font-weight: var(--kv-font-weight);
+    border-bottom: var(--kv-separator-width) var(--kv-border-style) var(--kv-color-border);
+    padding-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--kv-color-fg-faint);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+
+  /* ── clock ───────────────────────────────────────────── */
+
+  .clock-display {
+    font-size: 44px;
+    text-align: left;
+    margin: auto 0;
+    letter-spacing: 2px;
+    color: var(--kv-color-accent);
+  }
+
+  /* ── quick links ─────────────────────────────────────── */
+
+  .links-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 6px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .link-item {
+    color: var(--kv-color-accent-alt);
     text-decoration: none;
-    background: var(--kv-newtab-tile-bg);
-    border-radius: var(--kv-newtab-tile-radius);
-    transition: background-color var(--kv-motion-duration);
-  }
-
-  .start-tile:hover,
-  .start-tile:focus-visible {
-    color: var(--kv-color-fg);
-    background: var(--kv-newtab-tile-hover-bg);
-  }
-
-  .start-tile__mark {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    color: var(--kv-newtab-tile-mark-fg);
-    font-size: 18px;
-    font-weight: var(--kv-font-weight-strong);
-    background: var(--kv-newtab-tile-mark-bg);
-    border-radius: var(--kv-newtab-tile-mark-radius);
-  }
-
-  .start-tile__name {
-    max-width: 100%;
+    text-transform: uppercase;
+    font-size: 13px;
+    padding: 4px 5px;
+    transition:
+      background-color 0.2s,
+      color 0.2s,
+      padding-left 0.2s;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+
+  .link-item:hover,
+  .link-item:focus-visible {
+    background-color: var(--kv-color-bg-selected);
+  }
+
+  .link-item:active {
+    background-color: var(--kv-color-accent);
+    color: var(--kv-color-on-accent);
+  }
+
+  /* ── scratchpad ──────────────────────────────────────── */
+
+  #scratchpad-area {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--kv-color-fg-faint);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    padding: 4px 0;
+    scrollbar-width: none;
+    min-height: 0;
+  }
+
+  #scratchpad-area::placeholder {
+    color: var(--kv-color-fg-faint);
+  }
+
+  #scratchpad-area::-webkit-scrollbar {
+    display: none;
+  }
+
+  #scratchpad-area:focus {
+    color: var(--kv-color-fg);
+  }
+
+  /* ── start: a clock, a search field and link tiles ───── */
+
+  /* Off unless the theme asks for it; the dashboard above is the default. */
+  #start {
+    display: none;
+  }
+
+  /* Local pages get no component styles, so the icon is drawn here. */
+  .kv-icon {
+    display: inline-block;
+    flex: none;
+    inline-size: var(--kv-icon-size);
+    block-size: var(--kv-icon-size);
+    background-color: currentColor;
+    mask: var(--kv-icon-image) center / contain no-repeat;
+  }
+
+  @container style(--kv-newtab-style: start) {
+    body {
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, var(--kv-newtab-glow), transparent),
+        var(--kv-color-bg);
+    }
+
+    #dashboard-wrapper {
+      display: none;
+    }
+
+    #start {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(600px, 88vw);
+      max-height: 90vh;
+      margin-bottom: 10vh;
+    }
+
+    #start-greeting {
+      color: var(--kv-newtab-greeting-fg);
+      font-size: 15px;
+    }
+
+    #start-clock {
+      margin: 4px 0 32px;
+      color: var(--kv-newtab-clock-fg);
+      font-size: 72px;
+      font-weight: var(--kv-font-weight-strong);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    #start-search {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      height: 48px;
+      padding: 0 20px;
+      color: var(--kv-newtab-search-icon-fg);
+      background: var(--kv-newtab-search-bg);
+      border: var(--kv-newtab-search-border);
+      border-radius: var(--kv-newtab-search-radius);
+      box-shadow: var(--kv-newtab-search-shadow);
+      transition:
+        border-color var(--kv-motion-duration),
+        box-shadow var(--kv-motion-duration);
+    }
+
+    #start-search:focus-within {
+      border-color: var(--kv-newtab-search-focus-border-color);
+      box-shadow: var(--kv-newtab-search-focus-shadow);
+    }
+
+    #start-query {
+      flex: 1;
+      min-width: 0;
+      appearance: none;
+      color: var(--kv-newtab-query-fg);
+      font: inherit;
+      font-size: 15px;
+      background: none;
+      border: none;
+      outline: none;
+    }
+
+    #start-query::placeholder {
+      color: var(--kv-newtab-placeholder-fg);
+    }
+
+    #start-query::-webkit-search-cancel-button {
+      display: none;
+    }
+
+    #start-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      min-height: 0;
+      margin-top: 28px;
+      overflow-y: auto;
+    }
+
+    .start-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      width: 88px;
+      padding: 12px 4px;
+      color: var(--kv-newtab-tile-fg);
+      font-size: 12px;
+      text-decoration: none;
+      background: var(--kv-newtab-tile-bg);
+      border-radius: var(--kv-newtab-tile-radius);
+      transition: background-color var(--kv-motion-duration);
+    }
+
+    .start-tile:hover,
+    .start-tile:focus-visible {
+      color: var(--kv-newtab-tile-hover-fg);
+      background: var(--kv-newtab-tile-hover-bg);
+    }
+
+    .start-tile__mark {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      color: var(--kv-newtab-tile-mark-fg);
+      font-size: 18px;
+      font-weight: var(--kv-font-weight-strong);
+      background: var(--kv-newtab-tile-mark-bg);
+      border-radius: var(--kv-newtab-tile-mark-radius);
+    }
+
+    .start-tile__name {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }

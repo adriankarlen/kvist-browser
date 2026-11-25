@@ -273,6 +273,11 @@
     --kv-newtab-search-shadow: var(--kv-shadow-raised);
     --kv-newtab-search-focus-border-color: var(--kv-color-accent);
     --kv-newtab-search-focus-shadow: var(--kv-shadow-raised);
+    --kv-newtab-search-icon-fg: var(--kv-color-fg-faint);
+    --kv-newtab-query-fg: var(--kv-color-fg);
+    --kv-newtab-placeholder-fg: var(--kv-color-fg-faint);
+    --kv-newtab-tile-fg: var(--kv-color-fg-dim);
+    --kv-newtab-tile-hover-fg: var(--kv-color-fg);
     --kv-newtab-tile-bg: transparent;
     --kv-newtab-tile-hover-bg: var(--kv-color-bg-selected);
     --kv-newtab-tile-radius: var(--kv-radius);
