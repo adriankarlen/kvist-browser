@@ -18,6 +18,8 @@ export const DEFAULT_SETTINGS: Settings = {
   layout: DEFAULT_LAYOUT,
   tabFocusPage: true,
   inputMode: "vim",
+  // Only main can read the command registry; it fills these in before anything is applied.
+  keymap: { name: "vim", bindings: [] },
   adblock: true,
   downloadDir: undefined,
 };

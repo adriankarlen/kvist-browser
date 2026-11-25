@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Mode } from "../../../shared/schema/browser";
 import type { Next } from "../../../shared/tea/program";
-import { DEFAULT_KEYBINDS, type Keybind, standardKeybinds } from "./keybinds";
+import type { Binding } from "../../../shared/schema/keymap";
+import { buildKeymap } from "./keymap";
 import {
   Cmd,
   init,
@@ -21,17 +22,16 @@ import {
  * of the model.
  */
 class Vim {
-  #model: Model = init;
-  readonly #keybinds: ReadonlyArray<Keybind>;
+  #model: Model;
   readonly #execute: (name: string, arg?: string) => void;
   readonly #onMode: (mode: Mode) => void;
 
   constructor(
-    keybinds: ReadonlyArray<Keybind>,
+    keymap: ReadonlyArray<Binding>,
     execute: (name: string, arg?: string) => void,
     onMode: (mode: Mode) => void,
   ) {
-    this.#keybinds = keybinds;
+    this.#model = { ...init, keymap };
     this.#execute = execute;
     this.#onMode = onMode;
   }
@@ -60,7 +60,7 @@ class Vim {
   }
 
   handleKey(input: KeyInput, source: KeySource): boolean {
-    const stepped = step(this.#model, input, source, this.#keybinds);
+    const stepped = step(this.#model, input, source);
 
     this.#apply(stepped);
 
@@ -102,7 +102,7 @@ const chromeKey = from("chrome");
 beforeEach(() => {
   execute = vi.fn();
   modes = [];
-  vim = new Vim(DEFAULT_KEYBINDS, execute, (mode) => modes.push(mode));
+  vim = new Vim(init.keymap, execute, (mode) => modes.push(mode));
 });
 
 test("starts in normal mode", () => {
@@ -145,7 +145,7 @@ test("unbound keys pass through to the page", () => {
   expect(key("q")).toBe(false);
 });
 
-test("modified keys always pass through so page shortcuts still work", () => {
+test("modified keys nothing is bound to pass through, so page shortcuts still work", () => {
   expect(key("t", { control: true })).toBe(false);
   expect(execute).not.toHaveBeenCalled();
 });
@@ -153,8 +153,7 @@ test("modified keys always pass through so page shortcuts still work", () => {
 test("insert mode passes keys through and Escape returns to normal", () => {
   key("i");
   expect(vim.mode).toBe("insert");
-  // enter-only binding changes mode without dispatching a command
-  expect(execute).not.toHaveBeenCalled();
+  expect(execute.mock.calls).toEqual([["insert.enter"]]);
 
   expect(key("t")).toBe(false);
   expect(execute).not.toHaveBeenCalledWith("tab.new");
@@ -214,9 +213,10 @@ test("navigation keys are bound", () => {
 });
 
 test("zoom keys are bound in normal mode only", () => {
-  key("zi");
-  key("zo");
-  key("z0");
+  for (const sequence of ["zi", "zo", "z0"]) {
+    for (const k of sequence) key(k);
+  }
+
   expect(execute.mock.calls).toEqual([["zoom.in"], ["zoom.out"], ["zoom.reset"]]);
 });
 
@@ -374,7 +374,7 @@ test("the page reporting hints finished returns to normal", () => {
 test("slash opens the find prompt and moves focus to the chrome", () => {
   key("/");
   expect(vim.mode).toBe("find");
-  expect(execute).toHaveBeenCalledWith("focus.chrome");
+  expect(execute).toHaveBeenCalledWith("find.open");
 });
 
 test("find mode leaves keys to the prompt, from either source", () => {
@@ -503,44 +503,152 @@ test("a chrome input closing leaves its typing mode without moving focus", () =>
   ).toBe("prompt");
 });
 
-test("a keybind's argument reaches its command", () => {
-  const bound: Keybind = { mode: "normal", keys: "q", command: "zoom.set", arg: "2" };
-  const input = { key: "q", code: "KeyQ", control: false, alt: false, meta: false, shift: false };
+/** The vim preset with config.toml's `[keys]` over it. */
+const vimWith = (toml: Record<string, Record<string, string>>): Model => ({
+  ...init,
+  keymap: buildKeymap("vim", [{ keys: toml }], "linux").bindings,
+});
 
-  expect(step(init, input, "page", [bound]).cmds).toEqual([
+const press = (k: string, modifiers: Partial<KeyInput> = {}): KeyInput => ({
+  key: k,
+  code: "",
+  control: false,
+  alt: false,
+  meta: false,
+  shift: false,
+  ...modifiers,
+});
+
+test("a keybind's argument reaches its command", () => {
+  const model = vimWith({ normal: { q: "zoom.set 2" } });
+
+  expect(step(model, press("q"), "page").cmds).toEqual([
     Cmd.cases.RunCommand.make({ name: "zoom.set", arg: "2" }),
   ]);
 });
 
-describe("standard mode", () => {
-  const chords = standardKeybinds("linux");
-  const standard: Model = { ...init, scheme: "standard" };
+const runs = (name: string, arg?: string) => Cmd.cases.RunCommand.make({ name, arg });
 
-  const press = (k: string, modifiers: Partial<KeyInput> = {}): KeyInput => ({
-    key: k,
-    code: "",
-    control: false,
-    alt: false,
-    meta: false,
-    shift: false,
-    ...modifiers,
+test("E is a key of its own, not the start of Escape", () => {
+  expect(step(init, press("E", { shift: true }), "page")).toEqual({
+    model: init,
+    consumed: false,
+    cmds: [],
+  });
+});
+
+test("Shift pressed on the way to gT does not break the sequence", () => {
+  const g = step(init, press("g"), "page");
+
+  expect(g).toEqual({ model: { ...init, pending: [press("g")] }, consumed: true, cmds: [] });
+
+  const shift = step(g.model, press("Shift", { shift: true }), "page");
+
+  expect(shift).toEqual({ model: g.model, consumed: false, cmds: [] });
+  expect(step(shift.model, press("T", { shift: true }), "page")).toEqual({
+    model: init,
+    consumed: true,
+    cmds: [runs("tab.prev")],
+  });
+});
+
+test("a held key nothing wants passes, and leaves a prefix waiting", () => {
+  const g = step(init, press("g"), "page").model;
+  const held = step(g, press("c", { control: true }), "page");
+
+  expect(held).toEqual({ model: g, consumed: false, cmds: [] });
+  expect(step(held.model, press("t"), "page")).toEqual({
+    model: init,
+    consumed: true,
+    cmds: [runs("tab.next")],
+  });
+});
+
+describe("rebound keys", () => {
+  test("a modal key may be held", () => {
+    const model = vimWith({ normal: { "<C-d>": "scroll.half-down" } });
+    const stepped = step(model, press("d", { control: true }), "page");
+
+    expect(stepped.consumed).toBe(true);
+    expect(stepped.cmds).toEqual([
+      Cmd.cases.RunCommand.make({ name: "scroll.half-down", arg: undefined }),
+    ]);
   });
 
+  test("a vim chord works in every mode and from either webContents", () => {
+    const model = vimWith({ chords: { "Ctrl+Tab": "tab.next" } });
+    const ctrlTab = press("Tab", { control: true });
+
+    for (const mode of ["normal", "insert", "command", "hint", "prompt"] as const) {
+      for (const source of ["page", "chrome"] as const) {
+        expect(step({ ...model, mode }, ctrlTab, source).cmds.at(-1)).toEqual(runs("tab.next"));
+      }
+    }
+  });
+
+  test("a chord fired while hinting hides the labels and leaves hint mode", () => {
+    const hinting = { ...vimWith({ chords: { "Ctrl+Tab": "tab.next" } }), mode: "hint" as const };
+
+    const stepped = step(hinting, press("Tab", { control: true }), "page");
+
+    expect(stepped.model.mode).toBe("normal");
+    expect(stepped.cmds).toEqual([runs("hints.hide"), runs("tab.next")]);
+  });
+
+  test("a chord that enters a mode from hint mode hides the labels once", () => {
+    const hinting = {
+      ...vimWith({ chords: { "Ctrl+L": "focus.omnibox", "Ctrl+H": "hints.hide" } }),
+      mode: "hint" as const,
+    };
+
+    const omnibox = step(hinting, press("l", { control: true }), "page");
+
+    expect(omnibox.model.mode).toBe("insert");
+    expect(omnibox.cmds).toEqual([runs("hints.hide"), runs("focus.omnibox")]);
+    expect(step(hinting, press("h", { control: true }), "page").cmds).toEqual([runs("hints.hide")]);
+  });
+
+  test("a chord outside hint mode keeps the mode", () => {
+    const model = { ...vimWith({ chords: { "Ctrl+Tab": "tab.next" } }), mode: "insert" as const };
+
+    expect(step(model, press("Tab", { control: true }), "page").model.mode).toBe("insert");
+  });
+
+  test("a new keymap replaces the keys and forgets a pending prefix", () => {
+    const { keymap } = vimWith({ normal: { J: "tab.next" } });
+
+    const changed = update(Msg.cases.KeymapChanged.make({ scheme: "vim", keymap }), {
+      ...init,
+      pending: [press("g")],
+    }).model;
+
+    expect(changed.pending).toEqual([]);
+    expect(step(changed, press("J", { shift: true }), "page").cmds).toEqual([
+      Cmd.cases.RunCommand.make({ name: "tab.next", arg: undefined }),
+    ]);
+  });
+});
+
+describe("standard mode", () => {
+  const standard: Model = {
+    ...init,
+    scheme: "standard",
+    keymap: buildKeymap("standard", [], "linux").bindings,
+  };
+
   const modTab = press("t", { control: true });
-  // resolveKey reads the table for the platform the tests run on.
-  const hostModTab = press("t", process.platform === "darwin" ? { meta: true } : { control: true });
 
   test("plain keys pass to the page, in every mode", () => {
     for (const mode of ["normal", "insert"] as const) {
       for (const k of ["j", "f", ":", "Escape", "/"]) {
-        expect(stepStandard({ ...standard, mode }, press(k), chords).consumed).toBe(false);
+        expect(stepStandard({ ...standard, mode }, press(k)).consumed).toBe(false);
       }
     }
   });
 
   test("a chord runs its command from any mode and either webContents", () => {
     for (const mode of ["normal", "insert", "command", "find"] as const) {
-      const stepped = stepStandard({ ...standard, mode }, modTab, chords);
+      const stepped = stepStandard({ ...standard, mode }, modTab);
 
       expect(stepped.consumed).toBe(true);
       expect(stepped.cmds).toEqual([
@@ -548,8 +656,8 @@ describe("standard mode", () => {
       ]);
     }
 
-    expect(resolveKey(standard, hostModTab, "page")).toBe(true);
-    expect(resolveKey(standard, hostModTab, "chrome")).toBe(true);
+    expect(resolveKey(standard, modTab, "page")).toBe(true);
+    expect(resolveKey(standard, modTab, "chrome")).toBe(true);
     expect(resolveKey(standard, press("j"), "page")).toBe(false);
   });
 
@@ -557,12 +665,12 @@ describe("standard mode", () => {
     expect(
       update(Msg.cases.KeyPressed.make({ ...press("t"), source: "page" }), standard).cmds,
     ).toEqual([]);
-    expect(resolveKey(init, hostModTab, "page")).toBe(false);
+    expect(resolveKey(init, modTab, "page")).toBe(false);
   });
 
   test("a chord that opens an input enters its mode, and passes its argument", () => {
-    expect(stepStandard(standard, press("f", { control: true }), chords).model.mode).toBe("find");
-    expect(stepStandard(standard, press("3", { control: true }), chords).cmds).toEqual([
+    expect(stepStandard(standard, press("f", { control: true })).model.mode).toBe("find");
+    expect(stepStandard(standard, press("3", { control: true })).cmds).toEqual([
       Cmd.cases.RunCommand.make({ name: "tab.select", arg: "3" }),
     ]);
   });
@@ -578,12 +686,18 @@ describe("standard mode", () => {
   });
 
   const switchTo = (scheme: "vim" | "standard", model: Model) =>
-    update(Msg.cases.InputModeChanged.make({ scheme }), model);
+    update(
+      Msg.cases.KeymapChanged.make({
+        scheme,
+        keymap: scheme === "vim" ? init.keymap : standard.keymap,
+      }),
+      model,
+    );
 
   test("switching to standard hides hints and forgets a pending prefix", () => {
-    const switched = switchTo("standard", { ...init, mode: "hint", pending: "g" });
+    const switched = switchTo("standard", { ...init, mode: "hint", pending: [press("g")] });
 
-    expect(switched.model).toEqual({ ...standard, mode: "normal", pending: "" });
+    expect(switched.model).toEqual({ ...standard, mode: "normal", pending: [] });
     expect(switched.cmds).toEqual([
       Cmd.cases.RunCommand.make({ name: "hints.hide", arg: undefined }),
     ]);
@@ -605,7 +719,10 @@ describe("standard mode", () => {
     expect(switchTo("vim", { ...standard, mode: "insert" }).model.mode).toBe("insert");
   });
 
-  test("the same scheme changes nothing", () => {
-    expect(switchTo("vim", init).model).toBe(init);
+  test("the same scheme keeps the mode and runs nothing", () => {
+    const same = switchTo("vim", { ...init, mode: "hint" });
+
+    expect(same.model).toEqual({ ...init, mode: "hint" });
+    expect(same.cmds).toEqual([]);
   });
 });

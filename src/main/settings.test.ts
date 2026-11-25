@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
-import { DEFAULT_SETTINGS, type Settings } from "../shared/config";
+import type { Settings } from "../shared/config";
 import { DEFAULT_LAYOUT, ELEMENT_IDS } from "../shared/layout";
-import { parseSettings, readRecipeName } from "./settings";
+import { builtInKeymap, parseKeymapFile } from "./keymaps";
+import { BASE_SETTINGS as DEFAULT_SETTINGS, parseSettings, readRecipeName } from "./settings";
 
 const settingsOf = (source: string, previous?: Settings): Settings =>
   parseSettings(source, previous).settings;
@@ -51,6 +52,7 @@ test("every field is read", () => {
     },
     tabFocusPage: false,
     inputMode: "standard",
+    keymap: builtInKeymap("standard"),
     downloadDir: "~/dl",
     newtabTimezone: "Europe/Stockholm",
     newtabLinks: [{ name: "docs", url: "https://docs.rs" }],
@@ -154,11 +156,74 @@ describe("input mode", () => {
   test("an unknown mode falls back to vim and is reported", () => {
     expect(settingsOf("[input]\nmode = 'emacs'").inputMode).toBe("vim");
     expect(problemsOf("[input]\nmode = 'emacs'")).toEqual(["input.mode"]);
+    expect(parseSettings("[input]\nmode = 'emacs'").problems[0]?.reason).toBe(
+      'no keymap named "emacs"; available: "standard", "vim"',
+    );
+  });
+
+  test("a name that could leave the keymaps directory is refused", () => {
+    expect(settingsOf("[input]\nmode = '../x'").keymap.name).toBe("vim");
+    expect(problemsOf("[input]\nmode = '../x'")).toEqual(["input.mode"]);
+    expect(problemsOf("[input]\nmode = 3")).toEqual(["input.mode"]);
   });
 
   test("an unknown key and a non-table are reported", () => {
     expect(problemsOf("[input]\nmode = 'vim'\nleader = ','")).toEqual(["input.leader"]);
     expect(problemsOf("input = 'standard'")).toEqual(["input"]);
+  });
+});
+
+describe("keys", () => {
+  const colemak = parseKeymapFile(
+    "colemak",
+    'format = 1\nbase = "vim"\n[keys.normal]\n"n" = "scroll.down"\n"j" = ""',
+  );
+
+  const keymaps = new Map([["colemak", colemak]]);
+
+  const commandAt = (settings: Settings, notation: string) =>
+    settings.keymap.bindings.find((binding) => binding.notation === notation)?.command;
+
+  test("[keys] goes over the preset's keys", () => {
+    const settings = settingsOf('[keys.normal]\n"J" = "tab.next"\n"x" = ""');
+
+    expect(commandAt(settings, "J")).toBe("tab.next");
+    expect(commandAt(settings, "x")).toBeUndefined();
+    expect(commandAt(settings, "t")).toBe("tab.new");
+  });
+
+  test("a key problem is reported with the rest", () => {
+    expect(problemsOf('[keys.normal]\n"q" = "nope"')).toEqual(['keys.normal."q"']);
+  });
+
+  test("a user preset adds its keys, and config.toml goes over them", () => {
+    const { settings, problems } = parseSettings(
+      '[input]\nmode = "colemak"\n[keys.normal]\n"n" = "tab.next"',
+      DEFAULT_SETTINGS,
+      DEFAULT_SETTINGS,
+      { keymaps },
+    );
+
+    expect(problems).toEqual([]);
+    expect(settings.inputMode).toBe("vim");
+    expect(settings.keymap.name).toBe("colemak");
+    expect(commandAt(settings, "n")).toBe("tab.next");
+    expect(commandAt(settings, "j")).toBeUndefined();
+  });
+
+  test("an unknown preset lists the user's beside the built-in ones", () => {
+    const { problems } = parseSettings(
+      "[input]\nmode = 'dvorak'",
+      DEFAULT_SETTINGS,
+      DEFAULT_SETTINGS,
+      {
+        keymaps,
+      },
+    );
+
+    expect(problems.map(({ reason }) => reason)).toEqual([
+      'no keymap named "dvorak"; available: "colemak", "standard", "vim"',
+    ]);
   });
 });
 
@@ -276,6 +341,7 @@ describe("over a recipe's base", () => {
     ...DEFAULT_SETTINGS,
     recipe: "modern",
     inputMode: "standard",
+    keymap: builtInKeymap("standard"),
     layout: {
       ...DEFAULT_LAYOUT,
       tabs: { ...DEFAULT_LAYOUT.tabs, region: "top", size: "12ch" },

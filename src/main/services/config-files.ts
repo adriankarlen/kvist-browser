@@ -13,14 +13,10 @@ import {
   Semaphore,
   Stream,
 } from "effect";
-import {
-  DEFAULT_RECIPE,
-  DEFAULT_SETTINGS,
-  type Problem,
-  type UserConfig,
-} from "../../shared/config";
+import { DEFAULT_RECIPE, type Problem, type UserConfig } from "../../shared/config";
 import type { RecipeOption } from "../../shared/setup";
 import { withRecipe } from "../config-edit";
+import { type KeymapPreset, keymapFile, listUserKeymaps, parseKeymapFile } from "../keymaps";
 import { configDir } from "../paths";
 import {
   BUILT_IN,
@@ -31,12 +27,13 @@ import {
   resolveRecipe,
   type RecipeSource,
 } from "../recipes";
-import { parseSettings, readRecipeName } from "../settings";
+import { BASE_SETTINGS, parseSettings, readRecipeName } from "../settings";
 import { recipeOption, type SetupFiles } from "../setup-files";
 
 const CSS_FILE = "config.css";
 const TOML_FILE = "config.toml";
 const RECIPES_DIR = "recipes";
+const KEYMAPS_DIR = "keymaps";
 
 // Editors rename over the file rather than writing in place, so one save can
 // surface as several directory events.
@@ -75,7 +72,7 @@ interface LastGood {
 }
 
 /** Before any load: the defaults, and the recipe a config that names none gets. */
-const FRESH: LastGood = { settings: DEFAULT_SETTINGS, recipe: DEFAULT_RECIPE };
+const FRESH: LastGood = { settings: BASE_SETTINGS, recipe: DEFAULT_RECIPE };
 
 export class ConfigFiles extends Context.Service<
   ConfigFiles,
@@ -103,6 +100,7 @@ export class ConfigFiles extends Context.Service<
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const recipesDir = path.join(dir, RECIPES_DIR);
+        const keymapsDir = path.join(dir, KEYMAPS_DIR);
 
         /** A file's text; missing is `undefined`, and any other failure is logged and empty. */
         const readOptional = (file: string): Effect.Effect<string | undefined> =>
@@ -131,6 +129,31 @@ export class ConfigFiles extends Context.Service<
           ),
         );
 
+        const ensureKeymapsDir = fs.makeDirectory(keymapsDir, { recursive: true });
+
+        const listKeymaps: Effect.Effect<ReadonlyArray<string>> = Effect.andThen(
+          ensureKeymapsDir,
+          fs.readDirectory(keymapsDir),
+        ).pipe(
+          Effect.catchTag("PlatformError", (error) =>
+            Effect.as(Effect.logError("could not list the keymaps directory", error), []),
+          ),
+        );
+
+        /** Every user preset, read whole: they are small, and an unknown name lists them all. */
+        const readKeymaps = Effect.gen(function* () {
+          const user = listUserKeymaps(yield* listKeymaps);
+
+          const presets = yield* Effect.forEach(user.names, (name) =>
+            Effect.map(
+              read(keymapFile(name)),
+              (text) => [name, parseKeymapFile(name, text)] as const,
+            ),
+          );
+
+          return { presets: new Map<string, KeymapPreset>(presets), problems: user.problems };
+        });
+
         const readRecipe = (
           name: string,
           origin: "user" | "builtin",
@@ -149,6 +172,7 @@ export class ConfigFiles extends Context.Service<
         ): Effect.Effect<readonly [LastGood, LoadedConfig]> =>
           Effect.gen(function* () {
             const entries = yield* listRecipes;
+            const keymaps = yield* readKeymaps;
             const chosen = readRecipeName(toml, last.recipe);
             const user = listUserRecipes(entries);
             const resolved = resolveRecipe(chosen.name, user.names);
@@ -156,7 +180,7 @@ export class ConfigFiles extends Context.Service<
             const recipe = parseRecipe(resolved.name, source.toml);
             // Kept settings belong to the recipe that built them; if it is gone, start from this one.
             const kept = last.settings.recipe === resolved.name ? last.settings : recipe.base;
-            const parsed = parseSettings(toml, kept, recipe.base);
+            const parsed = parseSettings(toml, kept, recipe.base, { keymaps: keymaps.presets });
 
             const loaded: LoadedConfig = {
               config: {
@@ -170,6 +194,7 @@ export class ConfigFiles extends Context.Service<
                 ...resolved.problems,
                 ...recipe.problems,
                 ...user.problems,
+                ...keymaps.problems,
               ],
               recipes: recipeCatalog(user.names),
             };
@@ -195,7 +220,7 @@ export class ConfigFiles extends Context.Service<
         // A symlinked config.toml is written at its target, which the directory watch never sees.
         const written = yield* Queue.unbounded<void>();
 
-        // Two watches: neither is recursive, and the config directory also holds styles/.
+        // One watch per directory: none is recursive, and the config directory also holds styles/.
         const saves = Stream.mergeAll(
           [
             watch(fs.makeDirectory(dir, { recursive: true }), dir, "the config directory").pipe(
@@ -205,6 +230,10 @@ export class ConfigFiles extends Context.Service<
             // A directory made just before the watch starts reports itself; only recipe files count.
             watch(ensureRecipesDir, recipesDir, "the recipes directory").pipe(
               Stream.filter((event) => /\.(?:css|toml)$/.test(event.path)),
+              Stream.as(undefined),
+            ),
+            watch(ensureKeymapsDir, keymapsDir, "the keymaps directory").pipe(
+              Stream.filter((event) => event.path.endsWith(".toml")),
               Stream.as(undefined),
             ),
             Stream.fromQueue(written),
@@ -293,13 +322,21 @@ export class ConfigFiles extends Context.Service<
 
         const recipeOptions = Effect.gen(function* () {
           const user = listUserRecipes(yield* listRecipes);
+          const keymaps = yield* readKeymaps;
 
           return yield* Effect.forEach(recipeCatalog(user.names), (name) => {
             const { origin } = resolveRecipe(name, user.names);
 
-            return Effect.map(readRecipe(name, origin), (source) =>
-              recipeOption(name, parseRecipe(name, source.toml)),
-            );
+            return Effect.map(readRecipe(name, origin), (source) => {
+              const recipe = parseRecipe(name, source.toml);
+              // A recipe naming a user preset runs on that preset's engine.
+              const preset = keymaps.presets.get(recipe.base.keymap.name);
+
+              const base =
+                preset === undefined ? recipe.base : { ...recipe.base, inputMode: preset.engine };
+
+              return recipeOption(name, { ...recipe, base });
+            });
           });
         });
 

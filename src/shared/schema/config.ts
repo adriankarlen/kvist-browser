@@ -1,11 +1,12 @@
 import { Schema } from "effect";
+import { Keymap } from "./keymap";
 import { Layout } from "./layout";
 
 export const NewtabLink = Schema.Struct({ name: Schema.String, url: Schema.String });
 
 export type NewtabLink = typeof NewtabLink.Type;
 
-/** Which keys drive the browser: the modal vim set, or the shortcuts every other browser uses. */
+/** The engine keys run on: modal vim, or the chords every other browser uses. */
 export const InputMode = Schema.Literals(["vim", "standard"]);
 
 export type InputMode = typeof InputMode.Type;
@@ -33,8 +34,10 @@ export const Settings = Schema.Struct({
    * switches leave the keyboard on the chrome.
    */
   tabFocusPage: Schema.Boolean,
-  /** From `[input] mode`. */
+  /** The engine of the preset `[input] mode` names. */
   inputMode: InputMode,
+  /** That preset's keys, with config.toml's `[keys]` over them. */
+  keymap: Keymap,
   /** Network and cosmetic filtering, from the prebuilt ads + tracking lists. */
   adblock: Schema.Boolean,
   /** Where downloads are saved. Undefined works it out from the XDG download directory. */

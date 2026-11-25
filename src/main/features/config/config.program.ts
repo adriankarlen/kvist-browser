@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { UserConfig } from "../../../shared/schema/config";
+import { Keymap } from "../../../shared/schema/keymap";
 import { next, type Next } from "../../../shared/tea/program";
 import { type Msg as MessagesMsg, say, warn } from "../messages/messages.program";
 import { type Msg as VimMsg, Msg as VimMsgs } from "../vim/vim.program";
@@ -9,6 +10,8 @@ const Problem = Schema.Struct({
   reason: Schema.String,
   file: Schema.optionalKey(Schema.String),
 });
+
+const sameKeymap = Schema.toEquivalence(Keymap);
 
 const StyleSource = Schema.Struct({ id: Schema.String, source: Schema.String });
 
@@ -142,15 +145,18 @@ export function update(msg: Msg, model: Model): Result {
       );
     },
     ConfigApplied: ({ config }) => {
-      const scheme = config.settings.inputMode;
-      const changed = model.current === null || model.current.settings.inputMode !== scheme;
+      const { inputMode: scheme, keymap } = config.settings;
+      const before = model.current?.settings;
+
+      const changed =
+        before === undefined || before.inputMode !== scheme || !sameKeymap(before.keymap, keymap);
 
       const pending = model.pending === config.recipe.name ? null : model.pending;
 
       return next(
         { ...model, current: config, pending },
         [],
-        changed ? [VimMsgs.cases.InputModeChanged.make({ scheme })] : [],
+        changed ? [VimMsgs.cases.KeymapChanged.make({ scheme, keymap: keymap.bindings })] : [],
       );
     },
     StylesLoaded: ({ sources }) => next(model, [Cmd.cases.ApplyStyles.make({ sources })]),

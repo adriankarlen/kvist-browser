@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { Result } from "effect";
 import { Toml } from "effect/encoding";
-import type { Table } from "./settings";
+import type { Table } from "./toml-fields";
 
 const TABLE_HEADER = /^\s*\[/;
 

@@ -135,6 +135,8 @@ export interface Actions {
     open: Action;
   };
   insert: {
+    /** Entering insert mode. The mode itself is the change; the page already has the keyboard. */
+    enter: Action;
     /** Leaving insert mode: drop whatever the page focused, take the keyboard back. */
     leave: Action;
   };
@@ -356,6 +358,7 @@ export function createActions(
       },
     },
     insert: {
+      enter: () => {},
       // Blur first: the page keeps the keyboard until whatever it focused
       // gives it up, and focusing the page again is what takes it back.
       leave: () => {

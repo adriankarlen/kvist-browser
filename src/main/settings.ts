@@ -3,12 +3,11 @@ import { Toml } from "effect/encoding";
 import {
   DEFAULT_RECIPE,
   DEFAULT_SETTINGS,
-  type InputMode,
   type NewtabLink,
   type Problem,
   type Settings,
 } from "../shared/config";
-import { InputMode as InputModeSchema, RecipeName } from "../shared/schema/config";
+import { RecipeName } from "../shared/schema/config";
 import {
   ELEMENT_IDS,
   type ElementId,
@@ -18,6 +17,9 @@ import {
   SUPPORT,
 } from "../shared/layout";
 import { ElementId as ElementIdSchema, Region } from "../shared/schema/layout";
+import { buildKeymap } from "./features/vim/keymap";
+import { builtInKeymap, type KeymapPreset, resolveKeymap } from "./keymaps";
+import { quoted, read, reportUnknownKeys, section, type Table } from "./toml-fields";
 
 /**
  * What one parse produced: the settings to use, and everything wrong with the
@@ -27,49 +29,6 @@ import { ElementId as ElementIdSchema, Region } from "../shared/schema/layout";
 export interface ParsedSettings {
   settings: Settings;
   problems: Problem[];
-}
-
-export type Table = Readonly<Record<string, unknown>>;
-
-/** Anything claiming to be a TOML table: a plain, non-list object. */
-export function isTable(value: unknown): value is Table {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * One field, decoded on its own so a bad value costs only itself. An absent
- * value is the default, not a problem: only something the user wrote and we
- * could not use is worth telling them about.
- */
-export function read<A, F>(
-  value: unknown,
-  field: string,
-  schema: Schema.Codec<A, unknown>,
-  reason: string,
-  fallback: F,
-  problems: Problem[],
-): A | F {
-  if (value === undefined) return fallback;
-  const decoded = Schema.decodeUnknownResult(schema)(value);
-
-  if (Result.isSuccess(decoded)) return decoded.success;
-  problems.push({ field, reason });
-
-  return fallback;
-}
-
-/**
- * A `[section]` of the file. Written as anything but a table it has no fields
- * to read, so it is reported once rather than as every child of it quietly
- * defaulting.
- */
-export function section(value: unknown, field: string, problems: Problem[]): Table {
-  if (value === undefined) return {};
-
-  if (isTable(value)) return value;
-  problems.push({ field, reason: "not a table" });
-
-  return {};
 }
 
 const Link = Schema.Struct({ name: Schema.String, url: Schema.String });
@@ -149,46 +108,29 @@ function parseSearchUrl(value: unknown, fallback: string, problems: Problem[]): 
   return read(value, "search", SearchTemplate, 'no "{q}" placeholder', fallback, problems);
 }
 
-const quoted = (names: ReadonlyArray<string>): string => names.map((n) => `"${n}"`).join(", ");
-
 const CssLength = Schema.String.check(
   Schema.makeFilter((size: string) => /^\d+(\.\d+)?(px|ch|em|rem|%|vw|vh)$/.test(size.trim())),
 );
 
 const PLACEMENT_KEYS: ReadonlyArray<string> = ["region", "order", "size", "visible", "autohide"];
 
-export function reportUnknownKeys(
-  table: Table,
-  field: string,
-  known: ReadonlyArray<string>,
-  problems: Problem[],
-): void {
-  for (const key of Object.keys(table)) {
-    if (!known.includes(key)) {
-      problems.push({
-        field: `${field}.${key}`,
-        reason: `unknown key; expected ${quoted(known)}`,
-      });
-    }
-  }
-}
-
-const INPUT_MODES: ReadonlyArray<InputMode> = InputModeSchema.literals;
-
-export function parseInputMode(
-  value: unknown,
-  fallback: InputMode,
-  problems: Problem[],
-): InputMode {
+/** `[input] mode`: a preset's name, resolved once the user's presets are known. */
+export function parseKeymapName(value: unknown, fallback: string, problems: Problem[]): string {
   const table = section(value, "input", problems);
 
   reportUnknownKeys(table, "input", ["mode"], problems);
 
+  if (table.mode !== undefined && !Schema.is(Schema.String)(table.mode)) {
+    problems.push({ field: "input.mode", reason: "not a string" });
+
+    return fallback;
+  }
+
   return read(
     table.mode,
     "input.mode",
-    InputModeSchema,
-    `not one of ${quoted(INPUT_MODES)}`,
+    RecipeName,
+    'not a keymap name: lowercase letters, digits and "-"',
     fallback,
     problems,
   );
@@ -329,6 +271,32 @@ export interface ParsedRecipeName {
   problems: Problem[];
 }
 
+/** The preset `[input] mode` names, with `[keys]` over it. */
+function parseKeys(
+  root: Table,
+  base: Settings,
+  keymaps: ReadonlyMap<string, KeymapPreset>,
+  platform: NodeJS.Platform,
+  problems: Problem[],
+): Pick<Settings, "inputMode" | "keymap"> {
+  const name = parseKeymapName(root.input, base.keymap.name, problems);
+  const { preset, problems: unresolved } = resolveKeymap(name, base.keymap.name, keymaps);
+  const built = buildKeymap(preset.engine, [...preset.layers, { keys: root.keys }], platform);
+
+  problems.push(...unresolved, ...built.problems);
+
+  return { inputMode: preset.engine, keymap: { name: preset.name, bindings: built.bindings } };
+}
+
+/** DEFAULT_SETTINGS with the vim preset's keys, which only main can build. */
+export const BASE_SETTINGS: Settings = { ...DEFAULT_SETTINGS, keymap: builtInKeymap("vim") };
+
+export interface SettingsOptions {
+  /** The user's presets, by name. */
+  readonly keymaps?: ReadonlyMap<string, KeymapPreset>;
+  readonly platform?: NodeJS.Platform;
+}
+
 /**
  * Reads config.toml over `base`, the defaults with the recipe's applied.
  * Pure: the previous settings come in as an argument, so a syntax error
@@ -336,12 +304,11 @@ export interface ParsedRecipeName {
  */
 export function parseSettings(
   source: string,
-  previous: Settings = DEFAULT_SETTINGS,
-  base: Settings = DEFAULT_SETTINGS,
+  previous: Settings = BASE_SETTINGS,
+  base: Settings = BASE_SETTINGS,
+  { keymaps = new Map(), platform = process.platform }: SettingsOptions = {},
 ): ParsedSettings {
-  if (source.trim() === "") return { settings: base, problems: [] };
-
-  const parsed = Toml.parse(source);
+  const parsed = source.trim() === "" ? Result.succeed<Table>({}) : Toml.parse(source);
 
   // A save mid-edit shouldn't throw away the user's whole layout, so the last
   // settings that parsed stand rather than reverting to the defaults.
@@ -384,7 +351,7 @@ export function parseSettings(
       base.tabFocusPage,
       problems,
     ),
-    inputMode: parseInputMode(root.input, base.inputMode, problems),
+    ...parseKeys(root, base, keymaps, platform, problems),
     // Undefined falls back to the XDG download directory; `downloads.ts` resolves it.
     downloadDir: read(
       downloads.dir,

@@ -22,6 +22,7 @@ import {
   type TabStripState,
 } from "../features/layout/layout.program";
 import type { ElementId, Layout, Placement, Region } from "../../shared/layout";
+import { keyTitle } from "../../shared/key-title";
 
 /**
  * What components read and the Msgs they dispatch, named the way the
@@ -53,11 +54,14 @@ export const vim = {
   get enabled() {
     return app.model.ui.settings.inputMode === "vim";
   },
-  /** The keys for an action in the live scheme. `Mod` in a standard chord reads as Cmd or Ctrl. */
-  keys: (vimKeys: string, standardChord: string): string =>
-    vim.enabled ? vimKeys : standardChord.replaceAll("Mod", MOD),
   /** Hands control back to the page; main moves focus off the chrome. */
   toNormal: () => ask(I.ModeRequested.make({ mode: "normal" })),
+};
+
+export const keys = {
+  /** `text` with the live keys of `commands`, e.g. "Bookmark this page (B)". */
+  title: (text: string, ...commands: string[]): string =>
+    keyTitle(text, app.model.ui.settings.keymap, commands, MOD),
 };
 
 export const messages = {

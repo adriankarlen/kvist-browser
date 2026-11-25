@@ -1,12 +1,9 @@
 import { describe, expect, test } from "vite-plus/test";
-import { type ChordInput, findChord, standardKeybinds } from "./keybinds";
+import type { KeyToken } from "../../../shared/schema/keymap";
+import { isModifierKey, type KeyInput, keyId, matchesKey, parseChord, parseKeys } from "./keybinds";
 
-const mac = standardKeybinds("darwin");
-const linux = standardKeybinds("linux");
-
-const input = (key: string, modifiers: Partial<ChordInput> = {}): ChordInput => ({
-  key,
-  code: "",
+const key = (name: string, modifiers: Partial<KeyToken> = {}): KeyToken => ({
+  key: name,
   control: false,
   alt: false,
   meta: false,
@@ -14,96 +11,165 @@ const input = (key: string, modifiers: Partial<ChordInput> = {}): ChordInput => 
   ...modifiers,
 });
 
-const commandOf = (
-  chords: typeof mac,
-  key: string,
-  modifiers: Partial<ChordInput> = {},
-): string | undefined => {
-  const found = findChord(chords, input(key, modifiers));
+const input = (name: string, modifiers: Partial<KeyInput> = {}): KeyInput => ({
+  ...key(name),
+  code: "",
+  ...modifiers,
+});
 
-  return found && (found.arg === undefined ? found.command : `${found.command} ${found.arg}`);
-};
-
-describe("Mod", () => {
-  test("is Cmd on macOS", () => {
-    expect(commandOf(mac, "t", { meta: true })).toBe("tab.new");
-    expect(commandOf(mac, "t", { control: true })).toBeUndefined();
+describe("vim notation", () => {
+  test("a plain character is one key, and its case is its Shift", () => {
+    expect(parseKeys("gt")).toEqual([key("g"), key("t")]);
+    expect(parseKeys("G")).toEqual([key("g", { shift: true })]);
+    expect(parseKeys(":")).toEqual([key(":")]);
   });
 
-  test("is Ctrl elsewhere", () => {
-    expect(commandOf(linux, "t", { control: true })).toBe("tab.new");
-    expect(commandOf(linux, "t", { meta: true })).toBeUndefined();
+  test("brackets name keys, with vim's names or the browser's", () => {
+    expect(parseKeys("<Esc>")).toEqual([key("Escape")]);
+    expect(parseKeys("<CR>")).toEqual([key("Enter")]);
+    expect(parseKeys("<Space>")).toEqual([key(" ")]);
+    expect(parseKeys("<lt>")).toEqual([key("<")]);
+    expect(parseKeys("<F5>")).toEqual([key("F5")]);
+    expect(parseKeys("<ArrowLeft>")).toEqual([key("ArrowLeft")]);
+    expect(parseKeys("g<Tab>")).toEqual([key("g"), key("Tab")]);
+  });
+
+  test("modifiers: C is Ctrl, A and M are Alt, D is Cmd or Super, S is Shift", () => {
+    expect(parseKeys("<C-d>")).toEqual([key("d", { control: true })]);
+    expect(parseKeys("<A-x>")).toEqual([key("x", { alt: true })]);
+    expect(parseKeys("<M-x>")).toEqual([key("x", { alt: true })]);
+    expect(parseKeys("<D-x>")).toEqual([key("x", { meta: true })]);
+    expect(parseKeys("<S-Tab>")).toEqual([key("Tab", { shift: true })]);
+    expect(parseKeys("<C-S-Tab>")).toEqual([key("Tab", { control: true, shift: true })]);
+  });
+
+  test("a held letter ignores its case; only S- adds Shift", () => {
+    expect(parseKeys("<C-D>")).toEqual(parseKeys("<C-d>"));
+    expect(parseKeys("<C-S-d>")).toEqual([key("d", { control: true, shift: true })]);
+  });
+
+  test("anything that is not a key is rejected", () => {
+    for (const bad of ["", "<C-", "<>", "<nope>", "<X-a>", "g<C-", "<Escpae>", "<F25>"]) {
+      expect(parseKeys(bad)).toBeUndefined();
+    }
   });
 });
 
-test("Ctrl+Tab is Ctrl on every platform", () => {
-  for (const chords of [mac, linux]) {
-    expect(commandOf(chords, "Tab", { control: true })).toBe("tab.next");
-    expect(commandOf(chords, "Tab", { control: true, shift: true })).toBe("tab.prev");
-  }
+describe("chord notation", () => {
+  test("Mod is Cmd on macOS and Ctrl elsewhere", () => {
+    expect(parseChord("Mod+T", "darwin")).toEqual(key("t", { meta: true }));
+    expect(parseChord("Mod+T", "linux")).toEqual(key("t", { control: true }));
+  });
+
+  test("Ctrl and Meta are the same key on every platform", () => {
+    for (const platform of ["darwin", "linux"] as const) {
+      expect(parseChord("Ctrl+Tab", platform)).toEqual(key("Tab", { control: true }));
+      expect(parseChord("Meta+K", platform)).toEqual(key("k", { meta: true }));
+    }
+  });
+
+  test("Shift is a modifier, and a trailing ++ is the plus key", () => {
+    expect(parseChord("Mod+Shift+T", "linux")).toEqual(key("t", { control: true, shift: true }));
+    expect(parseChord("Mod++", "linux")).toEqual(key("+", { control: true }));
+    expect(parseChord("F12", "linux")).toEqual(key("F12"));
+  });
+
+  test("an unknown modifier or key is rejected", () => {
+    expect(parseChord("Hyper+T", "linux")).toBeUndefined();
+    expect(parseChord("Mod+Escpae", "linux")).toBeUndefined();
+    expect(parseChord("Mod+Nope!", "linux")).toBeUndefined();
+    expect(parseChord("Mod+", "linux")).toBeUndefined();
+  });
+
+  test("both notations spell a key the same way once read", () => {
+    const vim = parseKeys("<C-d>")?.[0];
+    const chord = parseChord("Ctrl+D", "linux");
+
+    expect(vim).toBeDefined();
+    expect(chord).toBeDefined();
+    expect(vim && keyId(vim)).toBe(chord && keyId(chord));
+    expect(keyId(key("t", { meta: true }))).not.toBe(keyId(key("t", { control: true })));
+  });
 });
 
-test("modifiers match exactly", () => {
-  expect(commandOf(linux, "t", { control: true, alt: true })).toBeUndefined();
-  expect(commandOf(linux, "t")).toBeUndefined();
-  expect(commandOf(linux, "F5")).toBe("nav.reload");
-  expect(commandOf(linux, "F5", { control: true })).toBeUndefined();
+describe("matching", () => {
+  const matches = (bound: KeyToken | undefined, pressed: KeyInput): boolean =>
+    bound !== undefined && matchesKey(bound, pressed);
+
+  test("a plain letter is the character typed", () => {
+    const g = key("g", { shift: true });
+
+    expect(matches(g, input("G", { shift: true }))).toBe(true);
+    expect(matches(g, input("g"))).toBe(false);
+    expect(matches(key("g"), input("G", { shift: true }))).toBe(false);
+  });
+
+  test("Escape is one key, not E followed by more", () => {
+    expect(matches(parseKeys("<Esc>")?.[0], input("E", { shift: true }))).toBe(false);
+    expect(matches(parseKeys("<Esc>")?.[0], input("Escape"))).toBe(true);
+  });
+
+  test("Ctrl, Alt and Meta match exactly", () => {
+    const modT = parseChord("Mod+T", "linux");
+
+    expect(matches(modT, input("t", { control: true }))).toBe(true);
+    expect(matches(modT, input("t", { control: true, alt: true }))).toBe(false);
+    expect(matches(modT, input("t"))).toBe(false);
+    expect(matches(key("t"), input("t", { control: true }))).toBe(false);
+  });
+
+  test("Shift tells held letters apart, whatever case the key arrives in", () => {
+    const reopen = parseChord("Mod+Shift+T", "linux");
+
+    expect(matches(reopen, input("t", { control: true, shift: true }))).toBe(true);
+    expect(matches(reopen, input("T", { control: true, shift: true }))).toBe(true);
+    expect(matches(parseChord("Mod+T", "linux"), input("T", { control: true }))).toBe(true);
+  });
+
+  test("a printable key carries its own Shift, so = and + are told apart by key", () => {
+    expect(matches(parseChord("Mod+=", "darwin"), input("=", { meta: true }))).toBe(true);
+    expect(matches(parseChord("Mod++", "darwin"), input("+", { meta: true, shift: true }))).toBe(
+      true,
+    );
+    expect(matches(key(":"), input(":", { shift: true }))).toBe(true);
+  });
+
+  test("with Alt held, a letter matches on the physical key", () => {
+    const devtools = parseChord("Mod+Alt+I", "darwin");
+
+    expect(matches(devtools, input("ˆ", { meta: true, alt: true, code: "KeyI" }))).toBe(true);
+    expect(matches(devtools, input("i", { meta: true, alt: true, code: "KeyJ" }))).toBe(false);
+  });
+
+  test("a non-Latin layout falls back to the physical key, a Latin one does not", () => {
+    const modT = parseChord("Mod+T", "linux");
+
+    expect(matches(modT, input("е", { control: true, code: "KeyT" }))).toBe(true);
+    // Dvorak types "y" on the physical T key, and that is Mod+Y, not Mod+T.
+    expect(matches(modT, input("y", { control: true, code: "KeyT" }))).toBe(false);
+    expect(matches(modT, input("t", { control: true, code: "KeyK" }))).toBe(true);
+  });
+
+  test("written Shift with a printable key must be held, and is its own key", () => {
+    const shifted = parseChord("Ctrl+Shift+1", "linux");
+
+    expect(shifted).toEqual(key("1", { control: true, shift: true }));
+    expect(shifted && keyId(shifted)).not.toBe(keyId(key("1", { control: true })));
+    expect(matches(shifted, input("1", { control: true }))).toBe(false);
+    expect(matches(shifted, input("!", { control: true, shift: true, code: "Digit1" }))).toBe(true);
+    expect(matches(parseChord("Ctrl+1", "linux"), input("!", { control: true, shift: true }))).toBe(
+      false,
+    );
+  });
+
+  test("a named key compares Shift", () => {
+    expect(matches(key("Tab", { shift: true }), input("Tab", { shift: true }))).toBe(true);
+    expect(matches(key("Tab"), input("Tab", { shift: true }))).toBe(false);
+  });
 });
 
-test("Shift tells letters apart, whatever case the key arrives in", () => {
-  expect(commandOf(linux, "t", { control: true, shift: true })).toBe("tab.reopen");
-  expect(commandOf(linux, "T", { control: true, shift: true })).toBe("tab.reopen");
-  expect(commandOf(linux, "T", { control: true })).toBe("tab.new");
-  expect(commandOf(mac, "G", { meta: true, shift: true })).toBe("find.prev");
-});
-
-test("a printable key carries its own Shift, so = and + both zoom in", () => {
-  expect(commandOf(mac, "=", { meta: true })).toBe("zoom.in");
-  expect(commandOf(mac, "+", { meta: true, shift: true })).toBe("zoom.in");
-  expect(commandOf(linux, "-", { control: true })).toBe("zoom.out");
-  expect(commandOf(linux, "0", { control: true })).toBe("zoom.reset");
-});
-
-test("with Alt held, a letter matches on the physical key", () => {
-  expect(commandOf(mac, "ˆ", { meta: true, alt: true, code: "KeyI" })).toBe("app.devtools");
-  expect(commandOf(linux, "i", { control: true, alt: true, code: "KeyI" })).toBe("app.devtools");
-  expect(commandOf(linux, "i", { control: true, alt: true, code: "KeyJ" })).toBeUndefined();
-});
-
-test("a non-Latin layout falls back to the physical key, a Latin one does not", () => {
-  expect(commandOf(linux, "е", { control: true, code: "KeyT" })).toBe("tab.new");
-  expect(commandOf(mac, "Е", { meta: true, shift: true, code: "KeyT" })).toBe("tab.reopen");
-  // Dvorak types "y" on the physical T key, and that is Mod+Y, not Mod+T.
-  expect(commandOf(linux, "y", { control: true, code: "KeyT" })).toBeUndefined();
-  expect(commandOf(linux, "t", { control: true, code: "KeyK" })).toBe("tab.new");
-});
-
-test("Mod+digit selects a tab by position, and 9 is the last tab", () => {
-  expect(commandOf(mac, "1", { meta: true })).toBe("tab.select 1");
-  expect(commandOf(linux, "8", { control: true })).toBe("tab.select 8");
-  expect(commandOf(linux, "9", { control: true })).toBe("tab.select last");
-});
-
-test("Alt+arrows go back and forward, except on macOS where they move by word", () => {
-  expect(commandOf(linux, "ArrowLeft", { alt: true })).toBe("nav.back");
-  expect(commandOf(linux, "ArrowRight", { alt: true })).toBe("nav.forward");
-  expect(commandOf(mac, "ArrowLeft", { alt: true })).toBeUndefined();
-  expect(commandOf(mac, "[", { meta: true })).toBe("nav.back");
-});
-
-test("clipboard and editing chords are left to the edit menu", () => {
-  for (const key of ["c", "v", "x", "z", "a"]) {
-    expect(commandOf(mac, key, { meta: true })).toBeUndefined();
-    expect(commandOf(linux, key, { control: true })).toBeUndefined();
-  }
-});
-
-test("chords that open something to type into say which mode", () => {
-  const enters = (key: string, shift = false) =>
-    findChord(linux, input(key, { control: true, shift }))?.enter;
-
-  expect(enters("l")).toBe("insert");
-  expect(enters("f")).toBe("find");
-  expect(enters("p", true)).toBe("command");
-  expect(enters("o", true)).toBe("insert");
+test("a modifier on its own is not a key", () => {
+  expect(isModifierKey("Shift")).toBe(true);
+  expect(isModifierKey("Meta")).toBe(true);
+  expect(isModifierKey("s")).toBe(false);
 });
