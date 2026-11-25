@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import "./TabStrip.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { browser, browse, keys, layout } from "./stores.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
 
@@ -58,7 +59,9 @@
       <div class="kv-tab" class:is-active={tab.id === browser.activeId}>
         <button class="kv-tab__label" onclick={() => browse.activateTab(tab.id)}>
           {#if tab.loading || !tab.favicon}
-            <span class="kv-tab__marker">{tab.loading ? "*" : ">"}</span>
+            <span class="kv-tab__marker" class:is-loading={tab.loading}
+              >{#if tab.loading}<Icon role="loading" glyph="*" />{:else}<Icon role="page" glyph=">" />{/if}</span
+            >
           {:else}
             <img class="kv-tab__favicon" src={tab.favicon} alt="" />
           {/if}
@@ -69,13 +72,13 @@
           title="Close tab"
           onclick={() => browse.closeTab(tab.id)}
         >
-          x
+          <Icon role="close" glyph="x" />
         </button>
       </div>
     {/each}
 
     <button class="kv-tabstrip__new" title={keys.title("New tab", "tab.new")} onclick={() => browse.createTab()}>
-      +
+      <Icon role="new-tab" glyph="+" />
     </button>
     <div class="kv-tabstrip__drag"></div>
   </nav>

@@ -17,6 +17,7 @@
   }
 
   .kv-downloads__marker {
+    display: inline-flex;
     flex: none;
   }
 
@@ -79,6 +80,7 @@
   }
 
   .kv-downloads__cancel {
+    display: inline-flex;
     flex: none;
     color: var(--kv-downloads-cancel-fg);
   }

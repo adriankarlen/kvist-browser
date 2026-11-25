@@ -12,6 +12,7 @@
   }
 
   .kv-line__prompt {
+    display: inline-flex;
     color: var(--kv-line-prompt-fg);
   }
 

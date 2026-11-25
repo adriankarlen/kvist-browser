@@ -103,6 +103,24 @@
     outline: none;
   }
 
+  /* The same marker drawn as an icon, for a recipe that draws icons. */
+  @container style(--kv-icon-style: image) {
+    .kv-setup__radio::before {
+      content: "";
+      display: inline-block;
+      inline-size: var(--kv-icon-size);
+      block-size: var(--kv-icon-size);
+      vertical-align: middle;
+      background-color: currentColor;
+      mask: var(--kv-icon-radio) center / contain no-repeat;
+    }
+
+    .kv-setup__radio:checked::before {
+      content: "";
+      mask-image: var(--kv-icon-radio-checked);
+    }
+  }
+
   .kv-setup__option-hint {
     grid-column: 2;
     color: var(--kv-setup-muted-fg);

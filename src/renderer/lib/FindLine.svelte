@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./FindLine.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
   import { find, layout, vim } from "./stores.svelte";
 
@@ -61,7 +62,7 @@
     data-label="find"
     onsubmit={submit}
   >
-    <span class="kv-line__prompt">/</span>
+    <span class="kv-line__prompt"><Icon role="find" glyph="/" /></span>
     {#if vim.mode === "find"}
       <input
         class="kv-line__input"

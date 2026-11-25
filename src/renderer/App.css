@@ -22,4 +22,12 @@
     flex: 1;
     min-height: 0;
   }
+
+  .kv-panel.kv-content {
+    padding: var(--kv-content-padding);
+    background: var(--kv-content-bg);
+    border: var(--kv-content-border);
+    border-radius: var(--kv-content-radius);
+    box-shadow: var(--kv-content-shadow);
+  }
 }

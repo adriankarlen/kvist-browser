@@ -3,10 +3,20 @@
   import type { Attachment } from "svelte/attachments";
   import { registerElement } from "../app/store.svelte";
   import "./Omnibox.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { acceptOmnibox, omniboxCandidate } from "../../shared/omnibox-action";
   import { resolveUrl } from "../../shared/url";
-  import { browser, completionOverlay, keys, layout, ui, vim, browse } from "./stores.svelte";
+  import {
+    browser,
+    completionOverlay,
+    downloads,
+    keys,
+    layout,
+    ui,
+    vim,
+    browse,
+  } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
   import { createCompletion, handleCompletionKey, type Candidate } from "../../shared/completion/completion.svelte";
 
@@ -14,7 +24,9 @@
   let input = $state<HTMLInputElement>();
   let draft = $state("");
   let focused = $state(false);
-  const anchor = createAnchor();
+
+  // The list lines up with the URL field when the field is drawn as a box of its own.
+  const anchor = createAnchor(".kv-omnibox__field");
 
   const grow = $derived(
     anchor.current === null ? "down" : completionGrow(region, anchor.current, window.innerHeight),
@@ -98,6 +110,8 @@
     return Math.round(100 * 1.2 ** level);
   });
 
+  const downloading = $derived(downloads.list.some((entry) => entry.status === "progressing"));
+
   function submit(event: SubmitEvent): void {
     event.preventDefault();
 
@@ -180,7 +194,7 @@
       onmousedown={keepSummoned}
       title={keys.title("Back", "nav.back")}
       disabled={!browser.active?.canGoBack}
-      onclick={() => browse.goBack()}>&lt;</button
+      onclick={() => browse.goBack()}><Icon role="back" glyph="<" /></button
     >
     <button
       class="kv-omnibox__button"
@@ -188,47 +202,71 @@
       onmousedown={keepSummoned}
       title={keys.title("Forward", "nav.forward")}
       disabled={!browser.active?.canGoForward}
-      onclick={() => browse.goForward()}>&gt;</button
+      onclick={() => browse.goForward()}><Icon role="forward" glyph=">" /></button
     >
     <button
       class="kv-omnibox__button"
       type="button"
       onmousedown={keepSummoned}
       title={keys.title("Reload", "nav.reload")}
-      onclick={() => browse.reload()}>r</button
+      onclick={() => browse.reload()}><Icon role="reload" glyph="r" /></button
     >
 
-    <span class="kv-omnibox__prompt">:</span>
-    <input
-      class="kv-omnibox__input"
-      bind:this={input}
-      {@attach focusable}
-      bind:value={draft}
-      spellcheck="false"
-      autocomplete="off"
-      placeholder="enter url or search"
-      {onfocus}
-      {onblur}
-      {onkeydown}
-    />
-    <button
-      class="kv-omnibox__bookmark"
-      class:is-bookmarked={browser.active?.bookmarked}
-      type="button"
-      onmousedown={keepSummoned}
-      title={keys.title(browser.active?.bookmarked ? "Remove bookmark" : "Bookmark this page", "bookmark.toggle")}
-      aria-label="Bookmark this page"
-      aria-pressed={browser.active?.bookmarked ?? false}
-      onclick={() => browse.runCommand("bookmark.toggle")}>*</button
-    >
-    <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title={keys.title("zoom", "zoom.in", "zoom.out", "zoom.reset")}>{zoom}%</span>
+    <div class="kv-omnibox__field">
+      <span class="kv-omnibox__prompt"><Icon role="search" glyph=":" /></span>
+      <input
+        class="kv-omnibox__input"
+        bind:this={input}
+        {@attach focusable}
+        bind:value={draft}
+        spellcheck="false"
+        autocomplete="off"
+        placeholder="enter url or search"
+        {onfocus}
+        {onblur}
+        {onkeydown}
+      />
+      <button
+        class="kv-omnibox__bookmark"
+        class:is-bookmarked={browser.active?.bookmarked}
+        type="button"
+        onmousedown={keepSummoned}
+        title={keys.title(browser.active?.bookmarked ? "Remove bookmark" : "Bookmark this page", "bookmark.toggle")}
+        aria-label="Bookmark this page"
+        aria-pressed={browser.active?.bookmarked ?? false}
+        onclick={() => browse.runCommand("bookmark.toggle")}
+        >{#if browser.active?.bookmarked}<Icon role="bookmarked" glyph="*" />{:else}<Icon
+            role="bookmark"
+            glyph="*"
+          />{/if}</button
+      >
+      <span class="kv-omnibox__zoom" class:is-default={zoom === 100} title={keys.title("zoom", "zoom.in", "zoom.out", "zoom.reset")}>{zoom}%</span>
+    </div>
+
+    <div class="kv-omnibox__actions">
+      <button
+        class="kv-omnibox__button"
+        class:is-busy={downloading}
+        type="button"
+        onmousedown={keepSummoned}
+        title={keys.title("Downloads", "downloads.toggle")}
+        onclick={() => browse.runCommand("downloads.toggle")}><Icon role="downloads" glyph="v" /></button
+      >
+      <button
+        class="kv-omnibox__button"
+        type="button"
+        onmousedown={keepSummoned}
+        title={keys.title("Bookmarks", "bookmarks.open")}
+        onclick={() => browse.runCommand("bookmarks.open")}><Icon role="bookmarks" glyph="b" /></button
+      >
+    </div>
 
     <button
-      class="kv-omnibox__button"
+      class="kv-omnibox__button kv-omnibox__devtools"
       type="button"
       onmousedown={keepSummoned}
       title={keys.title("DevTools", "app.devtools")}
-      onclick={() => browse.toggleDevTools()}>d</button
+      onclick={() => browse.toggleDevTools()}><Icon role="devtools" glyph="d" /></button
     >
   </form>
 {/if}

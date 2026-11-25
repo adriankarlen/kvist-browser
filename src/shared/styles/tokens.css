@@ -61,6 +61,20 @@
     --kv-focus-outline: none;
     --kv-disabled-opacity: 0.3;
 
+    /* "glyph" draws each icon as its text character; "image" draws the
+       --kv-icon-* picture instead (icons.css). */
+    --kv-icon-style: glyph;
+    --kv-icon-size: 16px;
+
+    /* How long hover and focus changes take to settle; 0s snaps. */
+    --kv-motion-duration: 0s;
+
+    /* Icon buttons (back, reload, new tab); auto sizes them to their glyph. */
+    --kv-control-button-size: auto;
+    --kv-control-button-radius: var(--kv-radius-control);
+    --kv-control-button-hover-bg: transparent;
+    --kv-control-button-padding: 0 0.5ch;
+
     /* Gap around and between the chrome panels; 0 sits everything flush. */
     --kv-chrome-inset: var(--kv-space);
 
@@ -73,6 +87,13 @@
 
     /* ---- parts --------------------------------------------------------- */
     --kv-chrome-bg: var(--kv-color-bg);
+
+    /* the page's frame: the tab is drawn inside it, with the same corners */
+    --kv-content-bg: var(--kv-panel-bg);
+    --kv-content-border: var(--kv-panel-border);
+    --kv-content-radius: var(--kv-panel-radius);
+    --kv-content-shadow: var(--kv-panel-shadow);
+    --kv-content-padding: var(--kv-panel-padding);
 
     /* the framed box every chrome region is built from */
     --kv-panel-bg: var(--kv-color-bg);
@@ -91,7 +112,16 @@
     --kv-panel-label-padding: 0 0.5ch;
     --kv-panel-label-max-width: 50ch;
 
+    --kv-tabstrip-bg: var(--kv-panel-bg);
+    --kv-tabstrip-border: var(--kv-panel-border);
+    --kv-tabstrip-radius: var(--kv-panel-radius);
+    --kv-tabstrip-shadow: var(--kv-panel-shadow);
+    --kv-tabstrip-padding: var(--kv-panel-padding);
+    --kv-tabstrip-gap: 0;
+    --kv-tabstrip-new-padding: 0 1.5ch;
+
     --kv-tab-fg: var(--kv-color-fg-faint);
+    --kv-tab-padding: 0 1ch;
     --kv-tab-bg: transparent;
     --kv-tab-radius: var(--kv-radius-control);
     --kv-tab-shadow: none;
@@ -104,7 +134,19 @@
     --kv-tab-hover-bg: var(--kv-color-bg-raised);
     --kv-tab-hover-fg: var(--kv-color-accent);
     --kv-tab-hover-close: var(--kv-color-danger);
+    /* 0 shows the close button only while the tab is hovered or focused. */
+    --kv-tab-close-opacity: 1;
+    --kv-tab-close-hover-opacity: 1;
+    --kv-tab-loading-animation: none;
     --kv-tabstrip-edge-bg: var(--kv-border-color);
+
+    /* Window buttons at the tab strip's outer end; "none" leaves them out.
+       macOS draws its own, in a gap this wide. */
+    --kv-window-controls-display: none;
+    --kv-window-controls-native-width: 72px;
+    --kv-window-controls-hover-bg: var(--kv-control-button-hover-bg);
+    --kv-window-controls-close-hover-bg: var(--kv-color-danger);
+    --kv-window-controls-close-hover-fg: var(--kv-color-on-accent);
 
     --kv-mode-fg: var(--kv-color-on-accent);
     --kv-mode-bg: var(--kv-color-accent);
@@ -188,6 +230,27 @@
     --kv-menu-item-height: var(--kv-control-height);
     --kv-menu-padding: var(--kv-space-sm);
 
+    --kv-omnibox-bg: var(--kv-panel-bg);
+    --kv-omnibox-border: var(--kv-panel-border);
+    --kv-omnibox-radius: var(--kv-panel-radius);
+    --kv-omnibox-shadow: var(--kv-panel-shadow);
+    --kv-omnibox-padding: var(--kv-panel-padding);
+    /* The URL field: prompt, input, bookmark and zoom. "contents" leaves them
+       loose in the bar; "flex" draws them as one box. */
+    --kv-omnibox-field-display: contents;
+    --kv-omnibox-field-bg: transparent;
+    --kv-omnibox-field-border: none;
+    --kv-omnibox-field-radius: 0;
+    --kv-omnibox-field-padding: 0;
+    --kv-omnibox-field-height: auto;
+    --kv-omnibox-field-focus-bg: var(--kv-omnibox-field-bg);
+    --kv-omnibox-field-focus-shadow: none;
+    /* Downloads and bookmarks buttons after the field. */
+    --kv-omnibox-actions-display: none;
+    --kv-omnibox-busy-fg: var(--kv-color-accent);
+    --kv-omnibox-devtools-display: inline-flex;
+    /* The zoom level at 100%; "none" shows it only when zoomed. */
+    --kv-omnibox-zoom-default-display: block;
     --kv-omnibox-fg: var(--kv-color-fg);
     --kv-omnibox-prompt-fg: var(--kv-color-accent);
     --kv-omnibox-placeholder-fg: var(--kv-color-fg-faint);
@@ -197,6 +260,25 @@
     --kv-omnibox-zoom-default-fg: var(--kv-color-fg-faint);
     --kv-omnibox-bookmark-fg: var(--kv-color-fg-faint);
     --kv-omnibox-bookmark-active-fg: var(--kv-color-accent);
+
+    /* "dashboard" is the framed clock, links and scratchpad; "start" is a
+       centred clock, search field and link tiles. */
+    --kv-newtab-style: dashboard;
+    --kv-newtab-glow: transparent;
+    --kv-newtab-greeting-fg: var(--kv-color-fg-dim);
+    --kv-newtab-clock-fg: var(--kv-color-fg);
+    --kv-newtab-search-bg: var(--kv-color-bg-raised);
+    --kv-newtab-search-border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
+    --kv-newtab-search-radius: var(--kv-radius);
+    --kv-newtab-search-shadow: var(--kv-shadow-raised);
+    --kv-newtab-search-focus-border-color: var(--kv-color-accent);
+    --kv-newtab-search-focus-shadow: var(--kv-shadow-raised);
+    --kv-newtab-tile-bg: transparent;
+    --kv-newtab-tile-hover-bg: var(--kv-color-bg-selected);
+    --kv-newtab-tile-radius: var(--kv-radius);
+    --kv-newtab-tile-mark-bg: var(--kv-color-bg-raised);
+    --kv-newtab-tile-mark-fg: var(--kv-color-accent);
+    --kv-newtab-tile-mark-radius: var(--kv-radius-control);
 
     /* the command palette, a floating omnibox ([layout.omnibox] region = "floating") */
     --kv-palette-width: 80ch;

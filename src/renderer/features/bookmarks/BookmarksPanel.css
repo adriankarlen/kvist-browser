@@ -71,6 +71,7 @@
   }
 
   .kv-bookmarks__delete {
+    display: inline-flex;
     flex: none;
     color: var(--kv-bookmarks-delete-fg);
   }

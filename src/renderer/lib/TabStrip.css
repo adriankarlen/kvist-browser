@@ -3,6 +3,16 @@
     display: flex;
   }
 
+  /* Its own frame, so pill tabs can sit straight on the chrome. */
+  .kv-panel.kv-tabstrip {
+    gap: var(--kv-tabstrip-gap);
+    padding: var(--kv-tabstrip-padding);
+    background: var(--kv-tabstrip-bg);
+    border: var(--kv-tabstrip-border);
+    border-radius: var(--kv-tabstrip-radius);
+    box-shadow: var(--kv-tabstrip-shadow);
+  }
+
   .kv-tabstrip.is-horizontal {
     flex-direction: row;
     align-items: stretch;
@@ -18,12 +28,16 @@
     gap: var(--kv-gap);
     min-width: 0;
     height: var(--kv-tabstrip-height);
-    padding: 0 1ch;
+    padding: var(--kv-tab-padding);
     color: var(--kv-tab-fg);
     background: var(--kv-tab-bg);
     border-radius: var(--kv-tab-radius);
     box-shadow: var(--kv-tab-shadow);
     font-weight: var(--kv-tab-weight);
+    transition:
+      background-color var(--kv-motion-duration),
+      color var(--kv-motion-duration),
+      box-shadow var(--kv-motion-duration);
   }
 
   .kv-tab:hover {
@@ -54,7 +68,18 @@
   }
 
   .kv-tab__marker {
+    display: inline-flex;
     color: var(--kv-tab-marker-fg);
+  }
+
+  .kv-tab__marker.is-loading > .kv-icon {
+    animation: var(--kv-tab-loading-animation);
+  }
+
+  @keyframes kv-spin {
+    to {
+      rotate: 1turn;
+    }
   }
 
   .kv-tab__favicon {
@@ -69,12 +94,24 @@
     white-space: nowrap;
   }
 
+  .kv-tab__close {
+    display: inline-flex;
+    opacity: var(--kv-tab-close-opacity);
+    transition: opacity var(--kv-motion-duration);
+  }
+
+  .kv-tab:hover .kv-tab__close,
+  .kv-tab:focus-within .kv-tab__close {
+    opacity: var(--kv-tab-close-hover-opacity);
+  }
+
   .kv-tab__close:hover {
     color: var(--kv-tab-hover-close);
   }
 
   .kv-tabstrip__new:hover {
     color: var(--kv-tab-hover-fg);
+    background: var(--kv-control-button-hover-bg);
   }
 
   .kv-tabstrip__new {
@@ -82,10 +119,15 @@
     color: var(--kv-tab-fg);
     align-items: center;
     justify-content: center;
+    border-radius: var(--kv-control-button-radius);
+    transition:
+      background-color var(--kv-motion-duration),
+      color var(--kv-motion-duration);
   }
 
   .kv-tabstrip.is-horizontal .kv-tabstrip__new {
-    padding: 0 1.5ch;
+    width: var(--kv-control-button-size);
+    padding: var(--kv-tabstrip-new-padding);
     height: var(--kv-tabstrip-height);
   }
 
