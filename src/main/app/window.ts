@@ -756,8 +756,8 @@ export function createWindow(saved: SessionState | null): void {
           Dispatch: (message) =>
             Effect.sync(() =>
               ChromeIntent.match(message, {
-                ContentRectMeasured: ({ rect }) =>
-                  mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect })),
+                ContentRectMeasured: ({ rect, radius }) =>
+                  mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect, radius })),
                 ChromeBackgroundMeasured: ({ color }) => win.setBackgroundColor(color),
                 TabRequested: ({ url }) => tabs.create(url),
                 TabCloseRequested: ({ id }) =>

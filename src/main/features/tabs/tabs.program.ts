@@ -33,6 +33,7 @@ export interface Model {
   readonly editable: ReadonlyMap<TabId, boolean>;
   readonly finds: ReadonlyMap<TabId, FindResult | null>;
   readonly contentRect: Rect;
+  readonly contentRadius: number;
   readonly windowRect: Rect;
   readonly windowFullscreen: boolean;
   /** The tab whose own HTML fullscreen request is honored, if any. */
@@ -54,6 +55,7 @@ export const init: Model = {
   editable: new Map(),
   finds: new Map(),
   contentRect: NOWHERE,
+  contentRadius: 0,
   windowRect: NOWHERE,
   windowFullscreen: false,
   fullscreenId: null,
@@ -91,7 +93,7 @@ export const Msg = Schema.TaggedUnion({
   TabFullscreenRequested: { id: TabId, entering: Schema.Boolean },
   /** Escape while a page is fullscreen: what every other browser does. */
   FullscreenLeaveRequested: {},
-  ContentRectMeasured: { rect: Rect },
+  ContentRectMeasured: { rect: Rect, radius: Schema.Number },
   WindowResized: { rect: Rect },
   WindowFullscreenChanged: { fullscreen: Schema.Boolean },
   TabsConfigured: { homepage: Schema.String, focusPage: Schema.Boolean },
@@ -334,7 +336,8 @@ export function update(msg: Msg, model: Model): Result {
         model,
         model.fullscreenId === null ? [] : [C.SetWindowFullscreen.make({ fullscreen: false })],
       ),
-    ContentRectMeasured: ({ rect }) => next({ ...model, contentRect: rect }),
+    ContentRectMeasured: ({ rect, radius }) =>
+      next({ ...model, contentRect: rect, contentRadius: radius }),
     WindowResized: ({ rect }) => next({ ...model, windowRect: rect }),
     // However fullscreen ended (the page, Escape, the window manager), this is where it resets.
     WindowFullscreenChanged: ({ fullscreen: on }) =>
@@ -347,15 +350,21 @@ export function update(msg: Msg, model: Model): Result {
 export interface Layout {
   readonly visible: TabId | null;
   readonly bounds: Rect;
+  /** Corner rounding; a fullscreen page fills the window edge to edge, square. */
+  readonly radius: number;
 }
 
-export const layout = (model: Model): Layout => ({
-  visible: model.activeId,
-  bounds:
-    model.fullscreenId !== null && model.fullscreenId === model.activeId
+export function layout(model: Model): Layout {
+  const fullscreen = model.fullscreenId !== null && model.fullscreenId === model.activeId;
+
+  return {
+    visible: model.activeId,
+    bounds: fullscreen
       ? { x: 0, y: 0, width: model.windowRect.width, height: model.windowRect.height }
       : model.contentRect,
-});
+    radius: fullscreen ? 0 : model.contentRadius,
+  };
+}
 
 /** What the tab strip renders. */
 export const strip = (model: Model): BrowserState => ({

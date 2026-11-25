@@ -41,7 +41,8 @@ export type ChromeEvent = typeof ChromeEvent.Type;
 
 /** What the chrome asks of main. */
 export const ChromeIntent = Schema.TaggedUnion({
-  ContentRectMeasured: { rect: Rect },
+  /** `radius` rounds the page's corners, so it fits a rounded frame. */
+  ContentRectMeasured: { rect: Rect, radius: Schema.Number },
   /** What the chrome painted, so a resize shows the theme's colour before the next frame. */
   ChromeBackgroundMeasured: { color: HexColor },
   /** A typed `:` line; it ends in normal mode. */

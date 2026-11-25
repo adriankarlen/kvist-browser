@@ -38,7 +38,7 @@ const content = { x: 0, y: 40, width: 800, height: 560 };
 const windowRect = { x: 0, y: 0, width: 800, height: 600 };
 
 const ready = run([
-  M.ContentRectMeasured.make({ rect: content }),
+  M.ContentRectMeasured.make({ rect: content, radius: 11 }),
   M.WindowResized.make({ rect: windowRect }),
 ]).model;
 
@@ -255,6 +255,14 @@ describe("HTML fullscreen", () => {
 
     expect(claimed.cmds).toEqual([C.SetWindowFullscreen.make({ fullscreen: true })]);
     expect(layout(claimed.model).bounds).toEqual(windowRect);
+  });
+
+  test("a fullscreen page is square; the content frame's rounding comes back after", () => {
+    const claimed = run([claim(1)], one).model;
+
+    expect(layout(one).radius).toBe(11);
+    expect(layout(claimed).radius).toBe(0);
+    expect(layout(run([M.TabActivated.make({ id: 2 })], claimed).model).radius).toBe(11);
   });
 
   test("a background tab's claim is refused and told to give its state up", () => {

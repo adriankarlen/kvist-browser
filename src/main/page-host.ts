@@ -54,4 +54,5 @@ export interface PageHost {
   webContents: PageContents;
   setVisible(visible: boolean): void;
   setBounds(bounds: { x: number; y: number; width: number; height: number }): void;
+  setBorderRadius(radius: number): void;
 }

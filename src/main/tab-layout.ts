@@ -2,7 +2,7 @@ import type { TabId } from "../shared/schema/browser";
 import type { Layout } from "./features/tabs/tabs.program";
 import type { Tab } from "./tab";
 
-export type Placeable = Pick<Tab, "setVisible" | "setBounds">;
+export type Placeable = Pick<Tab, "setVisible" | "setBounds" | "setBorderRadius">;
 
 /**
  * The layout last applied to the page views. A new tab's layout and view
@@ -19,10 +19,16 @@ export class TabLayout {
 
     tab.setVisible(visible);
 
-    if (visible) tab.setBounds(applied.bounds);
+    if (!visible) return;
+    tab.setBounds(applied.bounds);
+    tab.setBorderRadius(applied.radius);
   }
 
-  /** Applies a new layout, touching only what changed. */
+  /**
+   * Applies a new layout, touching only what changed. A hidden tab keeps a
+   * radius that may be stale, so the radius is set again whenever a tab is
+   * shown.
+   */
   reconcile(layout: Layout, tabs: ReadonlyMap<TabId, Placeable>): void {
     const previous = this.#applied;
 
@@ -32,7 +38,13 @@ export class TabLayout {
       if (previous === null || (id === previous.visible) !== visible) tab.setVisible(visible);
     }
 
-    if (layout.visible !== null) tabs.get(layout.visible)?.setBounds(layout.bounds);
+    const shown = layout.visible === null ? undefined : tabs.get(layout.visible);
+
+    shown?.setBounds(layout.bounds);
+
+    if (previous?.visible !== layout.visible || previous.radius !== layout.radius)
+      shown?.setBorderRadius(layout.radius);
+
     this.#applied = layout;
   }
 }

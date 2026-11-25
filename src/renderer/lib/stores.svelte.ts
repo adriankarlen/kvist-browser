@@ -238,7 +238,9 @@ export function afterLayoutChange(report: () => void): void {
 
 /**
  * Keeps main told where page content goes: the content box, not the border
- * box, because the tab's native layer would cover a border.
+ * box, because the tab's native layer would cover a border. The page's
+ * corners follow the frame's inner curve, which is the radius less the
+ * border and padding.
  */
 export const contentRect = (node: HTMLElement) => {
   const report = (): void => {
@@ -254,12 +256,19 @@ export const contentRect = (node: HTMLElement) => {
       height: Math.round(node.clientHeight - padTop - parseFloat(style.paddingBottom)),
     };
 
-    ask(I.ContentRectMeasured.make({ rect }));
+    const inset = Math.max(node.clientLeft + padLeft, node.clientTop + padTop);
+    const outer = parseFloat(style.borderTopLeftRadius) || 0;
+    const radius = Math.max(0, Math.round(outer - inset));
+
+    ask(I.ContentRectMeasured.make({ rect, radius }));
   };
 
   const observer = new ResizeObserver(report);
+  // A stylesheet can change the frame's corners without resizing it.
+  const styles = new MutationObserver(report);
 
   observer.observe(node);
+  styles.observe(document.head, { childList: true, subtree: true, characterData: true });
   window.addEventListener("resize", report);
 
   afterLayoutChange(report);
@@ -267,6 +276,7 @@ export const contentRect = (node: HTMLElement) => {
   return {
     destroy() {
       observer.disconnect();
+      styles.disconnect();
       window.removeEventListener("resize", report);
     },
   };
