@@ -262,7 +262,10 @@ const COMMANDS = {
     keys: { vim: { normal: ["P"] } },
   },
 
-  "style.open": { run: (a) => a.style.open, description: "Open config.css in an editor" },
+  "style.open": {
+    run: (a) => a.style.open,
+    description: "Open the style files that apply to this page",
+  },
 
   "recipe.use": {
     run: (a) => a.recipe.use,
