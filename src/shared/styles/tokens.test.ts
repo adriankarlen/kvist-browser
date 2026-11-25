@@ -85,6 +85,32 @@ test("built-in recipes set only tokens tokens.css declares, and the colour schem
   expect(found).toEqual([]);
 });
 
+const textOf = (path: string): string =>
+  stylesheets.find((sheet) => sheet.path === path)?.text ?? "";
+
+/** Each declaration in the file, last one winning, with whitespace collapsed. */
+const declared = (path: string): Map<string, string> =>
+  new Map(
+    declarations(textOf(path)).map(([property, value]) => [property, value.replace(/\s+/g, " ")]),
+  );
+
+const TUI = `${RECIPES}tui.css`;
+
+test("the tui recipe resolves to today's look", () => {
+  const effective = new Map([...declared(TOKENS), ...declared(TUI)]);
+
+  expect(Object.fromEntries(effective)).toMatchSnapshot();
+});
+
+test("the tui recipe picks a value for every palette role", () => {
+  const isPalette = (property: string): boolean => property.startsWith("--kv-color-");
+  const pinned = new Set(declared(TUI).keys());
+
+  expect(
+    [...declared(TOKENS).keys()].filter(isPalette).filter((role) => !pinned.has(role)),
+  ).toEqual([]);
+});
+
 test("stylesheets outside tokens.css carry no colour literals", () => {
   const found = outsideTokens.flatMap(({ path, text }) =>
     declarations(text)

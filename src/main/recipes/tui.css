@@ -1,1 +1,71 @@
-/* The default recipe. tokens.css is already the TUI look, so this adds nothing yet (KVI-64). */
+/*
+ * Repeats the look tokens.css ships, so the base can change without
+ * restyling this recipe. The snapshot in tokens.test.ts holds the two together.
+ */
+:root {
+  color-scheme: dark;
+
+  --kv-color-bg: light-dark(#faf4ed, #191724);
+  --kv-color-bg-raised: light-dark(#fffaf3, #1f1d2e);
+  --kv-color-bg-selected: light-dark(#f2e9e1, #26233a);
+  --kv-color-bg-track: light-dark(#dfdad9, #403d52);
+
+  --kv-color-fg: light-dark(#575279, #e0def4);
+  --kv-color-fg-dim: light-dark(#797593, #908caa);
+  --kv-color-fg-faint: light-dark(#9893a5, #6e6a86);
+
+  --kv-color-accent: light-dark(#907aa9, #c4a7e7);
+  --kv-color-accent-alt: light-dark(#56949f, #9ccfd8);
+  --kv-color-warning: light-dark(#ea9d34, #f6c177);
+  --kv-color-danger: light-dark(#b4637a, #eb6f92);
+
+  --kv-color-border: light-dark(#cecacd, #26233a);
+  --kv-color-on-accent: #191724;
+  --kv-color-shadow: light-dark(rgb(87 82 121 / 25%), rgb(0 0 0 / 50%));
+  --kv-color-glint: light-dark(rgb(255 255 255 / 80%), rgb(255 255 255 / 6%));
+
+  --kv-font-family: "JetBrainsMono Nerd Font", monospace;
+  --kv-font-size: 14px;
+  --kv-font-weight: 400;
+  --kv-font-weight-strong: 600;
+
+  --kv-density: 1;
+  --kv-control-height: calc(28px * var(--kv-density));
+
+  --kv-space: 8px;
+  --kv-space-sm: 4px;
+  --kv-gap: 1ch;
+
+  --kv-border-width: 2px;
+  --kv-border-style: solid;
+  --kv-border-color: var(--kv-color-border);
+  --kv-separator-width: 1px;
+
+  --kv-radius: 0;
+  --kv-radius-control: 0;
+
+  --kv-shadow-raised: none;
+  --kv-shadow-pressed: none;
+  --kv-shadow-inset: none;
+  --kv-shadow-overlay: 0 8px 32px var(--kv-color-shadow);
+
+  --kv-focus-outline: none;
+  --kv-disabled-opacity: 0.3;
+
+  --kv-chrome-inset: var(--kv-space);
+
+  --kv-tabstrip-height: var(--kv-control-height);
+  --kv-sidebar-width: 26ch;
+  --kv-omnibox-height: var(--kv-control-height);
+  --kv-tab-width: 22ch;
+  --kv-tabstrip-edge-size: 4px;
+
+  --kv-panel-label-bg: var(--kv-chrome-bg);
+  --kv-panel-label-fg: var(--kv-color-fg-dim);
+  --kv-panel-label-display: block;
+  --kv-panel-label-size: var(--kv-font-size);
+  --kv-panel-label-horizontal-offset: 2ch;
+  --kv-panel-label-vertical-offset: -60%;
+  --kv-panel-label-padding: 0 0.5ch;
+  --kv-panel-label-max-width: 50ch;
+}
