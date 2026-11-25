@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./PromptLine.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { buttonLabels, describePrompt } from "./prompts.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
   import { prompts, vim } from "./stores.svelte";
@@ -29,7 +30,7 @@
     role="alertdialog"
     tabindex="-1"
   >
-    <span class="kv-line__prompt">?</span>
+    <span class="kv-line__prompt"><Icon role="question" glyph="?" /></span>
     <span class="kv-prompt__text">{describePrompt(prompt)}</span>
     {#if vim.enabled}
       <span class="kv-prompt__hint">y/n</span>

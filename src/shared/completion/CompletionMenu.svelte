@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import "./CompletionMenu.css";
-  import { kindBadge, kindBadgeStyle } from "./badge";
+  import Icon from "../icons/Icon.svelte";
+  import { kindBadge, kindBadgeStyle, kindIcon } from "./badge";
   import type { CompletionCandidate, CompletionGrow } from "../schema/completion";
 
   let {
@@ -49,7 +50,11 @@
         data-index={row}
         onclick={() => onaccept(candidate)}
       >
-        <span class="kv-completion__badge" style={kindBadgeStyle(candidate)}>{kindBadge(candidate)}</span>
+        <span class="kv-completion__badge" style={kindBadgeStyle(candidate)}
+          ><Icon image={kindIcon(candidate)} glyph={kindBadge(candidate)} />{#if candidate.kind}<span
+              class="kv-completion__kind">{candidate.kind}</span
+            >{/if}</span
+        >
         <span class="kv-completion__label">{candidate.label}</span>
         {#if candidate.hint}
           <span class="kv-completion__hint">{candidate.hint}</span>

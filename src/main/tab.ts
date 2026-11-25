@@ -229,6 +229,10 @@ export class Tab {
     if (!this.#closed) this.#host.setBounds(rect);
   }
 
+  setBorderRadius(radius: number): void {
+    if (!this.#closed) this.#host.setBorderRadius(radius);
+  }
+
   /**
    * Tells the page to give up HTML fullscreen it took but was not agreed
    * to. Otherwise the page's fullscreen state sticks: the view never grows,

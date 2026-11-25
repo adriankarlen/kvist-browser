@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Attachment } from "svelte/attachments";
   import "./BookmarksPanel.css";
+  import Icon from "../../../shared/icons/Icon.svelte";
   import { elementDirection, type Region } from "../../../shared/layout";
   import { bookmarks } from "../../lib/stores.svelte";
 
@@ -86,7 +87,7 @@
     data-label="bookmarks"
   >
     <div class="kv-line kv-bookmarks__filter">
-      <span class="kv-line__prompt">&gt;</span>
+      <span class="kv-line__prompt"><Icon role="filter" glyph=">" /></span>
       <input
         class="kv-line__input"
         {@attach fresh}
@@ -124,7 +125,7 @@
             onmousedown={keepFocus}
             onclick={() => bookmarks.remove(row.id)}
           >
-            x
+            <Icon role="delete" glyph="x" />
           </button>
         </li>
       {:else}

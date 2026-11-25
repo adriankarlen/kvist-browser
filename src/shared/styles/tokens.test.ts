@@ -34,6 +34,7 @@ const scripts = (await read("src/**/*.ts")).filter(({ path }) => !path.endsWith(
 test("the inventory found the stylesheets it checks", () => {
   expect(stylesheets.map(({ path }) => path)).toContain(TOKENS);
   expect(stylesheets.map(({ path }) => path)).toContain(`${RECIPES}tui.css`);
+  expect(stylesheets.map(({ path }) => path)).toContain(`${RECIPES}modern.css`);
   expect(components.length).toBeGreaterThan(0);
 });
 
@@ -88,23 +89,37 @@ test("built-in recipes set only tokens tokens.css declares, and the colour schem
 const textOf = (path: string): string =>
   stylesheets.find((sheet) => sheet.path === path)?.text ?? "";
 
-/** Each declaration in the file, last one winning, with whitespace collapsed. */
+/** A file's text without its `@media` blocks: what applies with no media condition met. */
+const unconditional = (text: string): string =>
+  text.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+
+/** Each unconditional declaration in the file, last one winning, with whitespace collapsed. */
 const declared = (path: string): Map<string, string> =>
   new Map(
-    declarations(textOf(path)).map(([property, value]) => [property, value.replace(/\s+/g, " ")]),
+    declarations(unconditional(textOf(path))).map(([property, value]) => [
+      property,
+      value.replace(/\s+/g, " "),
+    ]),
   );
 
 const TUI = `${RECIPES}tui.css`;
+const MODERN = `${RECIPES}modern.css`;
+
+/** The tokens.css declarations with the recipe's laid over them. */
+const effective = (recipe: string): Record<string, string> =>
+  Object.fromEntries(new Map([...declared(TOKENS), ...declared(recipe)]));
 
 test("the tui recipe resolves to today's look", () => {
-  const effective = new Map([...declared(TOKENS), ...declared(TUI)]);
-
-  expect(Object.fromEntries(effective)).toMatchSnapshot();
+  expect(effective(TUI)).toMatchSnapshot();
 });
 
-test("the tui recipe picks a value for every palette role", () => {
+test("the modern recipe resolves to the look it was reviewed with", () => {
+  expect(effective(MODERN)).toMatchSnapshot();
+});
+
+test.each([TUI, MODERN])("%s picks a value for every palette role", (recipe) => {
   const isPalette = (property: string): boolean => property.startsWith("--kv-color-");
-  const pinned = new Set(declared(TUI).keys());
+  const pinned = new Set(declared(recipe).keys());
 
   expect(
     [...declared(TOKENS).keys()].filter(isPalette).filter((role) => !pinned.has(role)),

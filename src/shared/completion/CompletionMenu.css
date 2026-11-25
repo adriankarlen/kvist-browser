@@ -11,6 +11,7 @@
   .kv-completion {
     display: flex;
     flex-direction: column;
+    gap: var(--kv-completion-row-gap);
     margin: 0;
     padding: var(--kv-space-sm) 0;
     list-style: none;
@@ -35,24 +36,38 @@
     display: flex;
     align-items: center;
     gap: var(--kv-gap);
-    padding: 0 2ch;
+    padding: var(--kv-completion-row-padding);
+    min-height: var(--kv-completion-row-min-height);
     border-radius: var(--kv-completion-item-radius);
     cursor: default;
     user-select: none;
   }
 
   .kv-completion__item.is-active {
-    background: var(--kv-completion-hover-bg);
-    color: var(--kv-completion-hover-fg);
+    background: var(--kv-completion-active-bg);
+    color: var(--kv-completion-active-fg);
   }
 
   .kv-completion__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex: none;
     width: var(--kv-completion-badge-width);
     text-align: center;
     text-transform: lowercase;
     font-weight: var(--kv-completion-badge-weight);
     border-radius: var(--kv-completion-badge-radius);
+  }
+
+  /* The kind as text for screen readers; the badge itself is decorative. */
+  .kv-completion__kind {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .kv-completion__label {

@@ -9,6 +9,7 @@ import * as Prompts from "../features/prompts/prompts.program";
 import * as Setup from "../features/setup/setup.program";
 import * as Tabs from "../features/tabs/tabs.program";
 import * as Vim from "../features/vim/vim.program";
+import * as Window from "../features/window/window.program";
 
 /** The whole of main's state. Each feature owns one slice and writes only that. */
 export interface Model {
@@ -22,6 +23,7 @@ export interface Model {
   readonly setup: Setup.Model;
   readonly tabs: Tabs.Model;
   readonly vim: Vim.Model;
+  readonly window: Window.Model;
 }
 
 export type Msg =
@@ -34,7 +36,8 @@ export type Msg =
   | Prompts.Msg
   | Setup.Msg
   | Tabs.Msg
-  | Vim.Msg;
+  | Vim.Msg
+  | Window.Msg;
 
 export type Cmd =
   | Config.Cmd
@@ -60,6 +63,7 @@ export const program: Program<Model, Msg, Cmd> = {
     setup: Setup.init,
     tabs: Tabs.init,
     vim: Vim.init,
+    window: Window.init,
   }),
   update: combine<Model, Msg, Cmd>([
     route("completion", Completion.Msg, Completion.update),
@@ -72,5 +76,6 @@ export const program: Program<Model, Msg, Cmd> = {
     route("setup", Setup.Msg, Setup.update),
     route("tabs", Tabs.Msg, Tabs.update),
     route("vim", Vim.Msg, Vim.update),
+    route("window", Window.Msg, Window.update),
   ]),
 };

@@ -222,6 +222,40 @@ rendered by `src/setup/`, with its own preload and `SetupRpcs`.
 - Choices and steps live in the wizard's document. Main checks what it is
   sent (`choicesProblem`) and does not trust the view.
 
+## Icons
+
+Every icon is a token, so a recipe can draw text or pictures.
+`<Icon role="close" glyph="x" />` (`src/shared/icons/Icon.svelte`) renders
+the glyph as text. Under `--kv-icon-style: image` it hides the text and paints
+the `--kv-icon-<role>` picture as a mask in `currentColor`.
+
+- **The switch is a style query**, `@container style(--kv-icon-style: image)`.
+  It reads the parent, so a subtree can switch on its own.
+- **The pictures are generated.** `src/shared/icons/roles.ts` maps a role to
+  a Lucide name, and `pnpm icons` writes `src/shared/styles/icons.css` from
+  `lucide-static`. A test fails when the two drift. `lucide-static` is pinned
+  to an exact version, so an upgrade is a reviewed change to `icons.css`.
+- **The data URIs are URL-encoded, not base64**, and escape `;` and braces.
+  The token tests split declarations on them.
+- **A new control with an icon needs both a role and a glyph.** TUI shows the
+  glyph, and every built-in recipe must look right under both styles.
+- Local pages get no component CSS, so `public/newtab/style.css` carries its
+  own `.kv-icon` rule.
+
+## Window buttons
+
+macOS keeps its frame (`titleBarStyle: "hidden"`) so the native traffic
+lights exist; they start hidden. Elsewhere the window is frameless and the
+chrome draws buttons. `WindowControls.svelte` sits in the tab strip and
+reports its slot as `WindowControlsMeasured`; a slot that CSS hides measures
+empty and reports null. Main derives `trafficLights` in
+`features/window` and reconciles them. A press is a direct window call in the
+chrome's `Dispatch`, like `ChromeBackgroundMeasured`, so `LegacyWindow` does
+not grow.
+
+The slot that mounted last owns the report. Moving the tab strip mounts the
+new slot before the old one is destroyed, and the old one's null must not win.
+
 ## In-page vim
 
 Hints live in the preload, mode stays in main. Hint labels are inline-styled
@@ -370,6 +404,9 @@ right now, not a resumed backlog item. Revisit as a fresh initiative later.
   build puts it in a chunk that loads before each document's own CSS, and a
   bare `@layer kvist.components` there would make components the lowest
   layer. See `src/shared/completion/CompletionMenu.css`.
+- **A test that says "Vitest failed to find the current suite"** after a
+  dependency change is reading a stale transform. Delete
+  `node_modules/.vitest-cache`.
 - **Kernel dispatch is synchronous and re-entrant.** A Cmd starts on the
   same tick as the Msg that produced it, so an interpreter that dispatches
   synchronously queues its Msg behind the current one. Reading the model

@@ -57,6 +57,20 @@ export const BrowserState = Schema.Struct({
 export type BrowserState = typeof BrowserState.Type;
 
 /** Where a find has got to, as `found-in-page` reports it. */
+/** What the chrome needs to draw the window's own buttons. */
+export const WindowState = Schema.Struct({
+  /** `process.platform`: macOS draws its own buttons, everything else gets the chrome's. */
+  platform: Schema.String,
+  maximized: Schema.Boolean,
+  fullscreen: Schema.Boolean,
+});
+
+export type WindowState = typeof WindowState.Type;
+
+export const WindowControl = Schema.Literals(["minimize", "maximize", "close"]);
+
+export type WindowControl = typeof WindowControl.Type;
+
 export const FindResult = Schema.Struct({
   query: Schema.String,
   matches: Schema.Int,

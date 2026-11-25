@@ -329,8 +329,8 @@ goes back. Going back keeps your choices.
 Finish writes a `config.toml` holding the recipe and only the choices that
 differ from it, so a later `:recipe` still changes the rest. Density goes in
 `config.css` as `--kv-density`, and only when that file does not exist yet.
-Skip writes the default recipe alone. Neither ever replaces a file that is
-already there.
+Skip writes the `modern` recipe alone, so someone who has never used vim gets
+the usual browser keys. Neither ever replaces a file that is already there.
 
 The wizard only appears when there is no `config.toml` and no Kvist data
 yet, so an upgrade never shows it.
@@ -555,10 +555,52 @@ scheme.
 | Radius          | `--kv-radius` (panels, menus), `--kv-radius-control` (tabs, rows, badges, bars)         |
 | Shadow          | `--kv-shadow-raised`, `--kv-shadow-pressed`, `--kv-shadow-inset`, `--kv-shadow-overlay` |
 | Focus and state | `--kv-focus-outline`, `--kv-disabled-opacity`                                           |
+| Icons           | `--kv-icon-style`, `--kv-icon-size`                                                     |
+| Motion          | `--kv-motion-duration`                                                                  |
 
 Shadows next to the page only show inside `--kv-chrome-inset`, because the
 page is drawn above the chrome. The completion list does not show a shadow
 yet.
+
+The page's corners follow `--kv-content-radius`, less the frame's border and
+padding, so a rounded frame gets a rounded page. A page in full screen is
+square.
+
+#### Icons
+
+Every icon is a token. `--kv-icon-style: glyph` draws each one as a text
+character, as `tui` does. `--kv-icon-style: image` draws the picture in its
+`--kv-icon-<role>` token instead, as `modern` does. The pictures that ship are
+[Lucide](https://lucide.dev) icons (ISC licence), in
+[`src/shared/styles/icons.css`](src/shared/styles/icons.css).
+
+Swap one icon by setting its token to any CSS image:
+
+```css
+:root {
+  --kv-icon-close: url("data:image/svg+xml,…");
+  --kv-icon-size: 18px;
+}
+```
+
+The icon takes the colour of the text around it. The roles are listed in
+[`src/shared/icons/roles.ts`](src/shared/icons/roles.ts).
+
+#### Window buttons
+
+`--kv-window-controls-display: flex` puts the window's own buttons at the
+outer end of the tab strip. On macOS these are the native traffic lights, in
+a gap `--kv-window-controls-native-width` wide. On Linux and Windows Kvist
+draws minimize, maximize and close buttons. `none`, the default under `tui`,
+leaves them out. With the tab strip hidden or tucked away there are no
+buttons.
+
+#### New tab page
+
+`--kv-newtab-style` picks the new tab page's layout. `dashboard` is the framed
+clock, quick links and scratchpad. `start` is a large clock, a search field
+and the quick links as tiles. The search field uses your `search` engine, as
+the URL bar does.
 
 #### Renamed tokens
 
@@ -586,13 +628,22 @@ whole borders (`2px solid …`). Set the colour alone with
 
 A recipe is a starting point: a look, plus defaults for input and layout.
 Pick one with `recipe = "<name>"` in `config.toml`, or switch live with
-`:recipe <name>`. `tui` is built in and is the default.
+`:recipe <name>`. Two are built in: `modern` and `tui`.
+
+`modern` is what a new install gets when you skip the setup wizard. It is
+for people who come from a usual browser, or from Arc. It uses the usual
+browser keys (vim is off), with tabs and the URL bar on top. Tabs are rounded
+pills, the URL bar is a field of its own with buttons for downloads and
+bookmarks, and the page sits in a rounded frame. Icons are Lucide line
+icons, the font is your system font, and the palette is violet-tinted. It
+follows your OS between light and dark; set `color-scheme` in `config.css`
+to pin one. On macOS the traffic lights sit in the tab strip.
 
 `tui` gives Kvist its TUI look: Rosé Pine (dark, or Rosé Pine Dawn with
 `color-scheme: light`), a monospace font, and framed panels with labels in
 their borders. It uses vim keys, with the tabs and the URL bar on top. A
 `config.toml` with no `recipe` line gets `tui`, so an upgrade looks and
-behaves as before.
+behaves as before, and so does an unknown recipe name.
 
 A recipe is a pair of files in `~/.config/kvist/recipes/`. A user recipe
 with the same name as a built-in one replaces it.

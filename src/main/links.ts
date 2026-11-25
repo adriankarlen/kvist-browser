@@ -9,6 +9,7 @@ import type {
   Message,
   Mode,
   ScrollCommand,
+  WindowState,
 } from "../shared/schema/browser";
 import type {
   CompletionCandidate,
@@ -43,6 +44,7 @@ export interface ChromeSenders {
   completionAccept(candidate: CompletionCandidate): void;
   bookmarksOpen(): void;
   bookmarksChanged(): void;
+  windowState(window: WindowState): void;
 }
 
 export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
@@ -54,6 +56,7 @@ export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
     "DownloadsChanged",
     "MessageChanged",
     "PromptChanged",
+    "WindowStateChanged",
   ]);
 
   const event = ChromeEvent.cases;
@@ -73,6 +76,7 @@ export function chromeLink(): Link<ChromeEvent, ChromeSenders> {
       completionAccept: (candidate) => events.publish(event.CompletionPicked.make({ candidate })),
       bookmarksOpen: () => events.publish(event.BookmarksOpenRequested.make({})),
       bookmarksChanged: () => events.publish(event.BookmarksChanged.make({})),
+      windowState: (window) => events.publish(event.WindowStateChanged.make({ window })),
     },
   };
 }

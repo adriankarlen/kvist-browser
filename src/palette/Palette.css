@@ -17,7 +17,9 @@
     flex-direction: column;
     gap: var(--kv-space);
     width: min(var(--kv-layout-size, var(--kv-palette-width)), 100%);
+    gap: var(--kv-palette-gap);
     max-height: 100%;
+    padding: var(--kv-palette-padding);
     background: var(--kv-palette-bg);
     border: var(--kv-palette-border);
     border-radius: var(--kv-palette-radius);
@@ -26,9 +28,11 @@
   }
 
   .kv-palette__input {
-    min-height: var(--kv-omnibox-height);
-    background: none;
-    border: none;
+    min-height: var(--kv-palette-input-height);
+    padding: var(--kv-palette-input-padding);
+    background: var(--kv-palette-input-bg);
+    border: var(--kv-palette-input-border);
+    border-radius: var(--kv-palette-input-radius);
     outline: none;
     font: inherit;
     color: var(--kv-palette-fg);

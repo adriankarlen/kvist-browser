@@ -1,6 +1,7 @@
 import { initClock } from "./widgets/clock.js";
 import { initLinks } from "./widgets/links.js";
 import { initScratchpad } from "./widgets/scratchpad.js";
+import { initSearch } from "./widgets/search.js";
 
 /** Scale the fixed-size dashboard to fit the window. */
 function initScaling() {
@@ -24,3 +25,5 @@ void initClock();
 void initLinks();
 
 initScratchpad();
+
+initSearch();

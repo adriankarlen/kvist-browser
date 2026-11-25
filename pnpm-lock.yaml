@@ -54,6 +54,9 @@ importers:
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@7.2.0)
+      lucide-static:
+        specifier: 1.79.0
+        version: 1.79.0
       svelte:
         specifier: ^5.57.1
         version: 5.57.1
@@ -1738,6 +1741,9 @@ packages:
   lru-cache@6.0.0:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
+
+  lucide-static@1.79.0:
+    resolution: {integrity: sha512-1Oq9qzywx2Sa16LRGju97VvqSMBxq2R9GtBWYW4sfX+qpNJRLNLJq2wWvA4NODfdgknHOJBkqhjxpFRlvXehLg==}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -3854,6 +3860,8 @@ snapshots:
   lru-cache@6.0.0:
     dependencies:
       yallist: 4.0.0
+
+  lucide-static@1.79.0: {}
 
   lz-string@1.5.0: {}
 

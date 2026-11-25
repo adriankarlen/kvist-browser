@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./CommandLine.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { completionGrow, elementDirection, type Region } from "../../shared/layout";
   import { completionOverlay, layout, vim, browse } from "./stores.svelte";
   import { createAnchor } from "./anchor.svelte";
@@ -101,7 +102,7 @@
   onsubmit={submit}
   use:anchor.element
 >
-  <span class="kv-line__prompt">:</span>
+  <span class="kv-line__prompt"><Icon role="command" glyph=":" /></span>
   <input
     class="kv-line__input"
     bind:this={input}

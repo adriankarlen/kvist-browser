@@ -8,9 +8,57 @@
     position: relative;
   }
 
+  .kv-panel.kv-omnibox {
+    padding: var(--kv-omnibox-padding);
+    background: var(--kv-omnibox-bg);
+    border: var(--kv-omnibox-border);
+    border-radius: var(--kv-omnibox-radius);
+    box-shadow: var(--kv-omnibox-shadow);
+  }
+
+  .kv-omnibox__field {
+    display: var(--kv-omnibox-field-display);
+    flex: 1;
+    align-items: center;
+    gap: var(--kv-gap);
+    min-width: 0;
+    height: var(--kv-omnibox-field-height);
+    padding: var(--kv-omnibox-field-padding);
+    background: var(--kv-omnibox-field-bg);
+    border: var(--kv-omnibox-field-border);
+    border-radius: var(--kv-omnibox-field-radius);
+    transition:
+      background-color var(--kv-motion-duration),
+      box-shadow var(--kv-motion-duration);
+  }
+
+  .kv-omnibox__field:focus-within {
+    background: var(--kv-omnibox-field-focus-bg);
+    box-shadow: var(--kv-omnibox-field-focus-shadow);
+  }
+
+  .kv-omnibox__actions {
+    display: var(--kv-omnibox-actions-display);
+    align-items: center;
+    gap: var(--kv-gap);
+  }
+
   .kv-omnibox__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--kv-control-button-size);
+    height: var(--kv-control-button-size);
     color: var(--kv-omnibox-button-fg);
-    padding: 0 0.5ch;
+    padding: var(--kv-control-button-padding);
+    border-radius: var(--kv-control-button-radius);
+    transition:
+      background-color var(--kv-motion-duration),
+      color var(--kv-motion-duration);
+  }
+
+  .kv-omnibox__devtools {
+    display: var(--kv-omnibox-devtools-display);
   }
 
   .kv-omnibox__button:disabled {
@@ -20,9 +68,15 @@
 
   .kv-omnibox__button:not(:disabled):hover {
     color: var(--kv-omnibox-button-hover-fg);
+    background: var(--kv-control-button-hover-bg);
+  }
+
+  .kv-omnibox__button.is-busy {
+    color: var(--kv-omnibox-busy-fg);
   }
 
   .kv-omnibox__prompt {
+    display: inline-flex;
     color: var(--kv-omnibox-prompt-fg);
   }
 
@@ -41,9 +95,10 @@
   }
 
   .kv-omnibox__bookmark {
+    display: inline-flex;
     flex: none;
     color: var(--kv-omnibox-bookmark-fg);
-    padding: 0 0.5ch;
+    padding: var(--kv-control-button-padding);
   }
 
   .kv-omnibox__bookmark.is-bookmarked {
@@ -66,6 +121,7 @@
   }
 
   .kv-omnibox__zoom.is-default {
+    display: var(--kv-omnibox-zoom-default-display);
     color: var(--kv-omnibox-zoom-default-fg);
   }
 }

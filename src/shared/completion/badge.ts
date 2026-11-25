@@ -21,13 +21,24 @@ const KIND_TOKEN_PATTERN = /^[a-z0-9-]+$/i;
  * `--kv-completion-kind-<kind>-fg`, or without a kind at all, the default
  * badge colour applies — every row keeps its tinted square.
  */
+const safeKind = (candidate: Pick<CompletionCandidate, "kind">): string | undefined =>
+  candidate.kind && KIND_TOKEN_PATTERN.test(candidate.kind) ? candidate.kind : undefined;
+
 export function kindBadgeStyle(candidate: Pick<CompletionCandidate, "kind">): string {
-  const kind =
-    candidate.kind && KIND_TOKEN_PATTERN.test(candidate.kind) ? candidate.kind : undefined;
+  const kind = safeKind(candidate);
 
   const fg = kind
     ? `var(--kv-completion-kind-${kind}-fg, var(--kv-completion-badge-fg))`
     : "var(--kv-completion-badge-fg)";
 
   return `color: ${fg}; background: color-mix(in srgb, ${fg} var(--kv-completion-badge-tint), var(--kv-completion-bg))`;
+}
+
+/** The badge picture for a candidate's kind, or the default one for a kind without its own. */
+export function kindIcon(candidate: Pick<CompletionCandidate, "kind">): string {
+  const kind = safeKind(candidate);
+
+  return kind
+    ? `var(--kv-icon-kind-${kind}, var(--kv-icon-kind-default))`
+    : "var(--kv-icon-kind-default)";
 }

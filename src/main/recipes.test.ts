@@ -44,6 +44,43 @@ describe("the built-in tui recipe", () => {
   });
 });
 
+test("modern ships with the app, and is what a skipped first run gets", () => {
+  expect(BUILT_IN.has("modern")).toBe(true);
+});
+
+describe("the built-in modern recipe", () => {
+  const { base, meta, problems } = parseRecipe("modern", BUILT_IN.get("modern")?.toml);
+
+  test("parses cleanly, and names itself", () => {
+    expect(problems).toEqual([]);
+    expect(meta).toEqual({
+      name: "Modern",
+      description: "Clean and familiar: standard shortcuts, tabs and URL bar on top.",
+    });
+  });
+
+  test("uses standard keys, so no vim is needed", () => {
+    expect(base.inputMode).toBe("standard");
+    expect(base.keymap).toEqual(builtInKeymap("standard"));
+  });
+
+  test("puts tabs and the URL bar on top, and panels below", () => {
+    const regions = Object.fromEntries(
+      Object.entries(base.layout).map(([id, placement]) => [id, placement.region]),
+    );
+
+    expect(regions).toEqual({
+      tabs: "top",
+      omnibox: "top",
+      bookmarks: "bottom",
+      downloads: "bottom",
+      status: "bottom",
+      find: "bottom",
+      completion: "overlay",
+    });
+  });
+});
+
 describe("parseRecipe", () => {
   test("a recipe with no TOML is the defaults, under its own name", () => {
     expect(parseRecipe("plain", undefined)).toEqual({
@@ -164,11 +201,13 @@ describe("resolveRecipe", () => {
     expect(resolveRecipe("nope", ["mine"])).toEqual({
       name: "tui",
       origin: "builtin",
-      problems: [{ field: "recipe", reason: 'no recipe named "nope"; available: "mine", "tui"' }],
+      problems: [
+        { field: "recipe", reason: 'no recipe named "nope"; available: "mine", "modern", "tui"' },
+      ],
     });
   });
 
   test("the catalog names each recipe once", () => {
-    expect(recipeCatalog(["tui", "a"])).toEqual(["a", "tui"]);
+    expect(recipeCatalog(["tui", "a"])).toEqual(["a", "modern", "tui"]);
   });
 });

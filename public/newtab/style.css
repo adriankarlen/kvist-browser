@@ -1,169 +1,337 @@
-:root {
-  --gap: 20px;
-}
-
 /* Reset and theme tokens are served appended to this file — see
  * src/main/local-pages.ts. Only layout lives here. */
-body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  overflow: hidden;
-}
+@layer kvist.components {
+  :root {
+    --gap: 20px;
+  }
 
-#title {
-  color: var(--kv-color-fg);
-}
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
 
-#dashboard-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  gap: var(--gap);
-  width: 100vw;
-  height: 100vh;
-}
+  #title {
+    color: var(--kv-color-fg);
+  }
 
-#dashboard-container {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "clock scratch"
-    "links scratch";
-  gap: var(--gap);
-  width: 680px;
-  height: 500px;
-  transform-origin: center;
-}
+  #dashboard-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: var(--gap);
+    width: 100vw;
+    height: 100vh;
+  }
 
-/* ── boxes ───────────────────────────────────────────── */
+  #dashboard-container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "clock scratch"
+      "links scratch";
+    gap: var(--gap);
+    width: 680px;
+    height: 500px;
+    transform-origin: center;
+  }
 
-.box {
-  background-color: var(--kv-color-bg-raised);
-  border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
-  border-radius: var(--kv-radius);
-  box-shadow: var(--kv-shadow-raised);
-  padding: 15px;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: border-color 0.2s ease;
-}
+  /* ── boxes ───────────────────────────────────────────── */
 
-.box:hover,
-.box:focus-within {
-  border-color: var(--kv-color-accent);
-}
+  .box {
+    background-color: var(--kv-color-bg-raised);
+    border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
+    border-radius: var(--kv-radius);
+    box-shadow: var(--kv-shadow-raised);
+    padding: 15px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s ease;
+  }
 
-.clock-box {
-  grid-area: clock;
-}
+  .box:hover,
+  .box:focus-within {
+    border-color: var(--kv-color-accent);
+  }
 
-.links-box {
-  grid-area: links;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
+  .clock-box {
+    grid-area: clock;
+  }
 
-.links-box::-webkit-scrollbar {
-  display: none;
-}
+  .links-box {
+    grid-area: links;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
 
-.scratchpad-box {
-  grid-area: scratch;
-  min-height: 0;
-  overflow: hidden;
-}
+  .links-box::-webkit-scrollbar {
+    display: none;
+  }
 
-/* ── shared component styles ─────────────────────────── */
+  .scratchpad-box {
+    grid-area: scratch;
+    min-height: 0;
+    overflow: hidden;
+  }
 
-.header {
-  font-size: 11px;
-  font-weight: var(--kv-font-weight);
-  border-bottom: var(--kv-separator-width) var(--kv-border-style) var(--kv-color-border);
-  padding-bottom: 4px;
-  display: flex;
-  justify-content: space-between;
-  color: var(--kv-color-fg-faint);
-  margin-bottom: 10px;
-  flex-shrink: 0;
-}
+  /* ── shared component styles ─────────────────────────── */
 
-/* ── clock ───────────────────────────────────────────── */
+  .header {
+    font-size: 11px;
+    font-weight: var(--kv-font-weight);
+    border-bottom: var(--kv-separator-width) var(--kv-border-style) var(--kv-color-border);
+    padding-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--kv-color-fg-faint);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
 
-.clock-display {
-  font-size: 44px;
-  text-align: left;
-  margin: auto 0;
-  letter-spacing: 2px;
-  color: var(--kv-color-accent);
-}
+  /* ── clock ───────────────────────────────────────────── */
 
-/* ── quick links ─────────────────────────────────────── */
+  .clock-display {
+    font-size: 44px;
+    text-align: left;
+    margin: auto 0;
+    letter-spacing: 2px;
+    color: var(--kv-color-accent);
+  }
 
-.links-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 6px;
-  flex: 1;
-  min-height: 0;
-}
+  /* ── quick links ─────────────────────────────────────── */
 
-.link-item {
-  color: var(--kv-color-accent-alt);
-  text-decoration: none;
-  text-transform: uppercase;
-  font-size: 13px;
-  padding: 4px 5px;
-  transition:
-    background-color 0.2s,
-    color 0.2s,
-    padding-left 0.2s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  .links-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 6px;
+    flex: 1;
+    min-height: 0;
+  }
 
-.link-item:hover,
-.link-item:focus-visible {
-  background-color: var(--kv-color-bg-selected);
-}
+  .link-item {
+    color: var(--kv-color-accent-alt);
+    text-decoration: none;
+    text-transform: uppercase;
+    font-size: 13px;
+    padding: 4px 5px;
+    transition:
+      background-color 0.2s,
+      color 0.2s,
+      padding-left 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-.link-item:active {
-  background-color: var(--kv-color-accent);
-  color: var(--kv-color-on-accent);
-}
+  .link-item:hover,
+  .link-item:focus-visible {
+    background-color: var(--kv-color-bg-selected);
+  }
 
-/* ── scratchpad ──────────────────────────────────────── */
+  .link-item:active {
+    background-color: var(--kv-color-accent);
+    color: var(--kv-color-on-accent);
+  }
 
-#scratchpad-area {
-  flex: 1;
-  background: transparent;
-  border: none;
-  color: var(--kv-color-fg-faint);
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: none;
-  outline: none;
-  padding: 4px 0;
-  scrollbar-width: none;
-  min-height: 0;
-}
+  /* ── scratchpad ──────────────────────────────────────── */
 
-#scratchpad-area::placeholder {
-  color: var(--kv-color-fg-faint);
-}
+  #scratchpad-area {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--kv-color-fg-faint);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    padding: 4px 0;
+    scrollbar-width: none;
+    min-height: 0;
+  }
 
-#scratchpad-area::-webkit-scrollbar {
-  display: none;
-}
+  #scratchpad-area::placeholder {
+    color: var(--kv-color-fg-faint);
+  }
 
-#scratchpad-area:focus {
-  color: var(--kv-color-fg);
+  #scratchpad-area::-webkit-scrollbar {
+    display: none;
+  }
+
+  #scratchpad-area:focus {
+    color: var(--kv-color-fg);
+  }
+
+  /* ── start: a clock, a search field and link tiles ───── */
+
+  /* Off unless the theme asks for it; the dashboard above is the default. */
+  #start {
+    display: none;
+  }
+
+  /* Local pages get no component styles, so the icon is drawn here. */
+  .kv-icon {
+    display: inline-block;
+    flex: none;
+    inline-size: var(--kv-icon-size);
+    block-size: var(--kv-icon-size);
+    background-color: currentColor;
+    mask: var(--kv-icon-image) center / contain no-repeat;
+  }
+
+  @container style(--kv-newtab-style: start) {
+    body {
+      background:
+        radial-gradient(60% 42% at 50% -6%, var(--kv-newtab-glow), transparent 70%),
+        radial-gradient(46% 30% at 88% 106%, var(--kv-newtab-glow-alt), transparent 70%),
+        var(--kv-color-bg);
+    }
+
+    #dashboard-wrapper {
+      display: none;
+    }
+
+    #start {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(620px, 88vw);
+      max-height: 90vh;
+      margin-bottom: 12vh;
+    }
+
+    #start-greeting {
+      color: var(--kv-newtab-greeting-fg);
+      font-size: 16px;
+    }
+
+    #start-clock {
+      margin: 4px 0 6px;
+      color: var(--kv-newtab-clock-fg);
+      font-size: var(--kv-newtab-clock-size);
+      font-weight: var(--kv-newtab-clock-weight);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    #start-date {
+      margin-bottom: 36px;
+      color: var(--kv-newtab-date-fg);
+      font-size: 14px;
+    }
+
+    #start-search {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      height: 52px;
+      padding: 0 22px;
+      color: var(--kv-newtab-search-icon-fg);
+      --kv-icon-size: 18px;
+      background: var(--kv-newtab-search-bg);
+      border: var(--kv-newtab-search-border);
+      border-radius: var(--kv-newtab-search-radius);
+      box-shadow: var(--kv-newtab-search-shadow);
+      transition:
+        border-color var(--kv-motion-duration),
+        box-shadow var(--kv-motion-duration);
+    }
+
+    #start-search:focus-within {
+      border-color: var(--kv-newtab-search-focus-border-color);
+      box-shadow: var(--kv-newtab-search-focus-shadow);
+    }
+
+    #start-query {
+      flex: 1;
+      min-width: 0;
+      appearance: none;
+      color: var(--kv-newtab-query-fg);
+      font: inherit;
+      font-size: 15px;
+      background: none;
+      border: none;
+      outline: none;
+    }
+
+    #start-query::placeholder {
+      color: var(--kv-newtab-placeholder-fg);
+    }
+
+    #start-query::-webkit-search-cancel-button {
+      display: none;
+    }
+
+    #start-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      min-height: 0;
+      margin-top: 32px;
+      overflow-y: auto;
+    }
+
+    /* The fallback hue; the tile's own link names its own. */
+    .start-tile {
+      --kv-newtab-tile-h: 270;
+    }
+
+    .start-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 96px;
+      padding: 14px 6px;
+      color: var(--kv-newtab-tile-fg);
+      font-size: 12px;
+      text-decoration: none;
+      background: var(--kv-newtab-tile-bg);
+      border-radius: var(--kv-newtab-tile-radius);
+      transition:
+        background-color var(--kv-motion-duration),
+        color var(--kv-motion-duration);
+    }
+
+    .start-tile:hover,
+    .start-tile:focus-visible {
+      color: var(--kv-newtab-tile-hover-fg);
+      background: var(--kv-newtab-tile-hover-bg);
+    }
+
+    .start-tile:hover .start-tile__mark,
+    .start-tile:focus-visible .start-tile__mark {
+      background: var(--kv-newtab-tile-mark-hover-bg);
+    }
+
+    .start-tile__mark {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      color: var(--kv-newtab-tile-mark-fg);
+      font-size: 20px;
+      font-weight: var(--kv-font-weight-strong);
+      background: var(--kv-newtab-tile-mark-bg);
+      border-radius: var(--kv-newtab-tile-mark-radius);
+      transition: background-color var(--kv-motion-duration);
+    }
+
+    .start-tile__name {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
 }

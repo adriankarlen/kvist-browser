@@ -9,6 +9,30 @@
   </head>
 
   <body>
+    <!-- Two layouts; --kv-newtab-style in the theme picks one. -->
+    <main id="start" aria-label="Start">
+      <p id="start-greeting"></p>
+      <div id="start-clock" aria-live="off">00:00</div>
+      <p id="start-date"></p>
+      <form id="start-search" role="search">
+        <span
+          class="kv-icon"
+          style="--kv-icon-image: var(--kv-icon-search)"
+          aria-hidden="true"
+        ></span>
+        <input
+          id="start-query"
+          name="q"
+          type="search"
+          placeholder="Search or enter address"
+          aria-label="Search or enter address"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </form>
+      <nav id="start-links" aria-label="Quick links"></nav>
+    </main>
+
     <div id="dashboard-wrapper">
       <h1 id="title">kvist://newtab/</h1>
       <div id="dashboard-container">

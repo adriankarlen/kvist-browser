@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import { ChromeIntent } from "../../shared/rpc/chrome";
-import type { Rect, TabId } from "../../shared/schema/browser";
+import type { Rect, TabId, WindowControl } from "../../shared/schema/browser";
 import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
 import { app, claimCompletion, queries } from "../app/store.svelte";
 import { Msg as BookmarksMsg } from "../features/bookmarks/bookmarks.program";
@@ -187,6 +187,84 @@ export const browse = {
   commandCompletions: queries.commandCompletions,
 };
 
+/**
+ * The slot that last mounted owns the report. When the tab strip moves, the
+ * new slot can mount before the old one is destroyed, and the old one's
+ * "gone" must not land after the new one's rect.
+ */
+let slotOwner: symbol | null = null;
+let reportedSlot = "";
+
+function sendSlot(rect: Rect | null): void {
+  const key = JSON.stringify(rect);
+
+  if (key === reportedSlot) return;
+  reportedSlot = key;
+  ask(I.WindowControlsMeasured.make({ rect }));
+}
+
+/** The window's own buttons, which sit at the tab strip's outer end. */
+export const windowControls = {
+  /** False until main has said which platform this is. */
+  get known() {
+    return app.model.main.window.platform !== "";
+  },
+  /** macOS draws its own; the chrome only keeps room for them. */
+  get native() {
+    return app.model.main.window.platform === "darwin";
+  },
+  get maximized() {
+    return app.model.main.window.maximized;
+  },
+  get fullscreen() {
+    return app.model.main.window.fullscreen;
+  },
+  press: (control: WindowControl) => ask(I.WindowControlPressed.make({ control })),
+  /**
+   * Keeps main told where the buttons' slot is. A slot that CSS hides, or
+   * one that leaves the page, is no slot, so macOS hides its buttons too.
+   */
+  slot: (node: HTMLElement) => {
+    const id = Symbol("window-controls");
+
+    slotOwner = id;
+
+    const report = (): void => {
+      if (slotOwner !== id) return;
+      const box = node.getBoundingClientRect();
+      const shown = box.width > 0 && box.height > 0;
+
+      sendSlot(shown ? { x: box.x, y: box.y, width: box.width, height: box.height } : null);
+    };
+
+    const observer = new ResizeObserver(report);
+    const styles = new MutationObserver(report);
+
+    observer.observe(node);
+
+    // Something above the slot in its region can appear or grow, moving it
+    // without resizing it. The region resizes when that happens.
+    const region = node.closest(".kv-region");
+
+    if (region !== null) observer.observe(region);
+    styles.observe(document.head, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("resize", report);
+    afterLayoutChange(report);
+
+    return {
+      destroy() {
+        observer.disconnect();
+        styles.disconnect();
+        window.removeEventListener("resize", report);
+
+        if (slotOwner !== id) return;
+        slotOwner = null;
+        sendSlot(null);
+      },
+    };
+  },
+};
+
 export interface CompletionOverlayClient {
   show(state: CompletionOverlayState): void;
   hide(): void;
@@ -238,7 +316,9 @@ export function afterLayoutChange(report: () => void): void {
 
 /**
  * Keeps main told where page content goes: the content box, not the border
- * box, because the tab's native layer would cover a border.
+ * box, because the tab's native layer would cover a border. The page's
+ * corners follow the frame's inner curve, which is the radius less the
+ * border and padding.
  */
 export const contentRect = (node: HTMLElement) => {
   const report = (): void => {
@@ -254,12 +334,19 @@ export const contentRect = (node: HTMLElement) => {
       height: Math.round(node.clientHeight - padTop - parseFloat(style.paddingBottom)),
     };
 
-    ask(I.ContentRectMeasured.make({ rect }));
+    const inset = Math.max(node.clientLeft + padLeft, node.clientTop + padTop);
+    const outer = parseFloat(style.borderTopLeftRadius) || 0;
+    const radius = Math.max(0, Math.round(outer - inset));
+
+    ask(I.ContentRectMeasured.make({ rect, radius }));
   };
 
   const observer = new ResizeObserver(report);
+  // A stylesheet can change the frame's corners without resizing it.
+  const styles = new MutationObserver(report);
 
   observer.observe(node);
+  styles.observe(document.head, { childList: true, subtree: true, characterData: true });
   window.addEventListener("resize", report);
 
   afterLayoutChange(report);
@@ -267,6 +354,7 @@ export const contentRect = (node: HTMLElement) => {
   return {
     destroy() {
       observer.disconnect();
+      styles.disconnect();
       window.removeEventListener("resize", report);
     },
   };

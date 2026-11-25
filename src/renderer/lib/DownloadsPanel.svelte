@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./DownloadsPanel.css";
+  import Icon from "../../shared/icons/Icon.svelte";
   import { formatBytes } from "../../shared/bytes";
   import type { DownloadState } from "../../shared/schema/downloads";
   import { formatEta, formatRate, percent } from "../../shared/progress";
@@ -56,7 +57,9 @@
           class:is-done={entry.status === "completed"}
           class:is-failed={failed(entry)}
         >
-          <span class="kv-downloads__marker">{MARKERS[entry.status]}</span>
+          <span class="kv-downloads__marker"
+            ><Icon role={`download-${entry.status}` as const} glyph={MARKERS[entry.status]} /></span
+          >
           <span class="kv-downloads__name" title={entry.url}>{entry.filename}</span>
 
           <!-- Only a transfer that is going anywhere gets the progress columns;
@@ -85,7 +88,7 @@
               title="Cancel download"
               onclick={() => downloads.cancel(entry.id)}
             >
-              x
+              <Icon role="close" glyph="x" />
             </button>
           {:else if failed(entry)}
             <span class="kv-downloads__status">{entry.status}</span>

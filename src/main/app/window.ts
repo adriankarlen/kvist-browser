@@ -14,7 +14,7 @@ import { omniboxSuggestions } from "../omnibox";
 import { bookmarkRows } from "../bookmark-rows";
 import { BookmarksRepo } from "../services/bookmarks-repo";
 import { SessionRepo, type SessionState } from "../services/session-repo";
-import type { TabId } from "../../shared/schema/browser";
+import type { TabId, WindowControl } from "../../shared/schema/browser";
 import { completeCommand, createCommands, modeAfter } from "../commands";
 import { Msg as DownloadsMsg } from "../features/downloads/downloads.program";
 import { project, projectThrottled } from "./store";
@@ -63,6 +63,7 @@ import { PaletteIntent, PaletteRpcs } from "../../shared/rpc/palette";
 import { PaletteOverlay, type PaletteSenders } from "../palette-overlay";
 import { Msg as ConfigMsg } from "../features/config/config.program";
 import { Msg as PaletteMsg } from "../features/palette/palette.program";
+import { Msg as WindowMsg, trafficLights } from "../features/window/window.program";
 import { acceptOmnibox } from "../../shared/omnibox-action";
 import { resolveUrl } from "../../shared/url";
 import { isPalette } from "../../shared/layout";
@@ -140,7 +141,9 @@ export function createWindow(saved: SessionState | null): void {
     height: saved?.height ?? 800,
     x: saved?.x ?? undefined,
     y: saved?.y ?? undefined,
-    frame: false,
+    // macOS keeps its frame for the native traffic lights, hidden until the
+    // chrome makes room for them. Elsewhere the chrome draws its own buttons.
+    ...(process.platform === "darwin" ? { titleBarStyle: "hidden" as const } : { frame: false }),
     // The default theme's --kv-color-bg, shown until the chrome reports what it painted.
     backgroundColor: "#191724",
     icon: iconPath,
@@ -148,6 +151,8 @@ export function createWindow(saved: SessionState | null): void {
   });
 
   const { events: chromeEvents, send: chrome } = chromeLink();
+
+  if (process.platform === "darwin") win.setWindowButtonVisibility(false);
 
   const views = new ViewStack(win.contentView);
 
@@ -243,6 +248,27 @@ export function createWindow(saved: SessionState | null): void {
           (model) => layout(model.tabs),
           (next) => tabViews.reconcile(next),
         ),
+        project(
+          (model) => ({
+            platform: process.platform,
+            maximized: model.window.maximized,
+            fullscreen: model.tabs.windowFullscreen,
+          }),
+          (state) => chrome.windowState(state),
+        ),
+        ...(process.platform === "darwin"
+          ? [
+              project(
+                (model) => trafficLights(model.window, model.tabs.windowFullscreen),
+                (lights) => {
+                  if (win.isDestroyed()) return;
+                  win.setWindowButtonVisibility(lights.visible);
+
+                  if (lights.position !== null) win.setWindowButtonPosition(lights.position);
+                },
+              ),
+            ]
+          : []),
       ],
       { concurrency: "unbounded", discard: true },
     ),
@@ -629,6 +655,19 @@ export function createWindow(saved: SessionState | null): void {
     );
   });
 
+  const maximizedChanged = (maximized: boolean) => () =>
+    mainStore().dispatch(WindowMsg.cases.WindowMaximizedChanged.make({ maximized }));
+
+  win.on("maximize", maximizedChanged(true));
+  win.on("unmaximize", maximizedChanged(false));
+
+  function pressWindowControl(control: WindowControl): void {
+    if (control === "minimize") win.minimize();
+    else if (control === "close") win.close();
+    else if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  }
+
   win.on("closed", () => {
     configFiber?.interruptUnsafe();
     tabManagers.delete(tabViews);
@@ -756,9 +795,12 @@ export function createWindow(saved: SessionState | null): void {
           Dispatch: (message) =>
             Effect.sync(() =>
               ChromeIntent.match(message, {
-                ContentRectMeasured: ({ rect }) =>
-                  mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect })),
+                ContentRectMeasured: ({ rect, radius }) =>
+                  mainStore().dispatch(TabsMsg.cases.ContentRectMeasured.make({ rect, radius })),
                 ChromeBackgroundMeasured: ({ color }) => win.setBackgroundColor(color),
+                WindowControlsMeasured: ({ rect }) =>
+                  mainStore().dispatch(WindowMsg.cases.WindowControlsMeasured.make({ rect })),
+                WindowControlPressed: ({ control }) => pressWindowControl(control),
                 TabRequested: ({ url }) => tabs.create(url),
                 TabCloseRequested: ({ id }) =>
                   mainStore().dispatch(TabsMsg.cases.TabCloseRequested.make({ id })),

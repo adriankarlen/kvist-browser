@@ -1,5 +1,5 @@
 import { expect, test } from "vite-plus/test";
-import { kindBadge, kindBadgeStyle } from "./badge";
+import { kindBadge, kindBadgeStyle, kindIcon } from "./badge";
 
 test("kindBadge is the kind's first letter, lowercased, or a neutral fallback", () => {
   expect(kindBadge({})).toBe("\u2022");
@@ -27,4 +27,12 @@ test("kindBadgeStyle rejects a kind that isn't a safe CSS token name", () => {
   // `kind` lands in a custom property *name*, where var()'s escaping does
   // nothing — this would otherwise close the declaration and inject CSS.
   expect(kindBadgeStyle({ kind: "x); background: url(http://evil" })).toBe(kindBadgeStyle({}));
+});
+
+test("kindIcon looks the picture up by kind name, falling back to the default", () => {
+  expect(kindIcon({ kind: "history" })).toBe(
+    "var(--kv-icon-kind-history, var(--kv-icon-kind-default))",
+  );
+  expect(kindIcon({})).toBe("var(--kv-icon-kind-default)");
+  expect(kindIcon({ kind: "x); background: url(http://evil" })).toBe(kindIcon({}));
 });

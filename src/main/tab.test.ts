@@ -112,6 +112,7 @@ function createHost() {
     },
     setVisible: () => {},
     setBounds: () => {},
+    setBorderRadius: () => {},
   } as unknown as PageHost;
 
   return {

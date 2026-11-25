@@ -1,0 +1,44 @@
+@layer kvist.components {
+  .kv-window-controls {
+    display: var(--kv-window-controls-display);
+    flex: none;
+    align-items: center;
+    gap: var(--kv-space-sm);
+    -webkit-app-region: no-drag;
+  }
+
+  /* Room for the native buttons; dragging it moves the window, as a title bar does. */
+  .kv-window-controls.is-native {
+    width: var(--kv-window-controls-native-width);
+    -webkit-app-region: drag;
+  }
+
+  .kv-tabstrip.is-vertical .kv-window-controls.is-native {
+    align-self: flex-start;
+    height: var(--kv-tabstrip-height);
+  }
+
+  .kv-window-controls__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--kv-control-button-size);
+    height: var(--kv-control-button-size);
+    padding: var(--kv-control-button-padding);
+    color: var(--kv-tab-fg);
+    border-radius: var(--kv-control-button-radius);
+    transition:
+      background-color var(--kv-motion-duration),
+      color var(--kv-motion-duration);
+  }
+
+  .kv-window-controls__button:hover {
+    color: var(--kv-tab-hover-fg);
+    background: var(--kv-window-controls-hover-bg);
+  }
+
+  .kv-window-controls__button.is-close:hover {
+    color: var(--kv-window-controls-close-hover-fg);
+    background: var(--kv-window-controls-close-hover-bg);
+  }
+}
