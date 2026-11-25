@@ -1,6 +1,12 @@
 import { Schema } from "effect";
 import { ChromeIntent } from "../../../shared/rpc/chrome";
-import { BrowserState, FindResult, Message, Mode } from "../../../shared/schema/browser";
+import {
+  BrowserState,
+  FindResult,
+  Message,
+  Mode,
+  WindowState,
+} from "../../../shared/schema/browser";
 import type { TabState } from "../../../shared/schema/browser";
 import { PromptWire } from "../../../shared/schema/prompts";
 import { next, type Next } from "../../../shared/tea/program";
@@ -14,6 +20,7 @@ export interface Model {
   readonly message: Message | null;
   readonly prompt: PromptWire | null;
   readonly findResult: FindResult | null;
+  readonly window: WindowState;
 }
 
 export const init: Model = {
@@ -22,6 +29,7 @@ export const init: Model = {
   message: null,
   prompt: null,
   findResult: null,
+  window: { platform: "", maximized: false, fullscreen: false },
 };
 
 export const Msg = Schema.TaggedUnion({
@@ -30,6 +38,7 @@ export const Msg = Schema.TaggedUnion({
   MessageChanged: { message: Schema.NullOr(Message) },
   PromptChanged: { prompt: Schema.NullOr(PromptWire) },
   FindResultChanged: { result: Schema.NullOr(FindResult) },
+  WindowStateChanged: { window: WindowState },
   /** The find line closed: stop now rather than wait for main to say so. */
   FindStopped: {},
   /** Clicking a prompt button, or outside the prompt. The id goes with it so a stale answer settles nothing. */
@@ -58,6 +67,7 @@ export function update(msg: Msg, model: Model): Next<Model, LayoutMsg, LinkCmd> 
     MessageChanged: ({ message }) => next({ ...model, message }),
     PromptChanged: ({ prompt }) => next({ ...model, prompt }),
     FindResultChanged: ({ result }) => next({ ...model, findResult: result }),
+    WindowStateChanged: ({ window }) => next({ ...model, window }),
     FindStopped: () => next({ ...model, findResult: null }, [send(I.FindStopped.make({}))]),
     PromptButtonClicked: ({ allow }) =>
       model.prompt === null

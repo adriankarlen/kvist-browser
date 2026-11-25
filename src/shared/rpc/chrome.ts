@@ -1,6 +1,15 @@
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/rpc";
-import { BrowserState, FindResult, Message, Mode, Rect, TabId } from "../schema/browser";
+import {
+  BrowserState,
+  FindResult,
+  Message,
+  Mode,
+  Rect,
+  TabId,
+  WindowControl,
+  WindowState,
+} from "../schema/browser";
 import {
   CompletionCandidate,
   CompletionOverlayState,
@@ -35,6 +44,7 @@ export const ChromeEvent = Schema.TaggedUnion({
   BookmarksOpenRequested: {},
   /** A bookmark was added or removed anywhere; an open panel asks for its rows again. */
   BookmarksChanged: {},
+  WindowStateChanged: { window: WindowState },
 });
 
 export type ChromeEvent = typeof ChromeEvent.Type;
@@ -65,6 +75,9 @@ export const ChromeIntent = Schema.TaggedUnion({
   PromptAnswered: { id: Schema.Int, allow: Schema.Boolean },
   /** What the completion overlay should show, or null to close it. */
   CompletionOverlayChanged: { state: Schema.NullOr(CompletionOverlayState) },
+  /** The slot kept for the window's buttons, or null when the chrome shows none. */
+  WindowControlsMeasured: { rect: Schema.NullOr(Rect) },
+  WindowControlPressed: { control: WindowControl },
 });
 
 export type ChromeIntent = typeof ChromeIntent.Type;

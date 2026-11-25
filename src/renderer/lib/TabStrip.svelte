@@ -2,7 +2,8 @@
   import type { Attachment } from "svelte/attachments";
   import "./TabStrip.css";
   import Icon from "../../shared/icons/Icon.svelte";
-  import { browser, browse, keys, layout } from "./stores.svelte";
+  import WindowControls from "./WindowControls.svelte";
+  import { browser, browse, keys, layout, windowControls } from "./stores.svelte";
   import { elementDirection, type Region } from "../../shared/layout";
 
   let { region }: { region: Region } = $props();
@@ -55,6 +56,9 @@
     {onfocusout}
     {@attach takeFocus}
   >
+    {#if windowControls.native}
+      <WindowControls />
+    {/if}
     {#each browser.tabs as tab (tab.id)}
       <div class="kv-tab" class:is-active={tab.id === browser.activeId}>
         <button class="kv-tab__label" onclick={() => browse.activateTab(tab.id)}>
@@ -81,6 +85,9 @@
       <Icon role="new-tab" glyph="+" />
     </button>
     <div class="kv-tabstrip__drag"></div>
+    {#if !windowControls.native}
+      <WindowControls />
+    {/if}
   </nav>
 {:else if layout.tabStrip === "tucked"}
   <button

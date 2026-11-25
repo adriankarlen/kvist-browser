@@ -1,6 +1,6 @@
 import { untrack } from "svelte";
 import { ChromeIntent } from "../../shared/rpc/chrome";
-import type { Rect, TabId } from "../../shared/schema/browser";
+import type { Rect, TabId, WindowControl } from "../../shared/schema/browser";
 import type { CompletionCandidate, CompletionOverlayState } from "../../shared/schema/completion";
 import { app, claimCompletion, queries } from "../app/store.svelte";
 import { Msg as BookmarksMsg } from "../features/bookmarks/bookmarks.program";
@@ -185,6 +185,78 @@ export const browse = {
   activateTab: (id: TabId) => ask(I.TabActivated.make({ id })),
   omniboxSuggestions: queries.omniboxSuggestions,
   commandCompletions: queries.commandCompletions,
+};
+
+/**
+ * The slot that last mounted owns the report. When the tab strip moves, the
+ * new slot can mount before the old one is destroyed, and the old one's
+ * "gone" must not land after the new one's rect.
+ */
+let slotOwner: symbol | null = null;
+let reportedSlot = "";
+
+function sendSlot(rect: Rect | null): void {
+  const key = JSON.stringify(rect);
+
+  if (key === reportedSlot) return;
+  reportedSlot = key;
+  ask(I.WindowControlsMeasured.make({ rect }));
+}
+
+/** The window's own buttons, which sit at the tab strip's outer end. */
+export const windowControls = {
+  /** False until main has said which platform this is. */
+  get known() {
+    return app.model.main.window.platform !== "";
+  },
+  /** macOS draws its own; the chrome only keeps room for them. */
+  get native() {
+    return app.model.main.window.platform === "darwin";
+  },
+  get maximized() {
+    return app.model.main.window.maximized;
+  },
+  get fullscreen() {
+    return app.model.main.window.fullscreen;
+  },
+  press: (control: WindowControl) => ask(I.WindowControlPressed.make({ control })),
+  /**
+   * Keeps main told where the buttons' slot is. A slot that CSS hides, or
+   * one that leaves the page, is no slot, so macOS hides its buttons too.
+   */
+  slot: (node: HTMLElement) => {
+    const id = Symbol("window-controls");
+
+    slotOwner = id;
+
+    const report = (): void => {
+      if (slotOwner !== id) return;
+      const box = node.getBoundingClientRect();
+      const shown = box.width > 0 && box.height > 0;
+
+      sendSlot(shown ? { x: box.x, y: box.y, width: box.width, height: box.height } : null);
+    };
+
+    const observer = new ResizeObserver(report);
+    const styles = new MutationObserver(report);
+
+    observer.observe(node);
+    styles.observe(document.head, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("resize", report);
+    afterLayoutChange(report);
+
+    return {
+      destroy() {
+        observer.disconnect();
+        styles.disconnect();
+        window.removeEventListener("resize", report);
+
+        if (slotOwner !== id) return;
+        slotOwner = null;
+        sendSlot(null);
+      },
+    };
+  },
 };
 
 export interface CompletionOverlayClient {
