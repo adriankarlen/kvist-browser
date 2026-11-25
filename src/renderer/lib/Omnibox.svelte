@@ -156,10 +156,12 @@
     // leave a summoned bar up with nothing to dismiss it.
     layout.omniboxDismissed();
 
-    // The window going to the background also blurs the input. Dropping to
-    // normal there would pull focus onto the page behind the user's back, so
-    // only treat a blur as leaving the omnibox while the chrome still has it.
-    if (document.hasFocus()) vim.toNormal();
+    // The window going to the background also blurs the input, and so does
+    // another chrome input taking focus. Dropping to normal in either case
+    // would pull focus onto the page from under the user.
+    const typing = to instanceof HTMLInputElement || to instanceof HTMLTextAreaElement;
+
+    if (document.hasFocus() && !typing) vim.toNormal();
   }
 
   // A button click blurs the input first, which would dismiss a summoned bar
