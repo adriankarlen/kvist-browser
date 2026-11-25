@@ -51,7 +51,9 @@
         onclick={() => onaccept(candidate)}
       >
         <span class="kv-completion__badge" style={kindBadgeStyle(candidate)}
-          ><Icon image={kindIcon(candidate)} glyph={kindBadge(candidate)} /></span
+          ><Icon image={kindIcon(candidate)} glyph={kindBadge(candidate)} />{#if candidate.kind}<span
+              class="kv-completion__kind">{candidate.kind}</span
+            >{/if}</span
         >
         <span class="kv-completion__label">{candidate.label}</span>
         {#if candidate.hint}
