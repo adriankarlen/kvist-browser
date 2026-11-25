@@ -151,8 +151,21 @@
   --kv-completion-badge-weight: 400;
   --kv-completion-badge-radius: 6px;
   --kv-completion-badge-tint: 14%;
+  --kv-completion-row-gap: 4px;
+  --kv-completion-row-padding: 0 12px;
+  --kv-completion-row-min-height: 38px;
+  --kv-completion-active-bg: color-mix(in srgb, var(--kv-color-accent) 14%, transparent);
+  --kv-completion-active-fg: var(--kv-color-fg);
 
-  --kv-palette-width: 640px;
+  --kv-palette-width: 680px;
+  --kv-palette-top: 14vh;
+  --kv-palette-padding: 16px;
+  --kv-palette-gap: 12px;
+  --kv-palette-input-height: 44px;
+  --kv-palette-input-bg: var(--kv-color-bg);
+  --kv-palette-input-border: var(--kv-border-width) var(--kv-border-style) var(--kv-color-border);
+  --kv-palette-input-radius: 10px;
+  --kv-palette-input-padding: 0 14px;
   --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-bg) 35%, transparent);
 
   --kv-setup-width: 600px;

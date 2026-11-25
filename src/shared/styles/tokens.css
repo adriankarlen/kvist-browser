@@ -310,6 +310,14 @@
     /* the command palette, a floating omnibox ([layout.omnibox] region = "floating") */
     --kv-palette-width: 80ch;
     --kv-palette-top: 12vh;
+    --kv-palette-padding: var(--kv-panel-padding);
+    --kv-palette-gap: var(--kv-space);
+    /* The input as its own inset field, rather than text loose in the panel. */
+    --kv-palette-input-height: var(--kv-omnibox-height);
+    --kv-palette-input-bg: none;
+    --kv-palette-input-border: none;
+    --kv-palette-input-radius: 0;
+    --kv-palette-input-padding: 0;
     --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-bg) 40%, transparent);
     --kv-palette-bg: var(--kv-panel-bg);
     --kv-palette-fg: var(--kv-color-fg);
@@ -354,6 +362,11 @@
     /* None: the list's view is sized to the list, so a shadow would be clipped. */
     --kv-completion-shadow: none;
     --kv-completion-item-radius: var(--kv-radius-control);
+    --kv-completion-row-gap: 0;
+    --kv-completion-row-padding: 0 2ch;
+    --kv-completion-row-min-height: auto;
+    --kv-completion-active-bg: var(--kv-completion-hover-bg);
+    --kv-completion-active-fg: var(--kv-completion-hover-fg);
     --kv-completion-fg: var(--kv-color-fg);
     --kv-completion-hint-fg: var(--kv-color-fg-faint);
     --kv-completion-hover-bg: var(--kv-color-bg-raised);
