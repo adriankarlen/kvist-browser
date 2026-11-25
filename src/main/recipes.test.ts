@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 import { DEFAULT_LAYOUT } from "../shared/layout";
 import { BUILT_IN, listUserRecipes, parseRecipe, recipeCatalog, resolveRecipe } from "./recipes";
+import { builtInKeymap } from "./keymaps";
 import { BASE_SETTINGS as DEFAULT_SETTINGS } from "./settings";
 
 const fieldsOf = (toml: string): string[] =>
@@ -8,6 +9,39 @@ const fieldsOf = (toml: string): string[] =>
 
 test("tui ships with the app", () => {
   expect(BUILT_IN.has("tui")).toBe(true);
+});
+
+describe("the built-in tui recipe", () => {
+  const { base, meta, problems } = parseRecipe("tui", BUILT_IN.get("tui")?.toml);
+
+  test("parses cleanly, and names itself", () => {
+    expect(problems).toEqual([]);
+    expect(meta).toEqual({
+      name: "TUI",
+      description: "Textfox look: monospace, framed panels, vim keys.",
+    });
+  });
+
+  test("keeps today's vim keys", () => {
+    expect(base.inputMode).toBe("vim");
+    expect(base.keymap).toEqual(builtInKeymap("vim"));
+  });
+
+  test("keeps today's layout", () => {
+    const regions = Object.fromEntries(
+      Object.entries(base.layout).map(([id, placement]) => [id, placement.region]),
+    );
+
+    expect(regions).toEqual({
+      tabs: "top",
+      omnibox: "top",
+      bookmarks: "bottom",
+      downloads: "bottom",
+      status: "bottom",
+      find: "bottom",
+      completion: "overlay",
+    });
+  });
 });
 
 describe("parseRecipe", () => {
