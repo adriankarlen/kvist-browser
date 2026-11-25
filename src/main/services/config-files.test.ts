@@ -400,6 +400,20 @@ describe("ConfigFiles", () => {
     ),
   );
 
+  it.live("a recipe naming a user keymap offers that keymap's engine", () =>
+    withDir(({ write }) =>
+      Effect.gen(function* () {
+        yield* write("keymaps/mine.toml", 'format = 1\nbase = "standard"');
+        yield* write("recipes/test.css", "");
+        yield* write("recipes/test.toml", "format = 1\n[input]\nmode = 'mine'");
+
+        const options = yield* Effect.flatMap(Effect.service(ConfigFiles), (f) => f.recipeOptions);
+
+        expect(options.find(({ id }) => id === "test")?.inputMode).toBe("standard");
+      }),
+    ),
+  );
+
   it.live("writeFirstRun creates both files, and the watcher picks them up", () =>
     withDir(({ read }) =>
       Effect.gen(function* () {

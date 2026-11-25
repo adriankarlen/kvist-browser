@@ -322,13 +322,21 @@ export class ConfigFiles extends Context.Service<
 
         const recipeOptions = Effect.gen(function* () {
           const user = listUserRecipes(yield* listRecipes);
+          const keymaps = yield* readKeymaps;
 
           return yield* Effect.forEach(recipeCatalog(user.names), (name) => {
             const { origin } = resolveRecipe(name, user.names);
 
-            return Effect.map(readRecipe(name, origin), (source) =>
-              recipeOption(name, parseRecipe(name, source.toml)),
-            );
+            return Effect.map(readRecipe(name, origin), (source) => {
+              const recipe = parseRecipe(name, source.toml);
+              // A recipe naming a user preset runs on that preset's engine.
+              const preset = keymaps.presets.get(recipe.base.keymap.name);
+
+              const base =
+                preset === undefined ? recipe.base : { ...recipe.base, inputMode: preset.engine };
+
+              return recipeOption(name, { ...recipe, base });
+            });
           });
         });
 
