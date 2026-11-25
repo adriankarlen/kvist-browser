@@ -35,6 +35,7 @@ export async function initClock() {
   const clockEl = document.getElementById("clock");
   const startClockEl = document.getElementById("start-clock");
   const greetingEl = document.getElementById("start-greeting");
+  const dateEl = document.getElementById("start-date");
 
   let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -52,6 +53,11 @@ export async function initClock() {
     clockEl.textContent = formatTime(now, timezone);
     startClockEl.textContent = short;
     greetingEl.textContent = greeting(parseInt(short));
+    dateEl.textContent = now.toLocaleDateString([], {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
   };
 
   setInterval(tick, 1000);

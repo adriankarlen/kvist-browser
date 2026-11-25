@@ -3,7 +3,19 @@ function href(url) {
   return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
 }
 
-/** A tile: the link's first letter in a rounded square, and its name. */
+/**
+ * A stable hue from the link's name, so every site keeps its own colour and
+ * the tile row reads as a palette rather than a grid of grey squares.
+ */
+function hue(name) {
+  let h = 0;
+
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)) % 360;
+
+  return h;
+}
+
+/** A tile: the link's first letter on its own hue, and its name. */
 function tile(link) {
   const a = document.createElement("a");
   const mark = document.createElement("span");
@@ -11,6 +23,7 @@ function tile(link) {
 
   a.href = href(link.url);
   a.className = "start-tile";
+  a.style.setProperty("--kv-newtab-tile-h", String(hue(link.name)));
   mark.className = "start-tile__mark";
   mark.setAttribute("aria-hidden", "true");
   mark.textContent = link.name.trim().charAt(0).toUpperCase();

@@ -189,7 +189,8 @@
   @container style(--kv-newtab-style: start) {
     body {
       background:
-        radial-gradient(ellipse 80% 50% at 50% 0%, var(--kv-newtab-glow), transparent),
+        radial-gradient(60% 42% at 50% -6%, var(--kv-newtab-glow), transparent 70%),
+        radial-gradient(46% 30% at 88% 106%, var(--kv-newtab-glow-alt), transparent 70%),
         var(--kv-color-bg);
     }
 
@@ -201,24 +202,30 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      width: min(600px, 88vw);
+      width: min(620px, 88vw);
       max-height: 90vh;
-      margin-bottom: 10vh;
+      margin-bottom: 12vh;
     }
 
     #start-greeting {
       color: var(--kv-newtab-greeting-fg);
-      font-size: 15px;
+      font-size: 16px;
     }
 
     #start-clock {
-      margin: 4px 0 32px;
+      margin: 4px 0 6px;
       color: var(--kv-newtab-clock-fg);
-      font-size: 72px;
-      font-weight: var(--kv-font-weight-strong);
+      font-size: var(--kv-newtab-clock-size);
+      font-weight: var(--kv-newtab-clock-weight);
       font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-      line-height: 1;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    #start-date {
+      margin-bottom: 36px;
+      color: var(--kv-newtab-date-fg);
+      font-size: 14px;
     }
 
     #start-search {
@@ -226,9 +233,10 @@
       align-items: center;
       gap: 12px;
       width: 100%;
-      height: 48px;
-      padding: 0 20px;
+      height: 52px;
+      padding: 0 22px;
       color: var(--kv-newtab-search-icon-fg);
+      --kv-icon-size: 18px;
       background: var(--kv-newtab-search-bg);
       border: var(--kv-newtab-search-border);
       border-radius: var(--kv-newtab-search-radius);
@@ -267,25 +275,32 @@
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 8px;
+      gap: 10px;
       min-height: 0;
-      margin-top: 28px;
+      margin-top: 32px;
       overflow-y: auto;
+    }
+
+    /* The fallback hue; the tile's own link names its own. */
+    .start-tile {
+      --kv-newtab-tile-h: 270;
     }
 
     .start-tile {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      width: 88px;
-      padding: 12px 4px;
+      gap: 10px;
+      width: 96px;
+      padding: 14px 6px;
       color: var(--kv-newtab-tile-fg);
       font-size: 12px;
       text-decoration: none;
       background: var(--kv-newtab-tile-bg);
       border-radius: var(--kv-newtab-tile-radius);
-      transition: background-color var(--kv-motion-duration);
+      transition:
+        background-color var(--kv-motion-duration),
+        color var(--kv-motion-duration);
     }
 
     .start-tile:hover,
@@ -294,16 +309,22 @@
       background: var(--kv-newtab-tile-hover-bg);
     }
 
+    .start-tile:hover .start-tile__mark,
+    .start-tile:focus-visible .start-tile__mark {
+      background: var(--kv-newtab-tile-mark-hover-bg);
+    }
+
     .start-tile__mark {
       display: grid;
       place-items: center;
-      width: 44px;
-      height: 44px;
+      width: 48px;
+      height: 48px;
       color: var(--kv-newtab-tile-mark-fg);
-      font-size: 18px;
+      font-size: 20px;
       font-weight: var(--kv-font-weight-strong);
       background: var(--kv-newtab-tile-mark-bg);
       border-radius: var(--kv-newtab-tile-mark-radius);
+      transition: background-color var(--kv-motion-duration);
     }
 
     .start-tile__name {

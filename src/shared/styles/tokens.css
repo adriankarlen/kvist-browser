@@ -265,8 +265,13 @@
        centred clock, search field and link tiles. */
     --kv-newtab-style: dashboard;
     --kv-newtab-glow: transparent;
+    /* A second, quieter glow from the other end of the window. */
+    --kv-newtab-glow-alt: transparent;
     --kv-newtab-greeting-fg: var(--kv-color-fg-dim);
+    --kv-newtab-date-fg: var(--kv-color-fg-faint);
     --kv-newtab-clock-fg: var(--kv-color-fg);
+    --kv-newtab-clock-size: 72px;
+    --kv-newtab-clock-weight: var(--kv-font-weight-strong);
     --kv-newtab-search-bg: var(--kv-color-bg-raised);
     --kv-newtab-search-border: var(--kv-border-width) var(--kv-border-style) var(--kv-border-color);
     --kv-newtab-search-radius: var(--kv-radius);
@@ -279,10 +284,27 @@
     --kv-newtab-tile-fg: var(--kv-color-fg-dim);
     --kv-newtab-tile-hover-fg: var(--kv-color-fg);
     --kv-newtab-tile-bg: transparent;
-    --kv-newtab-tile-hover-bg: var(--kv-color-bg-selected);
+    --kv-newtab-tile-hover-bg: color-mix(
+      in oklch,
+      oklch(65% 0.14 var(--kv-newtab-tile-h, 270)) 8%,
+      transparent
+    );
     --kv-newtab-tile-radius: var(--kv-radius);
-    --kv-newtab-tile-mark-bg: var(--kv-color-bg-raised);
-    --kv-newtab-tile-mark-fg: var(--kv-color-accent);
+    /* Each tile brings its own hue in --kv-newtab-tile-h; 270 is the fallback. */
+    --kv-newtab-tile-mark-bg: color-mix(
+      in oklch,
+      oklch(65% 0.14 var(--kv-newtab-tile-h, 270)) 16%,
+      var(--kv-color-bg-raised)
+    );
+    --kv-newtab-tile-mark-hover-bg: color-mix(
+      in oklch,
+      oklch(65% 0.14 var(--kv-newtab-tile-h, 270)) 24%,
+      var(--kv-color-bg-raised)
+    );
+    --kv-newtab-tile-mark-fg: light-dark(
+      oklch(45% 0.15 var(--kv-newtab-tile-h, 270)),
+      oklch(80% 0.1 var(--kv-newtab-tile-h, 270))
+    );
     --kv-newtab-tile-mark-radius: var(--kv-radius-control);
 
     /* the command palette, a floating omnibox ([layout.omnibox] region = "floating") */
