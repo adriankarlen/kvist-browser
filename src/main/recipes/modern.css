@@ -1,0 +1,183 @@
+/*
+ * Soft surfaces, rounded corners and line icons, in a violet-tinted light
+ * and dark pair that follows the OS. Pill tabs sit on the chrome, and the
+ * page has a rounded frame of its own.
+ */
+:root {
+  color-scheme: light dark;
+
+  --kv-color-bg: light-dark(#f3f3f7, #0e0e14);
+  --kv-color-bg-raised: light-dark(#ffffff, #18181f);
+  --kv-color-bg-selected: light-dark(#e8e8f0, #24242f);
+  --kv-color-bg-track: light-dark(#dcdce6, #2e2e3b);
+
+  --kv-color-fg: light-dark(#18181f, #ececf1);
+  --kv-color-fg-dim: light-dark(#52526a, #a6a6b9);
+  --kv-color-fg-faint: light-dark(#66667b, #8f8fa4);
+
+  --kv-color-accent: light-dark(#6450e0, #9d8ff8);
+  --kv-color-accent-alt: light-dark(#1f6fc4, #6cb6fc);
+  --kv-color-warning: light-dark(#9a6200, #f5b454);
+  --kv-color-danger: light-dark(#c4314b, #f47286);
+
+  --kv-color-border: light-dark(#e0e0e8, #272734);
+  --kv-color-on-accent: light-dark(#ffffff, #0e0e14);
+  --kv-color-shadow: light-dark(rgb(24 24 48 / 10%), rgb(0 0 0 / 45%));
+  --kv-color-glint: light-dark(rgb(255 255 255 / 80%), rgb(255 255 255 / 4%));
+
+  --kv-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --kv-font-size: 13px;
+  --kv-font-weight: 400;
+  --kv-font-weight-strong: 600;
+
+  --kv-density: 1;
+  --kv-control-height: calc(32px * var(--kv-density));
+
+  --kv-space: 8px;
+  --kv-space-sm: 4px;
+  --kv-gap: 6px;
+
+  --kv-border-width: 1px;
+  --kv-border-style: solid;
+  --kv-separator-width: 1px;
+
+  --kv-radius: 12px;
+  --kv-radius-control: 8px;
+
+  --kv-shadow-raised: 0 1px 2px var(--kv-color-shadow), 0 2px 8px var(--kv-color-shadow);
+  --kv-shadow-pressed: 0 1px 2px var(--kv-color-shadow);
+  --kv-shadow-inset: inset 0 1px 2px var(--kv-color-shadow);
+  --kv-shadow-overlay: 0 4px 12px var(--kv-color-shadow), 0 24px 64px var(--kv-color-shadow);
+
+  --kv-focus-outline: 2px solid var(--kv-color-accent);
+  --kv-disabled-opacity: 0.35;
+
+  --kv-icon-style: image;
+  --kv-icon-size: 16px;
+  --kv-motion-duration: 120ms;
+
+  --kv-control-button-size: var(--kv-control-height);
+  --kv-control-button-radius: var(--kv-radius-control);
+  --kv-control-button-hover-bg: var(--kv-color-bg-selected);
+  --kv-control-button-padding: 0;
+
+  --kv-chrome-inset: var(--kv-space);
+  --kv-tabstrip-height: var(--kv-control-height);
+  --kv-sidebar-width: 240px;
+  --kv-omnibox-height: var(--kv-control-height);
+  --kv-tab-width: 220px;
+
+  /* Cards, not frames: no labels in the border. */
+  --kv-panel-bg: var(--kv-color-bg-raised);
+  --kv-panel-shadow: var(--kv-shadow-raised);
+  --kv-panel-focus-outline: none;
+  --kv-panel-label-display: none;
+
+  --kv-content-bg: var(--kv-color-bg-raised);
+  --kv-content-padding: 0;
+
+  --kv-tabstrip-bg: transparent;
+  --kv-tabstrip-border: none;
+  --kv-tabstrip-radius: 0;
+  --kv-tabstrip-shadow: none;
+  --kv-tabstrip-padding: 0;
+  --kv-tabstrip-gap: 4px;
+  --kv-tabstrip-new-padding: 0;
+
+  --kv-tab-padding: 0 6px 0 10px;
+  --kv-tab-fg: var(--kv-color-fg-dim);
+  --kv-tab-radius: var(--kv-radius-control);
+  --kv-tab-hover-bg: color-mix(in srgb, var(--kv-color-bg-raised) 55%, transparent);
+  --kv-tab-hover-fg: var(--kv-color-fg);
+  --kv-tab-hover-close: var(--kv-color-fg);
+  --kv-tab-active-fg: var(--kv-color-fg);
+  --kv-tab-active-bg: var(--kv-color-bg-raised);
+  --kv-tab-active-shadow: var(--kv-shadow-raised);
+  --kv-tab-active-weight: 500;
+  --kv-tab-marker-fg: var(--kv-color-fg-faint);
+  --kv-tab-close-opacity: 0;
+  --kv-tab-close-hover-opacity: 1;
+  --kv-tab-loading-animation: kv-spin 0.9s linear infinite;
+
+  --kv-window-controls-display: flex;
+
+  --kv-omnibox-bg: transparent;
+  --kv-omnibox-border: none;
+  --kv-omnibox-radius: 0;
+  --kv-omnibox-shadow: none;
+  --kv-omnibox-padding: 0;
+  --kv-omnibox-field-display: flex;
+  --kv-omnibox-field-bg: var(--kv-color-bg-raised);
+  --kv-omnibox-field-border: var(--kv-border-width) var(--kv-border-style) var(--kv-color-border);
+  --kv-omnibox-field-radius: 10px;
+  --kv-omnibox-field-padding: 0 6px 0 12px;
+  --kv-omnibox-field-height: var(--kv-control-height);
+  --kv-omnibox-field-focus-shadow:
+    0 0 0 1px var(--kv-color-accent),
+    0 0 0 4px color-mix(in srgb, var(--kv-color-accent) 22%, transparent);
+  --kv-omnibox-actions-display: flex;
+  --kv-omnibox-devtools-display: none;
+  --kv-omnibox-zoom-default-display: none;
+  --kv-omnibox-prompt-fg: var(--kv-color-fg-faint);
+  --kv-omnibox-button-fg: var(--kv-color-fg-dim);
+  --kv-omnibox-button-hover-fg: var(--kv-color-fg);
+  --kv-omnibox-bookmark-fg: var(--kv-color-fg-faint);
+  --kv-omnibox-bookmark-active-fg: var(--kv-color-accent);
+  --kv-omnibox-zoom-fg: var(--kv-color-fg-dim);
+
+  --kv-cmdline-prompt-fg: var(--kv-color-accent);
+  --kv-find-prompt-fg: var(--kv-color-fg-faint);
+  --kv-prompt-prompt-fg: var(--kv-color-accent);
+  --kv-bookmarks-prompt-fg: var(--kv-color-fg-faint);
+  --kv-bookmarks-selected-fg: var(--kv-color-fg);
+  --kv-bookmarks-item-radius: 6px;
+  --kv-downloads-bar-height: 6px;
+  --kv-downloads-bar-width: 120px;
+  --kv-downloads-bar-radius: 3px;
+
+  --kv-menu-radius: 10px;
+  --kv-menu-item-radius: 6px;
+  --kv-menu-shadow: var(--kv-shadow-overlay);
+  --kv-menu-hover-bg: var(--kv-color-bg-selected);
+  --kv-menu-hover-fg: var(--kv-color-fg);
+  --kv-menu-min-width: 220px;
+
+  --kv-completion-bg: var(--kv-color-bg-raised);
+  --kv-completion-radius: 10px;
+  --kv-completion-item-radius: 6px;
+  --kv-completion-hover-bg: var(--kv-color-bg-selected);
+  --kv-completion-hover-fg: var(--kv-color-fg);
+  --kv-completion-badge-width: 22px;
+  --kv-completion-badge-weight: 400;
+  --kv-completion-badge-radius: 6px;
+  --kv-completion-badge-tint: 14%;
+
+  --kv-palette-width: 640px;
+  --kv-palette-backdrop: color-mix(in srgb, var(--kv-color-bg) 35%, transparent);
+
+  --kv-setup-width: 600px;
+  --kv-setup-backdrop: color-mix(in srgb, var(--kv-color-bg) 45%, transparent);
+  --kv-setup-heading-fg: var(--kv-color-fg);
+  --kv-setup-option-checked-fg: var(--kv-color-fg);
+  --kv-setup-marker-fg: var(--kv-color-accent);
+
+  --kv-newtab-style: start;
+  --kv-newtab-glow: color-mix(in srgb, var(--kv-color-accent) 16%, transparent);
+  --kv-newtab-search-radius: 999px;
+  --kv-newtab-search-focus-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--kv-color-accent) 22%, transparent);
+  --kv-newtab-tile-radius: var(--kv-radius);
+  --kv-newtab-tile-mark-bg: color-mix(
+    in srgb,
+    var(--kv-color-accent) 14%,
+    var(--kv-color-bg-raised)
+  );
+  --kv-newtab-tile-mark-radius: var(--kv-radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --kv-motion-duration: 0s;
+    --kv-tab-loading-animation: none;
+  }
+}

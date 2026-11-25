@@ -1,0 +1,24 @@
+format = 1
+name = "Modern"
+description = "Clean and familiar: standard shortcuts, tabs and URL bar on top."
+
+[input]
+mode = "standard"
+
+[layout.tabs]
+region = "top"
+
+[layout.omnibox]
+region = "top"
+
+[layout.bookmarks]
+region = "bottom"
+
+[layout.downloads]
+region = "bottom"
+
+[layout.status]
+region = "bottom"
+
+[layout.find]
+region = "bottom"

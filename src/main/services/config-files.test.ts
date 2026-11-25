@@ -56,7 +56,7 @@ describe("ConfigFiles", () => {
         expect(first).toEqual({
           config: { ...DEFAULT_CONFIG, settings: BASE_SETTINGS },
           problems: [],
-          recipes: ["tui"],
+          recipes: ["modern", "tui"],
         });
       }),
     ),
@@ -108,7 +108,7 @@ describe("ConfigFiles", () => {
         const { config, problems, recipes } = yield* Queue.take(loads);
 
         expect(problems).toEqual([]);
-        expect(recipes).toEqual(["test", "tui"]);
+        expect(recipes).toEqual(["modern", "test", "tui"]);
         expect(config.recipe).toEqual({ name: "test", css: ":root { --kv-density: 2; }" });
         expect(config.settings.recipe).toBe("test");
         expect(config.settings.inputMode).toBe("standard");
@@ -188,7 +188,7 @@ describe("ConfigFiles", () => {
 
         expect(config.recipe.name).toBe("tui");
         expect(problems.map(describeProblem)).toEqual([
-          'config.toml: recipe: no recipe named "nope"; available: "tui"',
+          'config.toml: recipe: no recipe named "nope"; available: "modern", "tui"',
         ]);
       }),
     ),
@@ -379,6 +379,14 @@ describe("ConfigFiles", () => {
         const options = yield* Effect.flatMap(Effect.service(ConfigFiles), (f) => f.recipeOptions);
 
         expect(options).toEqual([
+          {
+            id: "modern",
+            name: "Modern",
+            description: "Clean and familiar: standard shortcuts, tabs and URL bar on top.",
+            inputMode: "standard",
+            omnibox: "top",
+            tabs: "top",
+          },
           {
             id: "test",
             name: "Test",
