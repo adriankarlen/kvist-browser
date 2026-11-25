@@ -33,6 +33,15 @@ test("Mod in a chord reads as the platform's modifier", () => {
   expect(keyTitle("Bookmark", standard, ["bookmark.toggle"], "Ctrl")).toBe("Bookmark (Ctrl+D)");
 });
 
+test("a key that passes an argument does something else, so it is not named", () => {
+  const keymap: Keymap = {
+    name: "vim",
+    bindings: [{ ...bound("normal", "T", "tab.new"), arg: "x" }],
+  };
+
+  expect(keyTitle("New tab", keymap, ["tab.new"], "Cmd")).toBe("New tab");
+});
+
 test("an unbound command is left out, and so are the brackets when nothing is bound", () => {
   expect(keyTitle("zoom", vim, ["zoom.in", "zoom.reset"], "Cmd")).toBe("zoom (zi)");
   expect(keyTitle("Reload", vim, ["nav.reload"], "Cmd")).toBe("Reload");

@@ -1,7 +1,7 @@
 import type { Keymap } from "./schema/keymap";
 
 /**
- * `text` with the first key bound to each command, e.g. `zoom (zi / zo)`.
+ * `text` with the first key bound to each command with no argument, e.g. `zoom (zi / zo)`.
  * `Mod` in a chord reads as `mod`. Commands with no key are left out, and
  * so are the brackets when none has one.
  */
@@ -12,7 +12,9 @@ export function keyTitle(
   mod: string,
 ): string {
   const labels = commands.flatMap((command) => {
-    const bound = keymap.bindings.find((binding) => binding.command === command);
+    const bound = keymap.bindings.find(
+      (binding) => binding.command === command && binding.arg === undefined,
+    );
 
     if (bound === undefined) return [];
 
