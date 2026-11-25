@@ -588,6 +588,12 @@ A recipe is a starting point: a look, plus defaults for input and layout.
 Pick one with `recipe = "<name>"` in `config.toml`, or switch live with
 `:recipe <name>`. `tui` is built in and is the default.
 
+`tui` is the textfox look: Rosé Pine (dark, or Rosé Pine Dawn with
+`color-scheme: light`), a monospace font, and framed panels with labels in
+their borders. It uses vim keys, with the tabs and the URL bar on top. A
+`config.toml` with no `recipe` line gets `tui`, so an upgrade looks and
+behaves as before.
+
 A recipe is a pair of files in `~/.config/kvist/recipes/`. A user recipe
 with the same name as a built-in one replaces it.
 
