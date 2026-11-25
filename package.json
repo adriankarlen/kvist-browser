@@ -15,7 +15,8 @@
     "check": "effect-tsgo vp check",
     "test": "vp test",
     "package": "vp build && electron-builder --publish never",
-    "postinstall": "install-electron"
+    "postinstall": "install-electron",
+    "icons": "node tools/icons/generate.ts"
   },
   "dependencies": {
     "@effect/platform-node": "4.1.4",
@@ -31,6 +32,7 @@
     "@types/node": "^24.13.6",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
+    "lucide-static": "1.79.0",
     "svelte": "^5.57.1",
     "typescript": "^7.0.2",
     "vite": "catalog:",

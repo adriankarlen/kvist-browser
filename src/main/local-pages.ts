@@ -22,6 +22,7 @@ export interface NewtabConfig {
 // unlayered beats layered regardless of source order.
 import resetCss from "../shared/styles/reset.css?raw";
 import tokensCss from "../shared/styles/tokens.css?raw";
+import iconsCss from "../shared/styles/icons.css?raw";
 
 const MIME_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -120,7 +121,7 @@ export function registerKvistProtocol(): void {
 
     if (pathname === "/style.css") {
       // First, as on every surface, so the layer order never rests on which sheet is appended first.
-      body = `${LAYER_ORDER}\n${body}\n${resetCss}\n${tokensCss}\n${currentCss}\n`;
+      body = `${LAYER_ORDER}\n${body}\n${resetCss}\n${tokensCss}\n${iconsCss}\n${currentCss}\n`;
     }
 
     return new Response(body, {
