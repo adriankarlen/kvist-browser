@@ -104,11 +104,20 @@ const matchesFrom = (binding: Binding, sequence: ReadonlyArray<KeyInput>): boole
     return key !== undefined && matchesKey(key, input);
   });
 
+/** The mode a binding leaves behind. A chord fired while hinting ends it, as it may switch tabs. */
+const targetOf = (model: Model, binding: Binding): Mode | undefined =>
+  binding.enter ?? (model.mode === "hint" && binding.table === "chords" ? "normal" : undefined);
+
 function fire(model: Model, binding: Binding): Dispatched {
   const cleared = { ...model, pending: [] };
-  const entered = binding.enter === undefined ? cleared : enter(cleared, binding.enter);
+  const target = targetOf(model, binding);
+  const entered = target === undefined ? cleared : enter(cleared, target);
+  const command = run(binding.command, binding.arg);
+  // The labels stay on the page until told otherwise, whatever moved the mode.
+  const leftHints = model.mode === "hint" && entered.mode !== "hint";
+  const hide = leftHints && binding.command !== "hints.hide" ? [run("hints.hide")] : [];
 
-  return { model: entered, consumed: true, cmds: [run(binding.command, binding.arg)] };
+  return { model: entered, consumed: true, cmds: [...hide, command] };
 }
 
 function dispatchKey(model: Model, input: KeyInput, table: ReadonlyArray<Binding>): Dispatched {

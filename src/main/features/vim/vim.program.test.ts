@@ -527,24 +527,41 @@ test("a keybind's argument reaches its command", () => {
   ]);
 });
 
+const runs = (name: string, arg?: string) => Cmd.cases.RunCommand.make({ name, arg });
+
 test("E is a key of its own, not the start of Escape", () => {
-  expect(key("E", { shift: true })).toBe(false);
-  expect(key("t")).toBe(true);
-  expect(execute).toHaveBeenCalledWith("tab.new");
+  expect(step(init, press("E", { shift: true }), "page")).toEqual({
+    model: init,
+    consumed: false,
+    cmds: [],
+  });
 });
 
 test("Shift pressed on the way to gT does not break the sequence", () => {
-  key("g");
-  expect(key("Shift", { shift: true })).toBe(false);
-  key("T", { shift: true });
-  expect(execute).toHaveBeenCalledWith("tab.prev");
+  const g = step(init, press("g"), "page");
+
+  expect(g).toEqual({ model: { ...init, pending: [press("g")] }, consumed: true, cmds: [] });
+
+  const shift = step(g.model, press("Shift", { shift: true }), "page");
+
+  expect(shift).toEqual({ model: g.model, consumed: false, cmds: [] });
+  expect(step(shift.model, press("T", { shift: true }), "page")).toEqual({
+    model: init,
+    consumed: true,
+    cmds: [runs("tab.prev")],
+  });
 });
 
 test("a held key nothing wants passes, and leaves a prefix waiting", () => {
-  key("g");
-  expect(key("c", { control: true })).toBe(false);
-  key("t");
-  expect(execute).toHaveBeenCalledWith("tab.next");
+  const g = step(init, press("g"), "page").model;
+  const held = step(g, press("c", { control: true }), "page");
+
+  expect(held).toEqual({ model: g, consumed: false, cmds: [] });
+  expect(step(held.model, press("t"), "page")).toEqual({
+    model: init,
+    consumed: true,
+    cmds: [runs("tab.next")],
+  });
 });
 
 describe("rebound keys", () => {
@@ -564,11 +581,37 @@ describe("rebound keys", () => {
 
     for (const mode of ["normal", "insert", "command", "hint", "prompt"] as const) {
       for (const source of ["page", "chrome"] as const) {
-        expect(step({ ...model, mode }, ctrlTab, source).cmds).toEqual([
-          Cmd.cases.RunCommand.make({ name: "tab.next", arg: undefined }),
-        ]);
+        expect(step({ ...model, mode }, ctrlTab, source).cmds.at(-1)).toEqual(runs("tab.next"));
       }
     }
+  });
+
+  test("a chord fired while hinting hides the labels and leaves hint mode", () => {
+    const hinting = { ...vimWith({ chords: { "Ctrl+Tab": "tab.next" } }), mode: "hint" as const };
+
+    const stepped = step(hinting, press("Tab", { control: true }), "page");
+
+    expect(stepped.model.mode).toBe("normal");
+    expect(stepped.cmds).toEqual([runs("hints.hide"), runs("tab.next")]);
+  });
+
+  test("a chord that enters a mode from hint mode hides the labels once", () => {
+    const hinting = {
+      ...vimWith({ chords: { "Ctrl+L": "focus.omnibox", "Ctrl+H": "hints.hide" } }),
+      mode: "hint" as const,
+    };
+
+    const omnibox = step(hinting, press("l", { control: true }), "page");
+
+    expect(omnibox.model.mode).toBe("insert");
+    expect(omnibox.cmds).toEqual([runs("hints.hide"), runs("focus.omnibox")]);
+    expect(step(hinting, press("h", { control: true }), "page").cmds).toEqual([runs("hints.hide")]);
+  });
+
+  test("a chord outside hint mode keeps the mode", () => {
+    const model = { ...vimWith({ chords: { "Ctrl+Tab": "tab.next" } }), mode: "insert" as const };
+
+    expect(step(model, press("Tab", { control: true }), "page").model.mode).toBe("insert");
   });
 
   test("a new keymap replaces the keys and forgets a pending prefix", () => {
