@@ -241,6 +241,12 @@ export const windowControls = {
     const styles = new MutationObserver(report);
 
     observer.observe(node);
+
+    // Something above the slot in its region can appear or grow, moving it
+    // without resizing it. The region resizes when that happens.
+    const region = node.closest(".kv-region");
+
+    if (region !== null) observer.observe(region);
     styles.observe(document.head, { childList: true, subtree: true, characterData: true });
     window.addEventListener("resize", report);
     afterLayoutChange(report);
